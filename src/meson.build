@@ -34,11 +34,3 @@ executable(
 	dependencies: deps,
 	install: true
 )
-
-executable(
-	'tinywl',
-	files('tinywl.c') + wl_protos_src,
-	include_directories: [inc_dirs],
-	dependencies: deps,
-	install: true
-)
