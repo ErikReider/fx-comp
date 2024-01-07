@@ -41,20 +41,20 @@ add_project_arguments(
 scenefx_version = '0.1'
 subproject(
 	'scenefx',
-	required: true,
+	required: false,
 	version: scenefx_version,
 )
 scenefx = dependency('scenefx', version: scenefx_version)
 
 # Execute the wlroots subproject, if any
 wlroots_options = [ 'examples=false' ]
-wlroots_version = ['>=0.16.0', '<0.17.0']
-# subproject(
-# 	'wlroots',
-# 	default_options: wlroots_options,
-# 	required: false,
-# 	version: wlroots_version,
-# )
+wlroots_version = ['>=0.17.0', '<0.18.0']
+subproject(
+	'wlroots',
+	default_options: wlroots_options,
+	required: false,
+	version: wlroots_version,
+)
 wlroots = dependency('wlroots',
 	version: wlroots_version,
 	default_options: wlroots_options,

@@ -17,17 +17,12 @@ struct comp_server {
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 	struct wlr_scene *scene;
-
-	struct wlr_scene_tree *layer_tree;
-	struct wlr_scene_tree *xdg_tree;
+	struct wlr_scene_output_layout *scene_layout;
+	struct wlr_scene_rect *background;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
-	struct wl_list views;
-
-	struct wlr_layer_shell_v1 *layer_shell;
-	struct wl_listener new_layer_surface;
-	// struct wl_list views;
+	struct wl_list toplevels;
 
 	struct wlr_cursor *cursor;
 	struct wlr_xcursor_manager *cursor_mgr;
@@ -43,7 +38,7 @@ struct comp_server {
 	struct wl_listener request_set_selection;
 	struct wl_list keyboards;
 	enum comp_cursor_mode cursor_mode;
-	struct comp_view *grabbed_view;
+	struct comp_toplevel *grabbed_toplevel;
 	double grab_x, grab_y;
 	struct wlr_box grab_geobox;
 	uint32_t resize_edges;

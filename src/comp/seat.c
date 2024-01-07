@@ -7,7 +7,7 @@
 
 #include "comp/seat.h"
 #include "comp/server.h"
-#include "comp/view.h"
+#include "comp/toplevel.h"
 
 static void keyboard_handle_modifiers(struct wl_listener *listener,
 									  void *data) {
@@ -41,12 +41,13 @@ static bool handle_keybinding(struct comp_server *server, xkb_keysym_t sym) {
 		break;
 	case XKB_KEY_F1:
 		/* Cycle to the next view */
-		if (wl_list_length(&server->views) < 2) {
+		if (wl_list_length(&server->toplevels) < 2) {
 			break;
 		}
-		struct comp_view *next_view =
-			wl_container_of(server->views.prev, next_view, link);
-		comp_view_focus_view(next_view, next_view->xdg_toplevel->base->surface);
+		struct comp_toplevel *next_toplevel =
+			wl_container_of(server->toplevels.prev, next_toplevel, link);
+		comp_toplevel_focus(next_toplevel,
+							next_toplevel->xdg_toplevel->base->surface);
 		break;
 	default:
 		return false;
@@ -105,7 +106,7 @@ static void server_new_keyboard(struct comp_server *server,
 								struct wlr_input_device *device) {
 	struct wlr_keyboard *wlr_keyboard = wlr_keyboard_from_input_device(device);
 
-	struct comp_keyboard *keyboard = calloc(1, sizeof(struct comp_keyboard));
+	struct comp_keyboard *keyboard = calloc(1, sizeof(*keyboard));
 	keyboard->server = server;
 	keyboard->wlr_keyboard = wlr_keyboard;
 

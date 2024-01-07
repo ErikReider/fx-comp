@@ -2,7 +2,7 @@ sources = files(
 	'main.c',
 	'comp/server.c',
 	'comp/output.c',
-	'comp/view.c',
+	'comp/toplevel.c',
 	'comp/seat.c',
 	'desktop/xdg.c',
 )
@@ -20,26 +20,25 @@ deps = [
 	pixman,
 	threads,
 	wayland_server,
+	scenefx, # IMPORTANT: SceneFX dep before wlroots
 	wlroots,
 	xkbcommon,
 	xcb,
 	xcb_icccm,
-	scenefx,
 ]
-
-# if have_xwayland
-# 	sway_sources += 'desktop/xwayland.c'
-# endif
-
-# if wlroots_features['libinput_backend']
-# 	sway_sources += 'input/libinput.c'
-# endif
 
 executable(
 	'fx-comp',
 	sources + wl_protos_src,
 	include_directories: [inc_dirs],
 	dependencies: deps,
-	# link_with: [lib_sway_common],
+	install: true
+)
+
+executable(
+	'tinywl',
+	files('tinywl.c') + wl_protos_src,
+	include_directories: [inc_dirs],
+	dependencies: deps,
 	install: true
 )

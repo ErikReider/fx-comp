@@ -1,6 +1,6 @@
+#include <scenefx/types/wlr_scene.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
-#include <wlr/types/wlr_scene.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -8,34 +8,34 @@
 
 #include "comp/output.h"
 #include "comp/server.h"
-#include "comp/view.h"
+#include "comp/toplevel.h"
 
 void comp_server_reset_cursor_mode(struct comp_server *server) {
 	/* Reset the cursor mode to passthrough. */
 	server->cursor_mode = COMP_CURSOR_PASSTHROUGH;
-	server->grabbed_view = NULL;
+	server->grabbed_toplevel = NULL;
 }
 
 static void process_cursor_move(struct comp_server *server, uint32_t time) {
-	/* Move the grabbed view to the new position. */
-	struct comp_view *view = server->grabbed_view;
-	view->x = server->cursor->x - server->grab_x;
-	view->y = server->cursor->y - server->grab_y;
-	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+	/* Move the grabbed toplevel to the new position. */
+	struct comp_toplevel *toplevel = server->grabbed_toplevel;
+	wlr_scene_node_set_position(&toplevel->scene_tree->node,
+								server->cursor->x - server->grab_x,
+								server->cursor->y - server->grab_y);
 }
 
 static void process_cursor_resize(struct comp_server *server, uint32_t time) {
 	/*
-	 * Resizing the grabbed view can be a little bit complicated, because we
-	 * could be resizing from any corner or edge. This not only resizes the view
-	 * on one or two axes, but can also move the view if you resize from the top
-	 * or left edges (or top-left corner).
+	 * Resizing the grabbed toplevel can be a little bit complicated, because we
+	 * could be resizing from any corner or edge. This not only resizes the
+	 * toplevel on one or two axes, but can also move the toplevel if you resize
+	 * from the top or left edges (or top-left corner).
 	 *
-	 * Note that I took some shortcuts here. In a more fleshed-out compositor,
-	 * you'd wait for the client to prepare a buffer at the new size, then
-	 * commit any movement that was prepared.
+	 * Note that some shortcuts are taken here. In a more fleshed-out
+	 * compositor, you'd wait for the client to prepare a buffer at the new
+	 * size, then commit any movement that was prepared.
 	 */
-	struct comp_view *view = server->grabbed_view;
+	struct comp_toplevel *toplevel = server->grabbed_toplevel;
 	double border_x = server->cursor->x - server->grab_x;
 	double border_y = server->cursor->y - server->grab_y;
 	int new_left = server->grab_geobox.x;
@@ -67,20 +67,18 @@ static void process_cursor_resize(struct comp_server *server, uint32_t time) {
 	}
 
 	struct wlr_box geo_box;
-	wlr_xdg_surface_get_geometry(view->xdg_toplevel->base, &geo_box);
-	view->x = new_left - geo_box.x;
-	view->y = new_top - geo_box.y;
-	wlr_scene_node_set_position(&view->scene_tree->node, view->x, view->y);
+	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geo_box);
+	wlr_scene_node_set_position(&toplevel->scene_tree->node,
+								new_left - geo_box.x, new_top - geo_box.y);
 
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
-	wlr_xdg_toplevel_set_size(view->xdg_toplevel, new_width, new_height);
+	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
 }
 
 static void process_cursor_motion(struct comp_server *server, uint32_t time) {
 	/* If the mode is non-passthrough, delegate to those functions. */
 	if (server->cursor_mode == COMP_CURSOR_MOVE) {
-		printf("PTR: %s\n", "MOVE");
 		process_cursor_move(server, time);
 		return;
 	} else if (server->cursor_mode == COMP_CURSOR_RESIZE) {
@@ -88,18 +86,18 @@ static void process_cursor_motion(struct comp_server *server, uint32_t time) {
 		return;
 	}
 
-	/* Otherwise, find the view under the pointer and send the event along. */
+	/* Otherwise, find the toplevel under the pointer and send the event along.
+	 */
 	double sx, sy;
 	struct wlr_seat *seat = server->seat;
 	struct wlr_surface *surface = NULL;
-	struct comp_view *view = comp_view_at(
+	struct comp_toplevel *toplevel = comp_toplevel_at(
 		server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (!view) {
-		/* If there's no view under the cursor, set the cursor image to a
+	if (!toplevel) {
+		/* If there's no toplevel under the cursor, set the cursor image to a
 		 * default. This is what makes the cursor image appear when you move it
-		 * around the screen, not over any views. */
-		wlr_xcursor_manager_set_cursor_image(server->cursor_mgr, "left_ptr",
-											 server->cursor);
+		 * around the screen, not over any toplevels. */
+		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
 	}
 	if (surface) {
 		/*
@@ -165,14 +163,14 @@ void comp_server_cursor_button(struct wl_listener *listener, void *data) {
 								   event->button, event->state);
 	double sx, sy;
 	struct wlr_surface *surface = NULL;
-	struct comp_view *view = comp_view_at(
+	struct comp_toplevel *toplevel = comp_toplevel_at(
 		server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
 	if (event->state == WLR_BUTTON_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		comp_server_reset_cursor_mode(server);
 	} else {
 		/* Focus that client if the button was _pressed_ */
-		comp_view_focus_view(view, surface);
+		comp_toplevel_focus(toplevel, surface);
 	}
 }
 
@@ -208,29 +206,39 @@ void comp_server_new_output(struct wl_listener *listener, void *data) {
 	 * and our renderer. Must be done once, before commiting the output */
 	wlr_output_init_render(wlr_output, server->allocator, server->renderer);
 
+	/* The output may be disabled, switch it on. */
+	struct wlr_output_state state;
+	wlr_output_state_init(&state);
+	wlr_output_state_set_enabled(&state, true);
+
 	/* Some backends don't have modes. DRM+KMS does, and we need to set a mode
 	 * before we can use the output. The mode is a tuple of (width, height,
 	 * refresh rate), and each monitor supports only a specific set of modes. We
 	 * just pick the monitor's preferred mode, a more sophisticated compositor
 	 * would let the user configure it. */
-	if (!wl_list_empty(&wlr_output->modes)) {
-		struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
-		wlr_output_set_mode(wlr_output, mode);
-		wlr_output_enable(wlr_output, true);
-		if (!wlr_output_commit(wlr_output)) {
-			return;
-		}
+	struct wlr_output_mode *mode = wlr_output_preferred_mode(wlr_output);
+	if (mode != NULL) {
+		wlr_output_state_set_mode(&state, mode);
 	}
 
+	/* Atomically applies the new output state. */
+	wlr_output_commit_state(wlr_output, &state);
+	wlr_output_state_finish(&state);
+
 	/* Allocates and configures our state for this output */
-	struct comp_output *output = calloc(1, sizeof(struct comp_output));
+	struct comp_output *output = calloc(1, sizeof(*output));
 	output->wlr_output = wlr_output;
 	output->server = server;
-	/* Sets up a listener for the frame notify event. */
+
+	/* Sets up a listener for the frame event. */
 	output->frame.notify = output_frame;
 	wl_signal_add(&wlr_output->events.frame, &output->frame);
 
-	/* Sets up a listener for the destroy notify event. */
+	/* Sets up a listener for the state request event. */
+	output->request_state.notify = output_request_state;
+	wl_signal_add(&wlr_output->events.request_state, &output->request_state);
+
+	/* Sets up a listener for the destroy event. */
 	output->destroy.notify = output_destroy;
 	wl_signal_add(&wlr_output->events.destroy, &output->destroy);
 
@@ -245,5 +253,10 @@ void comp_server_new_output(struct wl_listener *listener, void *data) {
 	 * display, which Wayland clients can see to find out information about the
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
-	wlr_output_layout_add_auto(server->output_layout, wlr_output);
+	struct wlr_output_layout_output *l_output =
+		wlr_output_layout_add_auto(server->output_layout, wlr_output);
+	struct wlr_scene_output *scene_output =
+		wlr_scene_output_create(server->scene, wlr_output);
+	wlr_scene_output_layout_add_output(server->scene_layout, l_output,
+									   scene_output);
 }
