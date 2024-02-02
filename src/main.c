@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <getopt.h>
 #include <scenefx/fx_renderer/fx_renderer.h>
+#include <scenefx/types/fx/blur_data.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -113,6 +114,13 @@ int main(int argc, char *argv[]) {
 	server.scene = wlr_scene_create();
 	server.scene_layout =
 		wlr_scene_attach_output_layout(server.scene, server.output_layout);
+
+	// Set the wlr_scene blur_data
+	struct blur_data blur_data = blur_data_get_default();
+	blur_data.radius = 5;
+	blur_data.num_passes = 3;
+	blur_data.ignore_transparent = true;
+	wlr_scene_set_blur_data(server.scene, blur_data);
 
 	/* Set the background */
 	const float color[4] = {1, 1, 1, 1};

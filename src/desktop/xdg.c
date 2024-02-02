@@ -32,12 +32,12 @@ static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
 
 		if (!wlr_subsurface_try_from_wlr_surface(xdg_surface->surface)) {
 			wlr_scene_buffer_set_corner_radius(buffer, toplevel->corner_radius);
-			// TODO: Fix in sceneFX needing to update node rects to fix damage
 			wlr_scene_buffer_set_shadow_data(buffer, toplevel->shadow_data);
-			wlr_scene_buffer_set_opacity(buffer, toplevel->opacity);
+
+			wlr_scene_buffer_set_backdrop_blur(buffer, true);
+			wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
 		}
 	}
-
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
