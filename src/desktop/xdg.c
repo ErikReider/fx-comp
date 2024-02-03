@@ -2,9 +2,10 @@
 #include <scenefx/types/fx/shadow_data.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdlib.h>
+#include <wayland-util.h>
 #include <wlr/types/wlr_cursor.h>
-#include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/types/wlr_subcompositor.h>
+#include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 
 #include "comp/server.h"
@@ -15,7 +16,7 @@ static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
 								   int sy, void *user_data) {
 	struct comp_toplevel *toplevel = user_data;
 
-	struct wlr_scene_surface * scene_surface =
+	struct wlr_scene_surface *scene_surface =
 		wlr_scene_surface_try_from_buffer(buffer);
 	if (!scene_surface) {
 		return;
@@ -23,21 +24,36 @@ static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
 
 	struct wlr_xdg_surface *xdg_surface =
 		wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
-	if (toplevel &&
-			xdg_surface &&
-			xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+	if (toplevel && xdg_surface) {
 		// TODO: Be able to set whole decoration_data instead of calling
 		// each individually?
 		wlr_scene_buffer_set_opacity(buffer, toplevel->opacity);
 
-		if (!wlr_subsurface_try_from_wlr_surface(xdg_surface->surface)) {
-			wlr_scene_buffer_set_corner_radius(buffer, toplevel->corner_radius);
-			wlr_scene_buffer_set_shadow_data(buffer, toplevel->shadow_data);
+		wlr_scene_buffer_set_corner_radius(buffer, toplevel->corner_radius);
+		wlr_scene_buffer_set_shadow_data(buffer, toplevel->shadow_data);
 
-			wlr_scene_buffer_set_backdrop_blur(buffer, true);
-			wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
-		}
+		wlr_scene_buffer_set_backdrop_blur(buffer, true);
+		wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
+		wlr_scene_buffer_set_backdrop_blur_ignore_transparent(buffer, true);
 	}
+}
+
+static void xdg_popup_map(struct wl_listener *listener, void *data) {
+	/* Called when the surface is mapped, or ready to display on-screen. */
+	struct comp_toplevel *toplevel = wl_container_of(listener, toplevel, map);
+
+	wlr_scene_node_for_each_buffer(&toplevel->scene_tree->node,
+								   iter_xdg_scene_buffers, toplevel);
+}
+
+static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
+	/* Called when the xdg_toplevel is destroyed. */
+	struct comp_toplevel *toplevel = wl_container_of(listener, toplevel, destroy);
+
+	wl_list_remove(&toplevel->map.link);
+	wl_list_remove(&toplevel->destroy.link);
+
+	free(toplevel);
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
@@ -170,6 +186,21 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, server, new_xdg_surface);
 	struct wlr_xdg_surface *xdg_surface = data;
 
+	if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_NONE) {
+		return;
+	}
+
+	/* Allocate a tinywl_toplevel for this surface */
+	struct comp_toplevel *toplevel = calloc(1, sizeof(*toplevel));
+	toplevel->server = server;
+	/* Set the scene_nodes decoration data */
+	toplevel->opacity = 1;
+	toplevel->corner_radius = 20;
+	toplevel->shadow_data = shadow_data_get_default();
+	toplevel->shadow_data.enabled = true;
+	toplevel->shadow_data.color =
+		(struct wlr_render_color){0.0f, 1.0f, 0.0f, 1.0f};
+
 	/* We must add xdg popups to the scene graph so they get rendered. The
 	 * wlroots scene graph provides a helper for this, but to use it we must
 	 * provide the proper parent scene node of the xdg popup. To enable this,
@@ -180,27 +211,27 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 			wlr_xdg_surface_try_from_wlr_surface(xdg_surface->popup->parent);
 		assert(parent != NULL);
 		struct wlr_scene_tree *parent_tree = parent->data;
-		xdg_surface->data =
-			wlr_scene_xdg_surface_create(parent_tree, xdg_surface);
+
+		toplevel->xdg_popup = xdg_surface->popup;
+		toplevel->scene_tree = wlr_scene_xdg_surface_create(
+			parent_tree, toplevel->xdg_popup->base);
+		toplevel->scene_tree->node.data = toplevel;
+		xdg_surface->data = toplevel->scene_tree;
+
+		/* Listen to the various events it can emit */
+		toplevel->map.notify = xdg_popup_map;
+		wl_signal_add(&xdg_surface->surface->events.map, &toplevel->map);
+		toplevel->destroy.notify = xdg_popup_destroy;
+		wl_signal_add(&xdg_surface->events.destroy, &toplevel->destroy);
 		return;
 	}
-	assert(xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL);
 
 	/* Allocate a tinywl_toplevel for this surface */
-	struct comp_toplevel *toplevel = calloc(1, sizeof(*toplevel));
-	toplevel->server = server;
 	toplevel->xdg_toplevel = xdg_surface->toplevel;
 	toplevel->scene_tree = wlr_scene_xdg_surface_create(
 		&toplevel->server->scene->tree, toplevel->xdg_toplevel->base);
 	toplevel->scene_tree->node.data = toplevel;
 	xdg_surface->data = toplevel->scene_tree;
-
-	/* Set the scene_nodes decoration data */
-	toplevel->opacity = 1;
-	toplevel->corner_radius = 20;
-	toplevel->shadow_data = shadow_data_get_default();
-	toplevel->shadow_data.enabled = true;
-	toplevel->shadow_data.color = (struct wlr_render_color) {0.0f, 1.0f, 0.0f, 1.0f};
 
 	/* Listen to the various events it can emit */
 	toplevel->map.notify = xdg_toplevel_map;

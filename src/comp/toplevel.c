@@ -1,6 +1,6 @@
 #include <assert.h>
-#include <wlr/types/wlr_compositor.h>
 #include <scenefx/types/wlr_scene.h>
+#include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
 
 #include "comp/server.h"

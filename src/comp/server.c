@@ -168,7 +168,7 @@ void comp_server_cursor_button(struct wl_listener *listener, void *data) {
 	if (event->state == WLR_BUTTON_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		comp_server_reset_cursor_mode(server);
-	} else {
+	} else if (toplevel->xdg_toplevel) {
 		/* Focus that client if the button was _pressed_ */
 		comp_toplevel_focus(toplevel, surface);
 	}

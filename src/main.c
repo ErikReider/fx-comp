@@ -28,7 +28,7 @@
 #include "desktop/xdg.h"
 
 int main(int argc, char *argv[]) {
-	wlr_log_init(WLR_DEBUG, NULL);
+	wlr_log_init(WLR_INFO, NULL);
 	char *startup_cmd = NULL;
 
 	int c;
@@ -119,7 +119,6 @@ int main(int argc, char *argv[]) {
 	struct blur_data blur_data = blur_data_get_default();
 	blur_data.radius = 5;
 	blur_data.num_passes = 3;
-	blur_data.ignore_transparent = true;
 	wlr_scene_set_blur_data(server.scene, blur_data);
 
 	/* Set the background */
