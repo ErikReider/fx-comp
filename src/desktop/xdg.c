@@ -29,8 +29,10 @@ static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
 		// each individually?
 		wlr_scene_buffer_set_opacity(buffer, toplevel->opacity);
 
-		wlr_scene_buffer_set_corner_radius(buffer, toplevel->corner_radius);
-		wlr_scene_buffer_set_shadow_data(buffer, toplevel->shadow_data);
+		if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+			wlr_scene_buffer_set_corner_radius(buffer, toplevel->corner_radius);
+			wlr_scene_buffer_set_shadow_data(buffer, toplevel->shadow_data);
+		}
 
 		wlr_scene_buffer_set_backdrop_blur(buffer, true);
 		wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
