@@ -29,15 +29,17 @@ void output_request_state(struct wl_listener *listener, void *data) {
 	struct comp_output *output =
 		wl_container_of(listener, output, request_state);
 
-	/* Set the background size to match the output */
-	if (output->server->background) {
-		wlr_scene_rect_set_size(output->server->background,
-								output->wlr_output->width,
-								output->wlr_output->height);
-	}
-
 	const struct wlr_output_event_request_state *event = data;
 	wlr_output_commit_state(output->wlr_output, event->state);
+
+	/* Set the background size to match the output */
+	if (output->server->background) {
+		float scale = output->wlr_output->scale;
+		int width, height;
+		wlr_output_transformed_resolution(output->wlr_output, &width, &height);
+		wlr_scene_rect_set_size(output->server->background, width / scale,
+								height / scale);
+	}
 }
 
 void output_destroy(struct wl_listener *listener, void *data) {
