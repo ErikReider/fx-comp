@@ -5,4 +5,6 @@
 
 void xdg_new_xdg_surface(struct wl_listener *listener, void *data);
 
+void xdg_new_decoration(struct wl_listener *listener, void *data);
+
 #endif // !FX_COMP_DESKTOP_XDG_TOPLEVEL_H

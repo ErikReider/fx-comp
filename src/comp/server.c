@@ -1,4 +1,5 @@
 #include <scenefx/types/wlr_scene.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_seat.h>
@@ -6,9 +7,17 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 
+#include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/toplevel.h"
+#include "comp/widget.h"
+
+static uint32_t get_current_time_msec(void) {
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+	return now.tv_sec * 1000 + now.tv_nsec / 1000000;
+}
 
 void comp_server_reset_cursor_mode(struct comp_server *server) {
 	/* Reset the cursor mode to passthrough. */
@@ -19,9 +28,11 @@ void comp_server_reset_cursor_mode(struct comp_server *server) {
 static void process_cursor_move(struct comp_server *server, uint32_t time) {
 	/* Move the grabbed toplevel to the new position. */
 	struct comp_toplevel *toplevel = server->grabbed_toplevel;
-	wlr_scene_node_set_position(&toplevel->scene_tree->node,
-								server->cursor->x - server->grab_x,
-								server->cursor->y - server->grab_y);
+	if (server->grabbed_toplevel) {
+		wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
+									server->cursor->x - server->grab_x,
+									server->cursor->y - server->grab_y);
+	}
 }
 
 static void process_cursor_resize(struct comp_server *server, uint32_t time) {
@@ -68,7 +79,7 @@ static void process_cursor_resize(struct comp_server *server, uint32_t time) {
 
 	struct wlr_box geo_box;
 	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geo_box);
-	wlr_scene_node_set_position(&toplevel->scene_tree->node,
+	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
 								new_left - geo_box.x, new_top - geo_box.y);
 
 	int new_width = new_right - new_left;
@@ -77,7 +88,7 @@ static void process_cursor_resize(struct comp_server *server, uint32_t time) {
 }
 
 static void process_cursor_motion(struct comp_server *server, uint32_t time) {
-	/* If the mode is non-passthrough, delegate to those functions. */
+	// If the mode is non-passthrough, delegate to those functions.
 	if (server->cursor_mode == COMP_CURSOR_MOVE) {
 		process_cursor_move(server, time);
 		return;
@@ -86,37 +97,69 @@ static void process_cursor_motion(struct comp_server *server, uint32_t time) {
 		return;
 	}
 
-	/* Otherwise, find the toplevel under the pointer and send the event along.
-	 */
+	// Otherwise, find the toplevel under the pointer and send the event along.
 	double sx, sy;
 	struct wlr_seat *seat = server->seat;
+	struct wlr_scene_buffer *scene_buffer = NULL;
 	struct wlr_surface *surface = NULL;
-	struct comp_toplevel *toplevel = comp_toplevel_at(
-		server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
-	if (!toplevel) {
+	struct comp_object *object =
+		comp_object_at(server, server->cursor->x, server->cursor->y, &sx, &sy,
+					   &scene_buffer, &surface);
+	if (!object) {
 		/* If there's no toplevel under the cursor, set the cursor image to a
 		 * default. This is what makes the cursor image appear when you move it
 		 * around the screen, not over any toplevels. */
 		wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr, "default");
-	}
-	if (surface) {
-		/*
-		 * Send pointer enter and motion events.
-		 *
-		 * The enter event gives the surface "pointer focus", which is distinct
-		 * from keyboard focus. You get pointer focus by moving the pointer over
-		 * a window.
-		 *
-		 * Note that wlroots will avoid sending duplicate enter/motion events if
-		 * the surface has already has pointer focus or if the client is already
-		 * aware of the coordinates passed.
-		 */
-		wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-		wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+		wlr_seat_pointer_notify_clear_focus(seat);
+
+		if (server->hovered_widget) {
+			comp_widget_pointer_leave(server->hovered_widget);
+			server->hovered_widget = NULL;
+		}
 	} else {
-		/* Clear pointer focus so future button events and such are not sent to
-		 * the last client to have the cursor over it. */
-		wlr_seat_pointer_clear_focus(seat);
+		switch (object->type) {
+		case COMP_OBJECT_TYPE_TOPLEVEL:
+			if (surface) {
+				/*
+				 * Send pointer enter and motion events.
+				 *
+				 * The enter event gives the surface "pointer focus", which is
+				 * distinct from keyboard focus. You get pointer focus by moving
+				 * the pointer over a window.
+				 *
+				 * Note that wlroots will avoid sending duplicate enter/motion
+				 * events if the surface has already has pointer focus or if the
+				 * client is already aware of the coordinates passed.
+				 */
+				wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+				wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+			} else {
+				wlr_seat_pointer_notify_clear_focus(seat);
+			}
+			if (server->hovered_widget) {
+				comp_widget_pointer_leave(server->hovered_widget);
+				server->hovered_widget = NULL;
+			}
+			break;
+		case COMP_OBJECT_TYPE_WIDGET:;
+			struct comp_widget *widget = object->data;
+
+			if (server->hovered_widget != widget) {
+				comp_widget_pointer_leave(server->hovered_widget);
+				server->hovered_widget = widget;
+				comp_widget_pointer_enter(server->hovered_widget);
+			}
+
+			/* Clear pointer focus so future button events and such are not sent
+			 * to the last client to have the cursor over it. */
+			comp_widget_pointer_motion(widget, sx, sy);
+			wlr_seat_pointer_clear_focus(server->seat);
+			if (!widget->sets_cursor) {
+				wlr_cursor_set_xcursor(server->cursor, server->cursor_mgr,
+									   "left_ptr");
+			}
+			break;
+		}
 	}
 }
 
@@ -158,20 +201,33 @@ void comp_server_cursor_button(struct wl_listener *listener, void *data) {
 	struct comp_server *server =
 		wl_container_of(listener, server, cursor_button);
 	struct wlr_pointer_button_event *event = data;
-	/* Notify the client with pointer focus that a button press has occurred */
-	wlr_seat_pointer_notify_button(server->seat, event->time_msec,
-								   event->button, event->state);
+
 	double sx, sy;
+	struct wlr_scene_buffer *scene_buffer = NULL;
 	struct wlr_surface *surface = NULL;
-	struct comp_toplevel *toplevel = comp_toplevel_at(
-		server, server->cursor->x, server->cursor->y, &surface, &sx, &sy);
+	struct comp_object *object =
+		comp_object_at(server, server->cursor->x, server->cursor->y, &sx, &sy,
+					   &scene_buffer, &surface);
 	if (event->state == WLR_BUTTON_RELEASED) {
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		comp_server_reset_cursor_mode(server);
-	} else {
-		/* Focus that client if the button was _pressed_ */
-		comp_toplevel_focus(toplevel, surface);
+	} else if (object) {
+		switch (object->type) {
+		case COMP_OBJECT_TYPE_TOPLEVEL:
+			if (surface) {
+				/* Focus that client if the button was _pressed_ */
+				comp_toplevel_focus(object->data, surface);
+			}
+			break;
+		case COMP_OBJECT_TYPE_WIDGET:
+			comp_widget_pointer_button(object->data, sx, sy, event);
+			break;
+		}
 	}
+
+	/* Notify the client with pointer focus that a button press has occurred */
+	wlr_seat_pointer_notify_button(server->seat, event->time_msec,
+								   event->button, event->state);
 }
 
 void comp_server_cursor_axis(struct wl_listener *listener, void *data) {
@@ -194,6 +250,16 @@ void comp_server_cursor_frame(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, server, cursor_frame);
 	/* Notify the client with pointer focus of the frame event. */
 	wlr_seat_pointer_notify_frame(server->seat);
+}
+
+// TODO: LAYOUT
+void comp_server_layout_change(struct wl_listener *listener, void *data) {
+}
+
+void comp_server_output_manager_apply(struct wl_listener *listener,
+									  void *data) {
+}
+void comp_server_output_manager_test(struct wl_listener *listener, void *data) {
 }
 
 void comp_server_new_output(struct wl_listener *listener, void *data) {

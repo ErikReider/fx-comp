@@ -1,6 +1,5 @@
-#define _POSIX_C_SOURCE 200112L
+#define _POSIX_C_SOURCE 200809L
 
-#include <assert.h>
 #include <getopt.h>
 #include <scenefx/fx_renderer/fx_renderer.h>
 #include <scenefx/types/wlr_scene.h>
@@ -13,18 +12,32 @@
 #include <wlr/backend.h>
 #include <wlr/render/allocator.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
+#include <wlr/types/wlr_export_dmabuf_v1.h>
+#include <wlr/types/wlr_fractional_scale_v1.h>
+#include <wlr/types/wlr_gamma_control_v1.h>
+#include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_presentation_time.h>
+#include <wlr/types/wlr_screencopy_v1.h>
+#include <wlr/types/wlr_server_decoration.h>
+#include <wlr/types/wlr_single_pixel_buffer_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
+#include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_xcursor_manager.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
+#include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 
-#include "comp/output.h"
 #include "comp/seat.h"
 #include "comp/server.h"
-#include "comp/toplevel.h"
 #include "desktop/xdg.h"
+#include "desktop/xdg_decoration.h"
+
+struct comp_server server = {0};
 
 int main(int argc, char *argv[]) {
 	wlr_log_init(WLR_DEBUG, NULL);
@@ -46,7 +59,6 @@ int main(int argc, char *argv[]) {
 		return 0;
 	}
 
-	struct comp_server server = {0};
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	server.wl_display = wl_display_create();
@@ -94,6 +106,10 @@ int main(int argc, char *argv[]) {
 	wlr_subcompositor_create(server.wl_display);
 	wlr_data_device_manager_create(server.wl_display);
 
+	/*
+	 * Output
+	 */
+
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
 	server.output_layout = wlr_output_layout_create();
@@ -101,8 +117,28 @@ int main(int argc, char *argv[]) {
 	/* Configure a listener to be notified when new outputs are available on the
 	 * backend. */
 	wl_list_init(&server.outputs);
+	server.layout_change.notify = comp_server_layout_change;
+	wl_signal_add(&server.output_layout->events.change, &server.layout_change);
+
+	wlr_xdg_output_manager_v1_create(server.wl_display, server.output_layout);
+	server.output_manager = wlr_output_manager_v1_create(server.wl_display);
+	if (server.output_manager == NULL) {
+		wlr_log(WLR_ERROR, "failed to create wlr_output_manager");
+		return 1;
+	}
+	server.output_manager_apply.notify = comp_server_output_manager_apply;
+	wl_signal_add(&server.output_manager->events.apply,
+				  &server.output_manager_apply);
+	server.output_manager_test.notify = comp_server_output_manager_test;
+	wl_signal_add(&server.output_manager->events.test,
+				  &server.output_manager_test);
+
 	server.new_output.notify = comp_server_new_output;
 	wl_signal_add(&server.backend->events.new_output, &server.new_output);
+
+	/*
+	 * Scene
+	 */
 
 	/* Create a scene graph. This is a wlroots abstraction that handles all
 	 * rendering and damage tracking. All the compositor author needs to do
@@ -114,9 +150,26 @@ int main(int argc, char *argv[]) {
 	server.scene_layout =
 		wlr_scene_attach_output_layout(server.scene, server.output_layout);
 
-	/* Set the background */
-	const float color[4] = {1, 1, 1, 1};
-	server.background = wlr_scene_rect_create(&server.scene->tree, 1, 1, color);
+	/* Initialize layers */
+	server.layers.background = wlr_scene_tree_create(&server.scene->tree);
+	server.layers.bottom = wlr_scene_tree_create(&server.scene->tree);
+	server.layers.tiled = wlr_scene_tree_create(&server.scene->tree);
+	server.layers.floating = wlr_scene_tree_create(&server.scene->tree);
+	server.layers.top = wlr_scene_tree_create(&server.scene->tree);
+	server.layers.overlay = wlr_scene_tree_create(&server.scene->tree);
+
+	/* Set scene presentation */
+	struct wlr_presentation *presentation =
+		wlr_presentation_create(server.wl_display, server.backend);
+	if (presentation == NULL) {
+		wlr_log(WLR_ERROR, "failed to create wlr_presentation");
+		return 1;
+	}
+	wlr_scene_set_presentation(server.scene, presentation);
+
+	/*
+	 * XDG Toplevels
+	 */
 
 	/* Set up xdg-shell version 3. The xdg-shell is a Wayland protocol which is
 	 * used for application windows. For more detail on shells, refer to
@@ -127,6 +180,10 @@ int main(int argc, char *argv[]) {
 	server.new_xdg_surface.notify = xdg_new_xdg_surface;
 	wl_signal_add(&server.xdg_shell->events.new_surface,
 				  &server.new_xdg_surface);
+
+	/*
+	 * Cursor
+	 */
 
 	/*
 	 * Creates a cursor, which is a wlroots utility for tracking the cursor
@@ -164,6 +221,12 @@ int main(int argc, char *argv[]) {
 	server.cursor_frame.notify = comp_server_cursor_frame;
 	wl_signal_add(&server.cursor->events.frame, &server.cursor_frame);
 
+	wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "left_ptr");
+
+	/*
+	 * Keyboard
+	 */
+
 	/*
 	 * Configures a seat, which is a single "seat" at which a user sits and
 	 * operates the computer. This conceptually includes up to one keyboard,
@@ -180,6 +243,47 @@ int main(int argc, char *argv[]) {
 	server.request_set_selection.notify = comp_seat_request_set_selection;
 	wl_signal_add(&server.seat->events.request_set_selection,
 				  &server.request_set_selection);
+
+	/*
+	 * Init protocols
+	 */
+
+	wlr_viewporter_create(server.wl_display);
+	wlr_single_pixel_buffer_manager_v1_create(server.wl_display);
+	wlr_gamma_control_manager_v1_create(server.wl_display);
+	wlr_screencopy_manager_v1_create(server.wl_display);
+	wlr_export_dmabuf_manager_v1_create(server.wl_display);
+	wlr_fractional_scale_manager_v1_create(server.wl_display, 1);
+	wlr_data_control_manager_v1_create(server.wl_display);
+
+	/*
+	 * Server side decorations
+	 */
+
+	struct wlr_server_decoration_manager *server_decoration_manager =
+		wlr_server_decoration_manager_create(server.wl_display);
+	if (server_decoration_manager == NULL) {
+		wlr_log(WLR_ERROR, "failed to create wlr_server_decoration_manager");
+		return 1;
+	}
+	// Use server-side decoration by default by default
+	wlr_server_decoration_manager_set_default_mode(
+		server_decoration_manager, WLR_SERVER_DECORATION_MANAGER_MODE_SERVER);
+
+	struct wlr_xdg_decoration_manager_v1 *xdg_decoration_manager =
+		wlr_xdg_decoration_manager_v1_create(server.wl_display);
+	if (xdg_decoration_manager == NULL) {
+		wlr_log(WLR_ERROR, "failed to create wlr_xdg_decoration_manager_v1");
+		return 1;
+	}
+	wl_list_init(&server.xdg_decorations);
+	server.new_xdg_decoration.notify = handle_xdg_decoration;
+	wl_signal_add(&xdg_decoration_manager->events.new_toplevel_decoration,
+				  &server.new_xdg_decoration);
+
+	/*
+	 * Wayland socket
+	 */
 
 	/* Add a Unix socket to the Wayland display. */
 	const char *socket = wl_display_add_socket_auto(server.wl_display);
@@ -219,5 +323,6 @@ int main(int argc, char *argv[]) {
 	wlr_xcursor_manager_destroy(server.cursor_mgr);
 	wlr_output_layout_destroy(server.output_layout);
 	wl_display_destroy(server.wl_display);
+
 	return 0;
 }
