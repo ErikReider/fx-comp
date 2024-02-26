@@ -1,37 +1,32 @@
 #include <assert.h>
-#include <wlr/types/wlr_compositor.h>
 #include <scenefx/types/wlr_scene.h>
+#include <stdio.h>
+#include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
 
+#include "comp/border/titlebar.h"
 #include "comp/server.h"
 #include "comp/toplevel.h"
+#include "comp/widget.h"
 
-struct comp_toplevel *comp_toplevel_at(struct comp_server *server, double lx,
-									   double ly, struct wlr_surface **surface,
-									   double *sx, double *sy) {
-	/* This returns the topmost node in the scene at the given layout coords.
-	 * We only care about surface nodes as we are specifically looking for a
-	 * surface in the surface tree of a comp_toplevel. */
-	struct wlr_scene_node *node =
-		wlr_scene_node_at(&server->scene->tree.node, lx, ly, sx, sy);
-	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
-		return NULL;
-	}
-	struct wlr_scene_buffer *scene_buffer = wlr_scene_buffer_from_node(node);
-	struct wlr_scene_surface *scene_surface =
-		wlr_scene_surface_try_from_buffer(scene_buffer);
-	if (!scene_surface) {
-		return NULL;
-	}
+static void comp_wlr_surface_unfocus(struct wlr_surface *surface) {
+	struct wlr_xdg_surface *xdg_surface =
+		wlr_xdg_surface_try_from_wlr_surface(surface);
+	assert(xdg_surface && xdg_surface->toplevel);
 
-	*surface = scene_surface->surface;
-	/* Find the node corresponding to the comp_toplevel at the root of this
-	 * surface tree, it is the only one for which we set the data field. */
-	struct wlr_scene_tree *tree = node->parent;
-	while (tree != NULL && tree->node.data == NULL) {
-		tree = tree->node.parent;
+	wlr_xdg_toplevel_set_activated(xdg_surface->toplevel, false);
+
+	struct wlr_scene_tree *scene_tree = xdg_surface->data;
+	struct comp_toplevel *toplevel = scene_tree->node.data;
+	if (toplevel) {
+		toplevel->focused = false;
+
+		/*
+		 * Redraw
+		 */
+
+		comp_widget_draw(&toplevel->titlebar->widget);
 	}
-	return tree->node.data;
 }
 
 void comp_toplevel_focus(struct comp_toplevel *toplevel,
@@ -53,15 +48,12 @@ void comp_toplevel_focus(struct comp_toplevel *toplevel,
 		 * it no longer has focus and the client will repaint accordingly, e.g.
 		 * stop displaying a caret.
 		 */
-		struct wlr_xdg_toplevel *prev_toplevel =
-			wlr_xdg_toplevel_try_from_wlr_surface(prev_surface);
-		if (prev_toplevel != NULL) {
-			wlr_xdg_toplevel_set_activated(prev_toplevel, false);
-		}
+		comp_wlr_surface_unfocus(prev_surface);
 	}
 	struct wlr_keyboard *keyboard = wlr_seat_get_keyboard(seat);
+	toplevel->focused = true;
 	/* Move the toplevel to the front */
-	wlr_scene_node_raise_to_top(&toplevel->scene_tree->node);
+	wlr_scene_node_raise_to_top(&toplevel->object.scene_tree->node);
 	wl_list_remove(&toplevel->link);
 	wl_list_insert(&server->toplevels, &toplevel->link);
 	/* Activate the new surface */
@@ -76,4 +68,10 @@ void comp_toplevel_focus(struct comp_toplevel *toplevel,
 			seat, toplevel->xdg_toplevel->base->surface, keyboard->keycodes,
 			keyboard->num_keycodes, &keyboard->modifiers);
 	}
+
+	/*
+	 * Redraw
+	 */
+
+	comp_widget_draw(&toplevel->titlebar->widget);
 }
