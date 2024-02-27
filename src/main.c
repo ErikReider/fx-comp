@@ -10,6 +10,11 @@
 #include <unistd.h>
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
+#include <wlr/backend/headless.h>
+#include <wlr/backend/multi.h>
+#include <wlr/backend/wayland.h>
+#include <wlr/backend/x11.h>
+#include <wlr/config.h>
 #include <wlr/render/allocator.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_control_v1.h>
@@ -39,25 +44,76 @@
 
 struct comp_server server = {0};
 
+static void print_help(void) {
+	printf("Usage:\n");
+	printf("\t-s <cmd>\tStartup command\n");
+	printf("\t-l <DEBUG|INFO>\tLog level\n");
+	printf("\t-o <int>\tNumber of additional testing outputs\n");
+}
+
+static void create_output(struct wlr_backend *backend, void *data) {
+	bool *done = data;
+	if (*done) {
+		return;
+	}
+
+	if (wlr_backend_is_wl(backend)) {
+		wlr_wl_output_create(backend);
+		*done = true;
+	} else if (wlr_backend_is_headless(backend)) {
+		wlr_headless_add_output(backend, 1920, 1080);
+		*done = true;
+	}
+#if WLR_HAS_X11_BACKEND
+	else if (wlr_backend_is_x11(backend)) {
+		wlr_x11_output_create(backend);
+		*done = true;
+	}
+#endif
+}
+
 int main(int argc, char *argv[]) {
-	wlr_log_init(WLR_DEBUG, NULL);
 	char *startup_cmd = NULL;
+	enum wlr_log_importance log_importance = WLR_ERROR;
+	int num_test_outputs = 1;
 
 	int c;
-	while ((c = getopt(argc, argv, "s:h")) != -1) {
+	while ((c = getopt(argc, argv, "s:o:l:h")) != -1) {
 		switch (c) {
 		case 's':
 			startup_cmd = optarg;
 			break;
+		case 'l':
+			if (strcmp(optarg, "DEBUG") == 0) {
+				log_importance = WLR_DEBUG;
+			} else if (strcmp(optarg, "INFO") == 0) {
+				log_importance = WLR_INFO;
+			}
+			break;
+		case 'o':;
+			char *endptr;
+			long extra_outputs = strtol(optarg, &endptr, 10);
+			if (endptr == optarg) {
+				fprintf(stderr, "Could not parse number\n");
+				return 1;
+			}
+			if (extra_outputs < 1) {
+				fprintf(stderr, "Additional outputs has to be larger than 0\n");
+				return 1;
+			}
+			num_test_outputs += extra_outputs;
+			break;
 		default:
-			printf("Usage: %s [-s startup command]\n", argv[0]);
+			print_help();
 			return 0;
 		}
 	}
 	if (optind < argc) {
-		printf("Usage: %s [-s startup command]\n", argv[0]);
+		print_help();
 		return 0;
 	}
+
+	wlr_log_init(log_importance, NULL);
 
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
@@ -66,6 +122,7 @@ int main(int argc, char *argv[]) {
 	 * output hardware. The autocreate option will choose the most suitable
 	 * backend based on the current environment, such as opening an X11 window
 	 * if an X11 server is running. */
+	// TODO: Use wlr_session?
 	server.backend = wlr_backend_autocreate(server.wl_display, NULL);
 	if (server.backend == NULL) {
 		wlr_log(WLR_ERROR, "failed to create wlr_backend");
@@ -308,6 +365,22 @@ int main(int argc, char *argv[]) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
 		}
 	}
+
+	// Create additional outputs
+	if (num_test_outputs > 1) {
+		for (int i = 0; i < num_test_outputs - 1; i++) {
+			bool done = false;
+			wlr_multi_for_each_backend(server.backend, create_output, &done);
+			if (!done) {
+				wlr_log(WLR_ERROR,
+						"Could not create virtual output for backend!");
+				wlr_backend_destroy(server.backend);
+				wl_display_destroy(server.wl_display);
+				return 1;
+			}
+		}
+	}
+
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
 	 * loop configuration to listen to libinput events, DRM events, generate
