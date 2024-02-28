@@ -1,5 +1,8 @@
 #include <scenefx/types/wlr_scene.h>
+#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
+#include <strings.h>
 #include <time.h>
 #include <wlr/types/wlr_output.h>
 
@@ -50,4 +53,35 @@ void output_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&output->destroy.link);
 	wl_list_remove(&output->link);
 	free(output);
+}
+
+static void output_get_identifier(char *identifier, size_t len,
+								  struct comp_output *output) {
+	struct wlr_output *wlr_output = output->wlr_output;
+	snprintf(identifier, len, "%s %s %s",
+			 wlr_output->make ? wlr_output->make : "Unknown",
+			 wlr_output->model ? wlr_output->model : "Unknown",
+			 wlr_output->serial ? wlr_output->serial : "Unknown");
+}
+
+static bool output_match_name_or_id(struct comp_output *output,
+									const char *name_or_id) {
+	if (strcmp(name_or_id, "*") == 0) {
+		return true;
+	}
+
+	char identifier[128];
+	output_get_identifier(identifier, sizeof(identifier), output);
+	return strcasecmp(identifier, name_or_id) == 0 ||
+		   strcasecmp(output->wlr_output->name, name_or_id) == 0;
+}
+
+struct comp_output *comp_output_by_name_or_id(const char *name_or_id) {
+	struct comp_output *output;
+	wl_list_for_each(output, &server.outputs, link) {
+		if (output_match_name_or_id(output, name_or_id)) {
+			return output;
+		}
+	}
+	return NULL;
 }

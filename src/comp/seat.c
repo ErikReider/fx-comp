@@ -4,8 +4,10 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <xkbcommon/xkbcommon.h>
+#include <wlr/util/log.h>
 
 #include "comp/seat.h"
+#include "comp/output.h"
 #include "comp/server.h"
 #include "comp/toplevel.h"
 
@@ -149,12 +151,43 @@ void comp_seat_new_input(struct wl_listener *listener, void *data) {
 	 * available. */
 	struct comp_server *server = wl_container_of(listener, server, new_input);
 	struct wlr_input_device *device = data;
+
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
 		server_new_keyboard(server, device);
 		break;
 	case WLR_INPUT_DEVICE_POINTER:
 		server_new_pointer(server, device);
+
+		// Map the cursor to the output
+		const char *mapped_to_output =
+			wlr_pointer_from_input_device(device)->output_name;
+		if (mapped_to_output == NULL) {
+			break;
+		}
+		wlr_log(WLR_DEBUG, "Mapping input device %s to output %s", device->name,
+				mapped_to_output);
+		if (strcmp("*", mapped_to_output) == 0) {
+			wlr_cursor_map_input_to_output(server->cursor, device,
+										   NULL);
+			wlr_cursor_map_input_to_region(server->cursor, device,
+										   NULL);
+			wlr_log(WLR_DEBUG, "Reset output mapping");
+			return;
+		}
+		struct comp_output *output =
+			comp_output_by_name_or_id(mapped_to_output);
+		if (!output) {
+			wlr_log(WLR_DEBUG,
+					"Requested output %s for device %s isn't present",
+					mapped_to_output, device->name);
+			return;
+		}
+		wlr_cursor_map_input_to_output(server->cursor, device,
+									   output->wlr_output);
+		wlr_cursor_map_input_to_region(server->cursor, device,
+									   NULL);
+		wlr_log(WLR_DEBUG, "Mapped to output %s", output->wlr_output->name);
 		break;
 	default:
 		break;

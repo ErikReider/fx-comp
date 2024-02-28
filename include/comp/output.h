@@ -21,4 +21,6 @@ void output_request_state(struct wl_listener *listener, void *data);
 
 void output_destroy(struct wl_listener *listener, void *data);
 
+struct comp_output *comp_output_by_name_or_id(const char *name_or_id);
+
 #endif // !FX_COMP_OUTPUT_H
