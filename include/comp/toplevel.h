@@ -14,14 +14,15 @@
 #define TOPLEVEL_NUM_BORDERS 4
 
 enum comp_tiling_mode {
-	COMP_TILING_MODE_NONE,
-	COMP_TILING_MODE_TILED,
+	COMP_TILING_MODE_FLOATING, // Only floating
+	COMP_TILING_MODE_TILED, // Tiled / Fullscreen
 };
 
 struct comp_toplevel {
 	struct wl_list link;
 
 	struct comp_server *server;
+	struct comp_output *output;
 
 	struct wlr_xdg_toplevel *xdg_toplevel;
 	struct wlr_xdg_popup *xdg_popup;
@@ -48,6 +49,7 @@ struct comp_toplevel {
 	int initial_width;
 	int initial_height;
 	bool focused;
+	bool fullscreen;
 
 	struct comp_object object;
 

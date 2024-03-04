@@ -13,20 +13,13 @@ enum comp_cursor_mode {
 
 struct comp_server {
 	struct wl_display *wl_display;
+	struct wlr_backend *headless_backend; // used for creating virtual outputs
 	struct wlr_backend *backend;
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 
 	struct wlr_scene *root_scene;
 	struct wlr_scene_output_layout *scene_layout;
-	struct {
-		struct wlr_scene_tree *background;
-		struct wlr_scene_tree *bottom;
-		struct wlr_scene_tree *tiled;
-		struct wlr_scene_tree *floating;
-		struct wlr_scene_tree *top;
-		struct wlr_scene_tree *overlay;
-	} layers;
 
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
@@ -57,6 +50,8 @@ struct comp_server {
 
 	struct wlr_output_layout *output_layout;
 	struct wl_list outputs;
+	struct comp_output *active_output;
+	struct comp_output *fallback_output;
 	struct wl_listener new_output;
 	struct wl_listener layout_change;
 };
@@ -67,6 +62,7 @@ extern struct comp_server server;
 void comp_server_layout_change(struct wl_listener *listener, void *data);
 void comp_server_output_manager_apply(struct wl_listener *listener, void *data);
 void comp_server_output_manager_test(struct wl_listener *listener, void *data);
-void comp_server_new_output(struct wl_listener *listener, void *data);
+
+struct comp_output *get_active_output(struct comp_server *server);
 
 #endif // !FX_COMP_SERVER_H

@@ -39,8 +39,10 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 
+#include "comp/output.h"
 #include "comp/seat.h"
 #include "comp/server.h"
+#include "constants.h"
 #include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
 #include "seat/cursor.h"
@@ -132,6 +134,16 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 
+	// Create headless backend
+	server.headless_backend = wlr_headless_backend_create(server.wl_display);
+	if (server.headless_backend == NULL) {
+		wlr_log(WLR_ERROR, "Failed to create headless backend");
+		wlr_backend_destroy(server.backend);
+		return 1;
+	} else {
+		wlr_multi_backend_add(server.backend, server.headless_backend);
+	}
+
 	/* Autocreates a renderer, either Pixman, GLES2 or Vulkan for us. The user
 	 * can also specify a renderer using the WLR_RENDERER env var.
 	 * The renderer is responsible for defining the various pixel formats it
@@ -173,6 +185,10 @@ int main(int argc, char *argv[]) {
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
 	server.output_layout = wlr_output_layout_create();
+	if (server.output_layout == NULL) {
+		wlr_log(WLR_ERROR, "failed to create wlr_output_layout");
+		return 1;
+	}
 
 	/* Configure a listener to be notified when new outputs are available on the
 	 * backend. */
@@ -193,7 +209,7 @@ int main(int argc, char *argv[]) {
 	wl_signal_add(&server.output_manager->events.test,
 				  &server.output_manager_test);
 
-	server.new_output.notify = comp_server_new_output;
+	server.new_output.notify = comp_new_output;
 	wl_signal_add(&server.backend->events.new_output, &server.new_output);
 
 	/*
@@ -206,17 +222,14 @@ int main(int argc, char *argv[]) {
 	 * positions and then call wlr_scene_output_commit() to render a frame if
 	 * necessary.
 	 */
-	server.scene_layout =
-		wlr_scene_attach_output_layout(server.scene, server.output_layout);
 	server.root_scene = wlr_scene_create();
 
-	/* Initialize layers */
-	server.layers.background = wlr_scene_tree_create(&server.scene->tree);
-	server.layers.bottom = wlr_scene_tree_create(&server.scene->tree);
-	server.layers.tiled = wlr_scene_tree_create(&server.scene->tree);
-	server.layers.floating = wlr_scene_tree_create(&server.scene->tree);
-	server.layers.top = wlr_scene_tree_create(&server.scene->tree);
-	server.layers.overlay = wlr_scene_tree_create(&server.scene->tree);
+	server.scene_layout =
+		wlr_scene_attach_output_layout(server.root_scene, server.output_layout);
+	if (server.scene_layout == NULL) {
+		wlr_log(WLR_ERROR, "failed to attach output_layout to wlr_scene");
+		return 1;
+	}
 
 	/* Set scene presentation */
 	struct wlr_presentation *presentation =
@@ -226,6 +239,13 @@ int main(int argc, char *argv[]) {
 		return 1;
 	}
 	wlr_scene_set_presentation(server.root_scene, presentation);
+
+	// Create a fallback headless output
+	struct wlr_output *wlr_output = wlr_headless_add_output(
+		server.headless_backend, HEADLESS_FALLBACK_OUTPUT_WIDTH,
+		HEADLESS_FALLBACK_OUTPUT_HEIGHT);
+	wlr_output_set_name(wlr_output, "FALLBACK");
+	server.fallback_output = comp_output_create(&server, wlr_output);
 
 	/*
 	 * XDG Toplevels
@@ -373,10 +393,10 @@ int main(int argc, char *argv[]) {
 	/* Once wl_display_run returns, we destroy all clients then shut down the
 	 * server. */
 	wl_display_destroy_clients(server.wl_display);
-	wlr_scene_node_destroy(&server.root_scene->tree.node);
 	comp_cursor_destroy(server.cursor);
 	wlr_output_layout_destroy(server.output_layout);
 	wl_display_destroy(server.wl_display);
+	wlr_scene_node_destroy(&server.root_scene->tree.node);
 
 	return 0;
 }

@@ -14,7 +14,7 @@ static void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	enum wlr_xdg_toplevel_decoration_v1_mode client_mode =
 		deco->wlr_xdg_decoration->requested_mode;
 
-	bool floating = toplevel->tiling_mode == COMP_TILING_MODE_NONE;
+	bool floating = toplevel->tiling_mode == COMP_TILING_MODE_FLOATING;
 	toplevel->using_csd =
 		client_mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 

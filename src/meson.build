@@ -11,6 +11,7 @@ sources = files(
 	'comp/seat.c',
 	'comp/server.c',
 	'comp/widget.c',
+	'comp/workspace.c',
 	'desktop/xdg.c',
 	'desktop/xdg_decoration.c',
 )

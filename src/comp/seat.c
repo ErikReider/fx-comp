@@ -62,6 +62,16 @@ static bool handle_keybinding(struct comp_server *server,
 		}
 		break;
 	case WLR_MODIFIER_LOGO:
+		switch (sym) {
+		case XKB_KEY_Tab:;
+			struct comp_output *output = get_active_output(server);
+			struct comp_workspace *ws =
+				comp_output_next_workspace(output, true);
+			comp_output_focus_workspace(output, ws);
+			break;
+		default:
+			return false;
+		}
 		break;
 	default:
 		break;

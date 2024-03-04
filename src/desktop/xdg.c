@@ -14,12 +14,15 @@
 #include "comp/border/edge.h"
 #include "comp/border/titlebar.h"
 #include "comp/object.h"
+#include "comp/output.h"
 #include "comp/server.h"
 #include "comp/toplevel.h"
 #include "comp/widget.h"
+#include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/xdg.h"
 #include "seat/cursor.h"
+#include "util.h"
 
 static void xdg_resize(struct comp_toplevel *toplevel, int width, int height) {
 	toplevel->object.width = width;
@@ -162,7 +165,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	toplevel->object.width = toplevel->initial_width;
 	toplevel->object.height = toplevel->initial_height;
 
-	if (toplevel->tiling_mode == COMP_TILING_MODE_NONE) {
+	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 		// Open new floating toplevels in the center of the output
 		struct wlr_box box;
 		wlr_output_layout_get_box(toplevel->server->output_layout, NULL, &box);
@@ -205,7 +208,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	toplevel->object.height = geometry.height + 2 * BORDER_WIDTH;
 
 	// Open new floating toplevels in the center of the output
-	if (toplevel->tiling_mode == COMP_TILING_MODE_NONE) {
+	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 		xdg_resize(toplevel, toplevel->object.width, toplevel->object.height);
 	} else {
 		// Tile the new toplevel
@@ -337,6 +340,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	toplevel->server = server;
 	toplevel->focused = false;
 	toplevel->using_csd = true;
+	toplevel->output = get_active_output(server);
 	/* Set the scene_nodes decoration data */
 	toplevel->opacity = 1;
 	toplevel->corner_radius = EFFECTS_CORNER_RADII;
@@ -359,7 +363,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		assert(parent != NULL);
 		struct wlr_scene_tree *parent_tree = parent->data;
 
-		toplevel->tiling_mode = COMP_TILING_MODE_NONE;
+		toplevel->tiling_mode = COMP_TILING_MODE_FLOATING;
 
 		toplevel->xdg_toplevel = NULL;
 		toplevel->xdg_popup = xdg_surface->popup;
@@ -377,17 +381,27 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
 		toplevel->xdg_toplevel = xdg_surface->toplevel;
 		toplevel->xdg_popup = NULL;
-		// Add the toplevel to the tiled layer
+
+		toplevel->fullscreen = toplevel->xdg_toplevel->pending.fullscreen;
+
+		// Add the toplevel to the tiled/floating layer
 		// TODO: Check if it should be in the floating layer or not
-		toplevel->tiling_mode = COMP_TILING_MODE_NONE;
+		toplevel->tiling_mode = COMP_TILING_MODE_FLOATING;
+		// TODO: Add other condition for tiled
+		if (toplevel->fullscreen) {
+			toplevel->tiling_mode = COMP_TILING_MODE_TILED;
+		}
+		struct comp_output *output = toplevel->output;
+		struct comp_workspace *active_workspace =
+			comp_output_get_active_ws(output, toplevel->fullscreen);
 		switch (toplevel->tiling_mode) {
-		case COMP_TILING_MODE_NONE:
+		case COMP_TILING_MODE_FLOATING:
 			toplevel->object.scene_tree =
-				wlr_scene_tree_create(server->layers.floating);
+				alloc_tree(active_workspace->layers.floating);
 			break;
 		case COMP_TILING_MODE_TILED:
 			toplevel->object.scene_tree =
-				wlr_scene_tree_create(server->layers.tiled);
+				wlr_scene_tree_create(active_workspace->layers.lower);
 			break;
 		}
 
