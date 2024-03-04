@@ -162,11 +162,11 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	cairo_stroke(cr);
 
 	if (!toplevel->using_csd) {
-		// Draw titlebar bottom border
-		cairo_set_line_width(cr, BORDER_WIDTH);
-		cairo_move_to(cr, toplevel_x, toplevel_y - BORDER_WIDTH * 0.5);
+		// Draw titlebar separator
+		cairo_set_line_width(cr, BORDER_SEPARATOR_HEIGHT);
+		cairo_move_to(cr, toplevel_x, toplevel_y - BORDER_SEPARATOR_HEIGHT * 0.5);
 		cairo_line_to(cr, toplevel_x + toplevel_width,
-					  toplevel_y - BORDER_WIDTH * 0.5);
+					  toplevel_y - BORDER_SEPARATOR_HEIGHT * 0.5);
 		cairo_stroke(cr);
 
 		/*
