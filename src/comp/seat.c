@@ -3,13 +3,15 @@
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xdg_shell.h>
-#include <xkbcommon/xkbcommon.h>
 #include <wlr/util/log.h>
+#include <xkbcommon/xkbcommon-keysyms.h>
+#include <xkbcommon/xkbcommon.h>
 
-#include "comp/seat.h"
 #include "comp/output.h"
+#include "comp/seat.h"
 #include "comp/server.h"
 #include "comp/toplevel.h"
+#include "seat/cursor.h"
 
 static void keyboard_handle_modifiers(struct wl_listener *listener,
 									  void *data) {
@@ -29,31 +31,42 @@ static void keyboard_handle_modifiers(struct wl_listener *listener,
 									   &keyboard->wlr_keyboard->modifiers);
 }
 
-static bool handle_keybinding(struct comp_server *server, xkb_keysym_t sym) {
+static bool handle_keybinding(struct comp_server *server,
+							  enum wlr_keyboard_modifier modifier,
+							  xkb_keysym_t sym) {
 	/*
 	 * Here we handle compositor keybindings. This is when the compositor is
 	 * processing keys, rather than passing them on to the client for its own
 	 * processing.
 	 *
-	 * This function assumes Alt is held down.
+	 * This function assumes Alt/Super is held down.
 	 */
-	switch (sym) {
-	case XKB_KEY_Escape:
-		wl_display_terminate(server->wl_display);
-		break;
-	case XKB_KEY_F1:
-		/* Cycle to the next view */
-		if (wl_list_length(&server->toplevels) < 2) {
+	switch (modifier) {
+	case WLR_MODIFIER_ALT:
+		switch (sym) {
+		case XKB_KEY_Escape:
+			wl_display_terminate(server->wl_display);
 			break;
+		case XKB_KEY_F1:
+			/* Cycle to the next view */
+			if (wl_list_length(&server->toplevels) < 2) {
+				break;
+			}
+			struct comp_toplevel *next_toplevel =
+				wl_container_of(server->toplevels.prev, next_toplevel, link);
+			comp_toplevel_focus(next_toplevel,
+								next_toplevel->xdg_toplevel->base->surface);
+			break;
+		default:
+			return false;
 		}
-		struct comp_toplevel *next_toplevel =
-			wl_container_of(server->toplevels.prev, next_toplevel, link);
-		comp_toplevel_focus(next_toplevel,
-							next_toplevel->xdg_toplevel->base->surface);
+		break;
+	case WLR_MODIFIER_LOGO:
 		break;
 	default:
-		return false;
+		break;
 	}
+
 	return true;
 }
 
@@ -73,12 +86,44 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 	bool handled = false;
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
-	if ((modifiers & WLR_MODIFIER_ALT) &&
-		event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
-		/* If alt is held down and this button was _pressed_, we attempt to
-		 * process it as a compositor keybinding. */
-		for (int i = 0; i < nsyms; i++) {
-			handled = handle_keybinding(server, syms[i]);
+
+	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+		int bitmask = 1 << (WLR_MODIFIER_COUNT - 1);
+		int mask = 1;
+		while (bitmask) {
+			switch (modifiers & mask) {
+			case WLR_MODIFIER_ALT:
+				/* If alt is held down and this button was _pressed_, we attempt
+				 * to process it as a compositor keybinding. */
+				for (int i = 0; i < nsyms; i++) {
+					handled =
+						handle_keybinding(server, WLR_MODIFIER_ALT, syms[i]);
+				}
+				break;
+			case WLR_MODIFIER_SHIFT:
+				break;
+			case WLR_MODIFIER_CAPS:
+				break;
+			case WLR_MODIFIER_CTRL:
+				break;
+			case WLR_MODIFIER_MOD2:
+				break;
+			case WLR_MODIFIER_MOD3:
+				break;
+			case WLR_MODIFIER_LOGO:
+				/* If the LOGO key (super/win) is held down and this button was
+				 * _pressed_, we attempt to process it as a compositor
+				 * keybinding. */
+				for (int i = 0; i < nsyms; i++) {
+					handled =
+						handle_keybinding(server, WLR_MODIFIER_LOGO, syms[i]);
+				}
+				break;
+			case WLR_MODIFIER_MOD5:
+				break;
+			}
+			bitmask &= ~mask;
+			mask <<= 1;
 		}
 	}
 
@@ -143,7 +188,7 @@ static void server_new_pointer(struct comp_server *server,
 	 * is proxied through wlr_cursor. On another compositor, you might take this
 	 * opportunity to do libinput configuration on the device to set
 	 * acceleration, etc. */
-	wlr_cursor_attach_input_device(server->cursor, device);
+	wlr_cursor_attach_input_device(server->cursor->wlr_cursor, device);
 }
 
 void comp_seat_new_input(struct wl_listener *listener, void *data) {
@@ -168,9 +213,9 @@ void comp_seat_new_input(struct wl_listener *listener, void *data) {
 		wlr_log(WLR_DEBUG, "Mapping input device %s to output %s", device->name,
 				mapped_to_output);
 		if (strcmp("*", mapped_to_output) == 0) {
-			wlr_cursor_map_input_to_output(server->cursor, device,
+			wlr_cursor_map_input_to_output(server->cursor->wlr_cursor, device,
 										   NULL);
-			wlr_cursor_map_input_to_region(server->cursor, device,
+			wlr_cursor_map_input_to_region(server->cursor->wlr_cursor, device,
 										   NULL);
 			wlr_log(WLR_DEBUG, "Reset output mapping");
 			return;
@@ -183,9 +228,9 @@ void comp_seat_new_input(struct wl_listener *listener, void *data) {
 					mapped_to_output, device->name);
 			return;
 		}
-		wlr_cursor_map_input_to_output(server->cursor, device,
+		wlr_cursor_map_input_to_output(server->cursor->wlr_cursor, device,
 									   output->wlr_output);
-		wlr_cursor_map_input_to_region(server->cursor, device,
+		wlr_cursor_map_input_to_region(server->cursor->wlr_cursor, device,
 									   NULL);
 		wlr_log(WLR_DEBUG, "Mapped to output %s", output->wlr_output->name);
 		break;
@@ -216,8 +261,8 @@ void comp_seat_request_cursor(struct wl_listener *listener, void *data) {
 		 * provided surface as the cursor image. It will set the hardware cursor
 		 * on the output that it's currently on and continue to do so as the
 		 * cursor moves between outputs. */
-		wlr_cursor_set_surface(server->cursor, event->surface, event->hotspot_x,
-							   event->hotspot_y);
+		wlr_cursor_set_surface(server->cursor->wlr_cursor, event->surface,
+							   event->hotspot_x, event->hotspot_y);
 	}
 }
 

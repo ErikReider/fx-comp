@@ -17,7 +17,7 @@ struct comp_server {
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 
-	struct wlr_scene *scene;
+	struct wlr_scene *root_scene;
 	struct wlr_scene_output_layout *scene_layout;
 	struct {
 		struct wlr_scene_tree *background;
@@ -34,20 +34,17 @@ struct comp_server {
 	struct wl_list toplevels;
 	struct wl_list xdg_decorations;
 
-	struct wlr_cursor *cursor;
-	struct wlr_xcursor_manager *cursor_mgr;
-	struct wl_listener cursor_motion;
-	struct wl_listener cursor_motion_absolute;
-	struct wl_listener cursor_button;
-	struct wl_listener cursor_axis;
-	struct wl_listener cursor_frame;
+	struct comp_cursor *cursor;
+
+	struct wlr_pointer_constraints_v1 *pointer_constraints;
+	struct wl_listener pointer_constraint;
+	struct wlr_relative_pointer_manager_v1 *relative_pointer_manager;
 
 	struct wlr_seat *seat;
 	struct wl_listener new_input;
 	struct wl_listener request_cursor;
 	struct wl_listener request_set_selection;
 	struct wl_list keyboards;
-	enum comp_cursor_mode cursor_mode;
 	struct comp_widget *hovered_widget;
 	struct comp_toplevel *grabbed_toplevel;
 	double grab_x, grab_y;
@@ -66,13 +63,6 @@ struct comp_server {
 
 extern struct comp_server server;
 
-void comp_server_reset_cursor_mode(struct comp_server *server);
-void comp_server_cursor_motion(struct wl_listener *listener, void *data);
-void comp_server_cursor_motion_absolute(struct wl_listener *listener,
-										void *data);
-void comp_server_cursor_button(struct wl_listener *listener, void *data);
-void comp_server_cursor_axis(struct wl_listener *listener, void *data);
-void comp_server_cursor_frame(struct wl_listener *listener, void *data);
 
 void comp_server_layout_change(struct wl_listener *listener, void *data);
 void comp_server_output_manager_apply(struct wl_listener *listener, void *data);

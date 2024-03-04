@@ -25,7 +25,9 @@
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/types/wlr_presentation_time.h>
+#include <wlr/types/wlr_relative_pointer_v1.h>
 #include <wlr/types/wlr_screencopy_v1.h>
 #include <wlr/types/wlr_server_decoration.h>
 #include <wlr/types/wlr_single_pixel_buffer_v1.h>
@@ -41,6 +43,7 @@
 #include "comp/server.h"
 #include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
+#include "seat/cursor.h"
 
 struct comp_server server = {0};
 
@@ -203,9 +206,9 @@ int main(int argc, char *argv[]) {
 	 * positions and then call wlr_scene_output_commit() to render a frame if
 	 * necessary.
 	 */
-	server.scene = wlr_scene_create();
 	server.scene_layout =
 		wlr_scene_attach_output_layout(server.scene, server.output_layout);
+	server.root_scene = wlr_scene_create();
 
 	/* Initialize layers */
 	server.layers.background = wlr_scene_tree_create(&server.scene->tree);
@@ -222,7 +225,7 @@ int main(int argc, char *argv[]) {
 		wlr_log(WLR_ERROR, "failed to create wlr_presentation");
 		return 1;
 	}
-	wlr_scene_set_presentation(server.scene, presentation);
+	wlr_scene_set_presentation(server.root_scene, presentation);
 
 	/*
 	 * XDG Toplevels
@@ -246,39 +249,17 @@ int main(int argc, char *argv[]) {
 	 * Creates a cursor, which is a wlroots utility for tracking the cursor
 	 * image shown on screen.
 	 */
-	server.cursor = wlr_cursor_create();
-	wlr_cursor_attach_output_layout(server.cursor, server.output_layout);
+	server.cursor = comp_cursor_create(&server);
 
-	/* Creates an xcursor manager, another wlroots utility which loads up
-	 * Xcursor themes to source cursor images from and makes sure that cursor
-	 * images are available at all scale factors on the screen (necessary for
-	 * HiDPI support). */
-	server.cursor_mgr = wlr_xcursor_manager_create(NULL, 24);
+	server.relative_pointer_manager =
+		wlr_relative_pointer_manager_v1_create(server.wl_display);
 
-	/*
-	 * wlr_cursor *only* displays an image on screen. It does not move around
-	 * when the pointer moves. However, we can attach input devices to it, and
-	 * it will generate aggregate events for all of them. In these events, we
-	 * can choose how we want to process them, forwarding them to clients and
-	 * moving the cursor around. More detail on this process is described in
-	 * https://drewdevault.com/2018/07/17/Input-handling-in-wlroots.html.
-	 *
-	 * And more comments are sprinkled throughout the notify functions above.
-	 */
-	server.cursor_mode = COMP_CURSOR_PASSTHROUGH;
-	server.cursor_motion.notify = comp_server_cursor_motion;
-	wl_signal_add(&server.cursor->events.motion, &server.cursor_motion);
-	server.cursor_motion_absolute.notify = comp_server_cursor_motion_absolute;
-	wl_signal_add(&server.cursor->events.motion_absolute,
-				  &server.cursor_motion_absolute);
-	server.cursor_button.notify = comp_server_cursor_button;
-	wl_signal_add(&server.cursor->events.button, &server.cursor_button);
-	server.cursor_axis.notify = comp_server_cursor_axis;
-	wl_signal_add(&server.cursor->events.axis, &server.cursor_axis);
-	server.cursor_frame.notify = comp_server_cursor_frame;
-	wl_signal_add(&server.cursor->events.frame, &server.cursor_frame);
-
-	wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, "left_ptr");
+	server.pointer_constraints =
+		wlr_pointer_constraints_v1_create(server.wl_display);
+	// TODO: Pointer constraint
+	// server.pointer_constraint.notify = handle_pointer_constraint;
+	// wl_signal_add(&server.pointer_constraints->events.new_constraint,
+	// 			  &server.pointer_constraint);
 
 	/*
 	 * Keyboard
@@ -392,8 +373,8 @@ int main(int argc, char *argv[]) {
 	/* Once wl_display_run returns, we destroy all clients then shut down the
 	 * server. */
 	wl_display_destroy_clients(server.wl_display);
-	wlr_scene_node_destroy(&server.scene->tree.node);
-	wlr_xcursor_manager_destroy(server.cursor_mgr);
+	wlr_scene_node_destroy(&server.root_scene->tree.node);
+	comp_cursor_destroy(server.cursor);
 	wlr_output_layout_destroy(server.output_layout);
 	wl_display_destroy(server.wl_display);
 

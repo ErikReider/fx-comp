@@ -10,7 +10,7 @@ struct comp_object *comp_object_at(struct comp_server *server, double lx,
 	 * We only care about surface nodes as we are specifically looking for a
 	 * surface in the surface tree of a comp_toplevel. */
 	struct wlr_scene_node *node =
-		wlr_scene_node_at(&server->scene->tree.node, lx, ly, sx, sy);
+		wlr_scene_node_at(&server->root_scene->tree.node, lx, ly, sx, sy);
 	if (node == NULL || node->type != WLR_SCENE_NODE_BUFFER) {
 		return NULL;
 	}

@@ -9,6 +9,7 @@
 #include "comp/server.h"
 #include "comp/toplevel.h"
 #include "constants.h"
+#include "seat/cursor.h"
 
 static void set_xcursor_theme(struct comp_edge *edge) {
 	const char *cursor;
@@ -41,7 +42,8 @@ static void set_xcursor_theme(struct comp_edge *edge) {
 		cursor = "bottom_right_corner";
 		break;
 	}
-	wlr_cursor_set_xcursor(server.cursor, server.cursor_mgr, cursor);
+	wlr_cursor_set_xcursor(server.cursor->wlr_cursor, server.cursor->cursor_mgr,
+						   cursor);
 }
 
 static void edge_destroy(struct comp_widget *widget) {
