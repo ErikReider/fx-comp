@@ -24,7 +24,6 @@ struct comp_server {
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
 	struct wl_listener new_xdg_decoration;
-	struct wl_list toplevels;
 	struct wl_list xdg_decorations;
 
 	struct comp_cursor *cursor;

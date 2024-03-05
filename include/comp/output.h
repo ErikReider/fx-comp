@@ -29,6 +29,7 @@ struct comp_output {
 	struct comp_workspace *active_workspace;
 	struct comp_workspace *prev_workspace;
 
+
 	struct wlr_box geometry;
 
 	struct wl_listener frame;

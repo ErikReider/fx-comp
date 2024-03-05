@@ -49,6 +49,8 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 	}
 	ws->layers.floating->node.data = ws;
 
+	wl_list_init(&ws->toplevels);
+
 	wl_list_insert(&output->workspaces, &ws->link);
 
 	comp_output_focus_workspace(output, ws);

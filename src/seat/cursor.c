@@ -9,8 +9,8 @@
 #include <wlr/util/edges.h>
 #include <wlr/util/region.h>
 
-#include "comp/toplevel.h"
 #include "comp/widget.h"
+#include "desktop/toplevel.h"
 #include "seat/cursor.h"
 #include "wlr/util/log.h"
 

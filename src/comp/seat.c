@@ -10,7 +10,8 @@
 #include "comp/output.h"
 #include "comp/seat.h"
 #include "comp/server.h"
-#include "comp/toplevel.h"
+#include "comp/workspace.h"
+#include "desktop/toplevel.h"
 #include "seat/cursor.h"
 
 static void keyboard_handle_modifiers(struct wl_listener *listener,
@@ -47,13 +48,15 @@ static bool handle_keybinding(struct comp_server *server,
 		case XKB_KEY_Escape:
 			wl_display_terminate(server->wl_display);
 			break;
-		case XKB_KEY_F1:
+		case XKB_KEY_F1:;
 			/* Cycle to the next view */
-			if (wl_list_length(&server->toplevels) < 2) {
+			struct comp_output *output = get_active_output(server);
+			struct comp_workspace *workspace = output->active_workspace;
+			if (wl_list_length(&workspace->toplevels) < 2) {
 				break;
 			}
-			struct comp_toplevel *next_toplevel =
-				wl_container_of(server->toplevels.prev, next_toplevel, link);
+			struct comp_toplevel *next_toplevel = wl_container_of(
+				workspace->toplevels.prev, next_toplevel, workspace_link);
 			comp_toplevel_focus(next_toplevel,
 								next_toplevel->xdg_toplevel->base->surface);
 			break;

@@ -3,7 +3,7 @@
 #include <wayland-util.h>
 
 #include "comp/border/titlebar.h"
-#include "comp/toplevel.h"
+#include "desktop/toplevel.h"
 #include "comp/widget.h"
 #include "desktop/xdg_decoration.h"
 

@@ -5,6 +5,7 @@
 #include <string.h>
 #include <strings.h>
 #include <time.h>
+#include <wayland-util.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/util/log.h>
@@ -12,8 +13,8 @@
 #include "comp/border/titlebar.h"
 #include "comp/output.h"
 #include "comp/server.h"
-#include "comp/toplevel.h"
 #include "comp/workspace.h"
+#include "desktop/toplevel.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -119,7 +120,7 @@ static void output_configure_scene(struct comp_output *output,
 			// on it's active monitor
 			// TODO: Change toplevels active_output when the majority of the
 			// toplevel is on the other output
-			if (output != toplevel->output &&
+			if (output != toplevel->workspace->output &&
 				server.grabbed_toplevel == toplevel) {
 				opacity = 0.4;
 			}
@@ -188,12 +189,14 @@ static void evacuate_workspaces(struct comp_output *output) {
 		dest_output = server.fallback_output;
 	}
 
+	wlr_log(WLR_DEBUG, "Evacuating workspace to output '%s'",
+			dest_output->wlr_output->name);
+
 	// TODO: Test this with multiple monitors
 	struct comp_workspace *workspace, *tmp_ws;
 	wl_list_for_each_reverse_safe(workspace, tmp_ws, &output->workspaces,
 								  link) {
 		comp_output_move_workspace_to(dest_output, workspace);
-		comp_workspace_destroy(workspace);
 	}
 
 	// Focus the last workspace on the destination output
@@ -236,6 +239,7 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.session_lock = wlr_scene_tree_create(output->output_tree);
 
 	wl_list_init(&output->workspaces);
+
 
 	wl_list_insert(&server->outputs, &output->link);
 

@@ -16,10 +16,10 @@
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
-#include "comp/toplevel.h"
 #include "comp/widget.h"
 #include "comp/workspace.h"
 #include "constants.h"
+#include "desktop/toplevel.h"
 #include "desktop/xdg.h"
 #include "seat/cursor.h"
 #include "util.h"
@@ -151,7 +151,7 @@ static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	struct comp_toplevel *toplevel = wl_container_of(listener, toplevel, map);
-	wl_list_insert(&toplevel->server->toplevels, &toplevel->link);
+	wl_list_insert(&toplevel->workspace->toplevels, &toplevel->workspace_link);
 
 	// Set the effects for each scene_buffer
 	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node,
@@ -193,7 +193,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 		comp_cursor_reset_cursor_mode(toplevel->server);
 	}
 
-	wl_list_remove(&toplevel->link);
+	wl_list_remove(&toplevel->workspace_link);
 }
 
 static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
@@ -340,7 +340,6 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	toplevel->server = server;
 	toplevel->focused = false;
 	toplevel->using_csd = true;
-	toplevel->output = get_active_output(server);
 	/* Set the scene_nodes decoration data */
 	toplevel->opacity = 1;
 	toplevel->corner_radius = EFFECTS_CORNER_RADII;
@@ -362,6 +361,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 			wlr_xdg_surface_try_from_wlr_surface(xdg_surface->popup->parent);
 		assert(parent != NULL);
 		struct wlr_scene_tree *parent_tree = parent->data;
+		toplevel->parent_toplevel = parent_tree->node.data;
 
 		toplevel->tiling_mode = COMP_TILING_MODE_FLOATING;
 
@@ -382,6 +382,8 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		toplevel->xdg_toplevel = xdg_surface->toplevel;
 		toplevel->xdg_popup = NULL;
 
+		struct comp_output *output = get_active_output(server);
+
 		toplevel->fullscreen = toplevel->xdg_toplevel->pending.fullscreen;
 
 		// Add the toplevel to the tiled/floating layer
@@ -391,9 +393,9 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		if (toplevel->fullscreen) {
 			toplevel->tiling_mode = COMP_TILING_MODE_TILED;
 		}
-		struct comp_output *output = toplevel->output;
 		struct comp_workspace *active_workspace =
 			comp_output_get_active_ws(output, toplevel->fullscreen);
+		toplevel->workspace = active_workspace;
 		switch (toplevel->tiling_mode) {
 		case COMP_TILING_MODE_FLOATING:
 			toplevel->object.scene_tree =
@@ -401,7 +403,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 			break;
 		case COMP_TILING_MODE_TILED:
 			toplevel->object.scene_tree =
-				wlr_scene_tree_create(active_workspace->layers.lower);
+				alloc_tree(active_workspace->layers.lower);
 			break;
 		}
 

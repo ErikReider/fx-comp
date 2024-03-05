@@ -7,8 +7,8 @@
 #include "comp/border/edge.h"
 #include "comp/border/titlebar.h"
 #include "comp/server.h"
-#include "comp/toplevel.h"
 #include "constants.h"
+#include "desktop/toplevel.h"
 #include "seat/cursor.h"
 
 static void set_xcursor_theme(struct comp_edge *edge) {

@@ -34,8 +34,6 @@ struct wlr_scene_tree *alloc_tree(struct wlr_scene_tree *parent) {
 	struct wlr_scene_tree *tree = wlr_scene_tree_create(parent);
 	if (tree == NULL) {
 		wlr_log(WLR_ERROR, "Could not create scene_tree");
-		free(tree);
-		return NULL;
 	}
 	return tree;
 }

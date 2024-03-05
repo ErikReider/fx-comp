@@ -19,13 +19,17 @@ enum comp_tiling_mode {
 };
 
 struct comp_toplevel {
-	struct wl_list link;
+	struct wl_list workspace_link;
 
 	struct comp_server *server;
-	struct comp_output *output;
+	struct comp_workspace *workspace;
 
+	// XDG Toplevel
 	struct wlr_xdg_toplevel *xdg_toplevel;
+
+	// XDG Popup
 	struct wlr_xdg_popup *xdg_popup;
+	struct comp_toplevel *parent_toplevel;
 
 	struct wlr_scene_tree *xdg_scene_tree;
 

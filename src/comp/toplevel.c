@@ -6,8 +6,9 @@
 
 #include "comp/border/titlebar.h"
 #include "comp/server.h"
-#include "comp/toplevel.h"
 #include "comp/widget.h"
+#include "comp/workspace.h"
+#include "desktop/toplevel.h"
 
 static void comp_wlr_surface_unfocus(struct wlr_surface *surface) {
 	struct wlr_xdg_surface *xdg_surface =
@@ -54,8 +55,8 @@ void comp_toplevel_focus(struct comp_toplevel *toplevel,
 	toplevel->focused = true;
 	/* Move the toplevel to the front */
 	wlr_scene_node_raise_to_top(&toplevel->object.scene_tree->node);
-	wl_list_remove(&toplevel->link);
-	wl_list_insert(&server->toplevels, &toplevel->link);
+	wl_list_remove(&toplevel->workspace_link);
+	wl_list_insert(&toplevel->workspace->toplevels, &toplevel->workspace_link);
 	/* Activate the new surface */
 	wlr_xdg_toplevel_set_activated(toplevel->xdg_toplevel, true);
 	/*

@@ -13,9 +13,9 @@
 
 #include "comp/border/titlebar.h"
 #include "comp/server.h"
-#include "comp/toplevel.h"
 #include "comp/widget.h"
 #include "constants.h"
+#include "desktop/toplevel.h"
 #include "util.h"
 
 bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel) {
@@ -164,7 +164,8 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	if (!toplevel->using_csd) {
 		// Draw titlebar separator
 		cairo_set_line_width(cr, BORDER_SEPARATOR_HEIGHT);
-		cairo_move_to(cr, toplevel_x, toplevel_y - BORDER_SEPARATOR_HEIGHT * 0.5);
+		cairo_move_to(cr, toplevel_x,
+					  toplevel_y - BORDER_SEPARATOR_HEIGHT * 0.5);
 		cairo_line_to(cr, toplevel_x + toplevel_width,
 					  toplevel_y - BORDER_SEPARATOR_HEIGHT * 0.5);
 		cairo_stroke(cr);
