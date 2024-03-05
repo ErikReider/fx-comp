@@ -106,6 +106,8 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	struct wlr_box geometry;
 	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
 
+	const int TITLEBAR_HEIGHT = toplevel->top_border_height;
+
 	const int toplevel_radius = toplevel->corner_radius;
 	const int toplevel_x = BORDER_WIDTH;
 	const int toplevel_y = TITLEBAR_HEIGHT;
@@ -293,6 +295,9 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 	// Set the titlebar decoration data
 	titlebar->widget.opacity = 1;
 	titlebar->widget.corner_radius = toplevel->corner_radius + BORDER_WIDTH;
+	if (toplevel->corner_radius == 0) {
+		titlebar->widget.corner_radius = 0;
+	}
 	titlebar->widget.shadow_data = toplevel->shadow_data;
 
 	/*

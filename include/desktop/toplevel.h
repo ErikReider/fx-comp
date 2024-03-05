@@ -11,7 +11,7 @@
 #include "comp/server.h"
 #include "desktop/xdg_decoration.h"
 
-#define TOPLEVEL_NUM_BORDERS 4
+#define NUMBER_OF_RESIZE_TARGETS 8
 
 enum comp_tiling_mode {
 	COMP_TILING_MODE_FLOATING, // Only floating
@@ -35,7 +35,8 @@ struct comp_toplevel {
 
 	// Borders
 	struct comp_titlebar *titlebar;
-	struct comp_edge *edge;
+	struct comp_resize_edge *edges[NUMBER_OF_RESIZE_TARGETS];
+	int top_border_height;
 	struct comp_xdg_decoration *xdg_decoration;
 	bool using_csd;
 

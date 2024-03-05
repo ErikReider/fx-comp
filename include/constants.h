@@ -25,7 +25,7 @@
 #define TITLEBAR_COLOR_BORDER_UNFOCUSED                                        \
 	{ 0.294, 0.294, 0.294, 1 } // #4b4b4b
 
-#define TITLEBAR_HEIGHT 30
+#define TITLEBAR_INIT_HEIGHT 30
 #define TITLEBAR_BUTTON_SIZE 16
 #define TITLEBAR_BUTTONS_ON_RIGHT false
 

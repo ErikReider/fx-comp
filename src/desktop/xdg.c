@@ -11,7 +11,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 
-#include "comp/border/edge.h"
+#include "comp/border/resize_edge.h"
 #include "comp/border/titlebar.h"
 #include "comp/object.h"
 #include "comp/output.h"
@@ -28,10 +28,10 @@ static void xdg_resize(struct comp_toplevel *toplevel, int width, int height) {
 	toplevel->object.width = width;
 	toplevel->object.height = height;
 
-	int top_height = BORDER_WIDTH;
+	toplevel->top_border_height = BORDER_WIDTH;
 	if (comp_titlebar_should_be_shown(toplevel)) {
 		// TODO: Calculate titlebar height
-		top_height = TITLEBAR_HEIGHT;
+		toplevel->top_border_height = TITLEBAR_INIT_HEIGHT;
 	}
 
 	if (toplevel->xdg_toplevel->base->client->shell->version >=
@@ -51,20 +51,21 @@ static void xdg_resize(struct comp_toplevel *toplevel, int width, int height) {
 	toplevel->object.width =
 		fmax(min_width + (2 * BORDER_WIDTH), toplevel->object.width);
 	toplevel->object.height =
-		fmax(min_height + top_height, toplevel->object.height);
+		fmax(min_height + toplevel->top_border_height, toplevel->object.height);
 
 	if (max_width > 0 && !(2 * BORDER_WIDTH > INT_MAX - max_width)) {
 		toplevel->object.width =
 			fmin(max_width + (2 * BORDER_WIDTH), toplevel->object.width);
 	}
-	if (max_height > 0 && !(top_height > INT_MAX - max_height)) {
-		toplevel->object.height =
-			fmin(max_height + top_height, toplevel->object.height);
+	if (max_height > 0 &&
+		!(toplevel->top_border_height > INT_MAX - max_height)) {
+		toplevel->object.height = fmin(max_height + toplevel->top_border_height,
+									   toplevel->object.height);
 	}
 
 	// Only redraw the titlebar if the size has changed
 	int new_titlebar_height =
-		top_height + toplevel->object.height - BORDER_WIDTH;
+		toplevel->top_border_height + toplevel->object.height - BORDER_WIDTH;
 	struct comp_titlebar *titlebar = toplevel->titlebar;
 	if (toplevel->titlebar &&
 		(titlebar->widget.object.width != toplevel->object.width ||
@@ -73,24 +74,20 @@ static void xdg_resize(struct comp_toplevel *toplevel, int width, int height) {
 								new_titlebar_height);
 		// Position the titlebar above the window
 		wlr_scene_node_set_position(&titlebar->widget.object.scene_tree->node,
-									-BORDER_WIDTH, -top_height);
+									-BORDER_WIDTH,
+									-toplevel->top_border_height);
 
 		// Adjust edges
-		comp_widget_draw_resize(&toplevel->edge->widget,
-								toplevel->object.width +
-									BORDER_RESIZE_WIDTH * 2,
-								new_titlebar_height + BORDER_RESIZE_WIDTH * 2);
-		wlr_scene_node_set_position(
-			&toplevel->edge->widget.object.scene_tree->node,
-			-BORDER_RESIZE_WIDTH - BORDER_WIDTH,
-			-BORDER_RESIZE_WIDTH - top_height);
-	}
+		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
+			struct comp_resize_edge *edge = toplevel->edges[i];
+			int width, height, x, y;
+			comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
 
-	// wlr_scene_node_set_position(&toplevel->scene_tree->node, BORDER_WIDTH,
-	// 							top_height);
-	// toplevel->resize_serial = wlr_xdg_toplevel_set_size(
-	// 	toplevel->xdg_toplevel, toplevel->width - 2 * BORDER_WIDTH,
-	// 	toplevel->height - top_height);
+			comp_widget_draw_resize(&edge->widget, width, height);
+			wlr_scene_node_set_position(&edge->widget.object.scene_tree->node,
+										x, y);
+		}
+	}
 }
 
 static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
@@ -408,12 +405,6 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		}
 
 		/*
-		 * Resize borders
-		 */
-
-		toplevel->edge = comp_edge_init(server, toplevel);
-
-		/*
 		 * Titlebar
 		 */
 
@@ -430,6 +421,24 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		toplevel->object.data = toplevel;
 		toplevel->object.type = COMP_OBJECT_TYPE_TOPLEVEL;
 		xdg_surface->data = toplevel->object.scene_tree;
+
+		/*
+		 * Resize borders
+		 */
+		const enum xdg_toplevel_resize_edge edges[NUMBER_OF_RESIZE_TARGETS] = {
+			XDG_TOPLEVEL_RESIZE_EDGE_TOP,
+			XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM,
+			XDG_TOPLEVEL_RESIZE_EDGE_LEFT,
+			XDG_TOPLEVEL_RESIZE_EDGE_TOP_LEFT,
+			XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_LEFT,
+			XDG_TOPLEVEL_RESIZE_EDGE_RIGHT,
+			XDG_TOPLEVEL_RESIZE_EDGE_TOP_RIGHT,
+			XDG_TOPLEVEL_RESIZE_EDGE_BOTTOM_RIGHT,
+		};
+		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
+			toplevel->edges[i] =
+				comp_resize_edge_init(server, toplevel, edges[i]);
+		}
 
 		/*
 		 * Events

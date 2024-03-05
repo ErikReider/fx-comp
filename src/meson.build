@@ -2,7 +2,7 @@ sources = files(
 	'main.c',
 	'util.c',
 	'seat/cursor.c',
-	'comp/border/edge.c',
+	'comp/border/resize_edge.c',
 	'comp/border/titlebar.c',
 	'comp/cairo_buffer.c',
 	'comp/object.c',
