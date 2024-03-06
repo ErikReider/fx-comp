@@ -40,14 +40,12 @@ static void server_update_monitors(struct comp_server *server) {
 	}
 
 	wl_list_for_each(output, &server->outputs, link) {
-		if (!output->wlr_output->enabled) {
+		if (!output->wlr_output->enabled || output == server->fallback_output) {
 			continue;
 		}
 
-		wlr_output_layout_get_box(server->output_layout, output->wlr_output,
-								  &output->geometry);
-
 		// TODO: Update toplevel positions/tiling/sizes
+		comp_output_update_sizes(output);
 
 		if (output_config) {
 			struct wlr_output_configuration_head_v1 *head =

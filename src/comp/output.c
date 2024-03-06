@@ -215,6 +215,8 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&output->destroy.link);
 	wl_list_remove(&output->link);
 
+	wlr_scene_node_destroy(&output->output_tree->node);
+
 	free(output);
 }
 
@@ -322,11 +324,11 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 	 * display, which Wayland clients can see to find out information about the
 	 * output (such as DPI, scale factor, manufacturer, etc).
 	 */
-	struct wlr_output_layout_output *l_output =
-		wlr_output_layout_add_auto(server->output_layout, wlr_output);
 	struct wlr_scene_output *scene_output =
 		wlr_scene_output_create(server->root_scene, wlr_output);
 	output->scene_output = scene_output;
+	struct wlr_output_layout_output *l_output =
+		wlr_output_layout_add_auto(server->output_layout, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output,
 									   scene_output);
 }
@@ -352,6 +354,15 @@ void comp_output_disable(struct comp_output *output) {
 	}
 }
 
+void comp_output_update_sizes(struct comp_output *output) {
+	// Update the monitors geometry wlr_box
+	wlr_output_layout_get_box(server.output_layout, output->wlr_output,
+							  &output->geometry);
+
+	wlr_scene_output_set_position(output->scene_output, output->geometry.x,
+								  output->geometry.y);
+}
+
 void comp_output_move_workspace_to(struct comp_output *dest_output,
 								   struct comp_workspace *ws) {
 	if (ws->output == dest_output || !ws) {
@@ -368,6 +379,7 @@ void comp_output_move_workspace_to(struct comp_output *dest_output,
 	wlr_scene_node_reparent(&ws->workspace_tree->node,
 							dest_output->layers.workspaces);
 	wlr_scene_node_set_enabled(&ws->workspace_tree->node, false);
+
 	ws->output = dest_output;
 
 	wl_list_insert(&dest_output->workspaces, &ws->link);

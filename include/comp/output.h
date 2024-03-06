@@ -60,6 +60,8 @@ void comp_new_output(struct wl_listener *listener, void *data);
 
 void comp_output_disable(struct comp_output *output);
 
+void comp_output_update_sizes(struct comp_output *output);
+
 /**
  * Adds a already created comp_workspace. Moves it from another output if
  * needed
