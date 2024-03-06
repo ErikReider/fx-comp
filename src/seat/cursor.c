@@ -9,90 +9,48 @@
 #include <wlr/util/edges.h>
 #include <wlr/util/region.h>
 
+#include "comp/output.h"
+#include "comp/server.h"
 #include "comp/widget.h"
 #include "desktop/toplevel.h"
 #include "seat/cursor.h"
 #include "wlr/util/log.h"
 
+static void set_active_output_from_cursor_pos(struct comp_cursor *cursor) {
+	// Use cursor position by default
+	int coords_x = server.cursor->wlr_cursor->x;
+	int coords_y = server.cursor->wlr_cursor->y;
+	struct wlr_output *hovered_output =
+		wlr_output_layout_output_at(server.output_layout, coords_x, coords_y);
+	if (hovered_output) {
+		struct comp_output *output = hovered_output->data;
+		server.active_output = output;
+		wlr_scene_node_raise_to_top(&output->output_tree->node);
+	}
+}
+
 void comp_cursor_reset_cursor_mode(struct comp_server *server) {
 	/* Reset the cursor mode to passthrough. */
 	server->cursor->cursor_mode = COMP_CURSOR_PASSTHROUGH;
 	server->grabbed_toplevel = NULL;
-}
 
-static void process_cursor_move(struct comp_server *server, uint32_t time) {
-	/* Move the grabbed toplevel to the new position. */
-	struct comp_toplevel *toplevel = server->grabbed_toplevel;
-	if (server->grabbed_toplevel) {
-		wlr_scene_node_set_position(
-			&toplevel->object.scene_tree->node,
-			server->cursor->wlr_cursor->x - server->grab_x,
-			server->cursor->wlr_cursor->y - server->grab_y);
-	}
-}
-
-static void process_cursor_resize(struct comp_server *server, uint32_t time) {
-	/*
-	 * Resizing the grabbed toplevel can be a little bit complicated, because we
-	 * could be resizing from any corner or edge. This not only resizes the
-	 * toplevel on one or two axes, but can also move the toplevel if you resize
-	 * from the top or left edges (or top-left corner).
-	 *
-	 * Note that some shortcuts are taken here. In a more fleshed-out
-	 * compositor, you'd wait for the client to prepare a buffer at the new
-	 * size, then commit any movement that was prepared.
-	 */
-	struct comp_toplevel *toplevel = server->grabbed_toplevel;
-	double border_x = server->cursor->wlr_cursor->x - server->grab_x;
-	double border_y = server->cursor->wlr_cursor->y - server->grab_y;
-	int new_left = server->grab_geobox.x;
-	int new_right = server->grab_geobox.x + server->grab_geobox.width;
-	int new_top = server->grab_geobox.y;
-	int new_bottom = server->grab_geobox.y + server->grab_geobox.height;
-
-	if (server->resize_edges & WLR_EDGE_TOP) {
-		new_top = border_y;
-		if (new_top >= new_bottom) {
-			new_top = new_bottom - 1;
-		}
-	} else if (server->resize_edges & WLR_EDGE_BOTTOM) {
-		new_bottom = border_y;
-		if (new_bottom <= new_top) {
-			new_bottom = new_top + 1;
-		}
-	}
-	if (server->resize_edges & WLR_EDGE_LEFT) {
-		new_left = border_x;
-		if (new_left >= new_right) {
-			new_left = new_right - 1;
-		}
-	} else if (server->resize_edges & WLR_EDGE_RIGHT) {
-		new_right = border_x;
-		if (new_right <= new_left) {
-			new_right = new_left + 1;
-		}
-	}
-
-	struct wlr_box geo_box;
-	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geo_box);
-	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
-								new_left - geo_box.x, new_top - geo_box.y);
-
-	int new_width = new_right - new_left;
-	int new_height = new_bottom - new_top;
-	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
+	// Set the active output
+	set_active_output_from_cursor_pos(server->cursor);
 }
 
 static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 	struct comp_server *server = cursor->server;
 	// If the mode is non-passthrough, delegate to those functions.
 	if (server->cursor->cursor_mode == COMP_CURSOR_MOVE) {
-		process_cursor_move(server, time);
+		comp_toplevel_process_cursor_move(server, time);
 		return;
 	} else if (server->cursor->cursor_mode == COMP_CURSOR_RESIZE) {
-		process_cursor_resize(server, time);
+		comp_toplevel_process_cursor_resize(server, time);
 		return;
 	}
+
+	// Set the active output
+	set_active_output_from_cursor_pos(cursor);
 
 	// Otherwise, find the toplevel under the pointer and send the event along.
 	double sx, sy;

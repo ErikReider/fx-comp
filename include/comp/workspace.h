@@ -35,6 +35,9 @@ struct comp_workspace {
 
 int comp_workspace_find_index(struct wl_list *list, struct comp_workspace *ws);
 
+void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
+									  struct comp_toplevel *toplevel);
+
 /*
  * Main
  */

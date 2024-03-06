@@ -390,19 +390,10 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		if (toplevel->fullscreen) {
 			toplevel->tiling_mode = COMP_TILING_MODE_TILED;
 		}
-		struct comp_workspace *active_workspace =
+		toplevel->workspace =
 			comp_output_get_active_ws(output, toplevel->fullscreen);
-		toplevel->workspace = active_workspace;
-		switch (toplevel->tiling_mode) {
-		case COMP_TILING_MODE_FLOATING:
-			toplevel->object.scene_tree =
-				alloc_tree(active_workspace->layers.floating);
-			break;
-		case COMP_TILING_MODE_TILED:
-			toplevel->object.scene_tree =
-				alloc_tree(active_workspace->layers.lower);
-			break;
-		}
+		struct wlr_scene_tree *tree = comp_toplevel_get_layer(toplevel);
+		toplevel->object.scene_tree = alloc_tree(tree);
 
 		/*
 		 * Titlebar
@@ -469,5 +460,14 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		wl_signal_add(&xdg_toplevel->events.request_fullscreen,
 					  &toplevel->request_fullscreen);
 		break;
+	}
+}
+
+struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
+	switch (toplevel->tiling_mode) {
+	case COMP_TILING_MODE_FLOATING:
+		return toplevel->workspace->layers.floating;
+	case COMP_TILING_MODE_TILED:
+		return toplevel->workspace->layers.lower;
 	}
 }

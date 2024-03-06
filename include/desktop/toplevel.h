@@ -15,7 +15,7 @@
 
 enum comp_tiling_mode {
 	COMP_TILING_MODE_FLOATING, // Only floating
-	COMP_TILING_MODE_TILED, // Tiled / Fullscreen
+	COMP_TILING_MODE_TILED,	   // Tiled / Fullscreen
 };
 
 struct comp_toplevel {
@@ -67,8 +67,16 @@ struct comp_toplevel {
 void comp_toplevel_focus(struct comp_toplevel *view,
 						 struct wlr_surface *surface);
 
+void comp_toplevel_process_cursor_move(struct comp_server *server,
+									   uint32_t time);
+
+void comp_toplevel_process_cursor_resize(struct comp_server *server,
+										 uint32_t time);
+
 void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 									 enum comp_cursor_mode mode,
 									 uint32_t edges);
+
+struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
 
 #endif // !FX_COMP_TOPLEVEL_H
