@@ -24,7 +24,7 @@
 #include "seat/cursor.h"
 #include "util.h"
 
-static void xdg_resize(struct comp_toplevel *toplevel, int width, int height) {
+static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 	toplevel->object.width = width;
 	toplevel->object.height = height;
 
@@ -165,13 +165,15 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 		// Open new floating toplevels in the center of the output
 		struct wlr_box box;
-		wlr_output_layout_get_box(toplevel->server->output_layout, NULL, &box);
+		wlr_output_layout_get_box(toplevel->server->output_layout,
+								  toplevel->workspace->output->wlr_output,
+								  &box);
 		wlr_scene_node_set_position(
 			&toplevel->object.scene_tree->node,
 			box.x + (box.width - toplevel->initial_width) / 2,
 			box.y + (box.height - toplevel->initial_height) / 2);
 
-		xdg_resize(toplevel, toplevel->initial_width, toplevel->initial_height);
+		xdg_update(toplevel, toplevel->initial_width, toplevel->initial_height);
 	} else {
 		// Tile the new toplevel
 		// TODO: Tile
@@ -206,7 +208,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 
 	// Open new floating toplevels in the center of the output
 	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-		xdg_resize(toplevel, toplevel->object.width, toplevel->object.height);
+		xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
 	} else {
 		// Tile the new toplevel
 		// TODO: Tile
@@ -250,13 +252,18 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 	server->grabbed_toplevel = toplevel;
 	server->cursor->cursor_mode = mode;
 
-	if (mode == COMP_CURSOR_MOVE) {
+	switch (mode) {
+	case COMP_CURSOR_PASSTHROUGH:
+		break;
+	case COMP_CURSOR_MOVE:
 		server->grab_x =
 			server->cursor->wlr_cursor->x - toplevel->object.scene_tree->node.x;
 		server->grab_y =
 			server->cursor->wlr_cursor->y - toplevel->object.scene_tree->node.y;
-		xdg_resize(toplevel, toplevel->object.width, toplevel->object.height);
-	} else {
+
+		xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
+		break;
+	case COMP_CURSOR_RESIZE:;
 		struct wlr_box geo_box;
 		wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geo_box);
 
@@ -276,7 +283,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 		// TODO: RESIZE
 		toplevel->object.width = server->grab_geobox.width + 2 * BORDER_WIDTH;
 		toplevel->object.height = server->grab_geobox.height + 2 * BORDER_WIDTH;
-		xdg_resize(toplevel, toplevel->object.width, toplevel->object.height);
+		xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
+		break;
 	}
 }
 
