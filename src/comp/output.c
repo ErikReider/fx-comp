@@ -14,6 +14,7 @@
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/workspace.h"
+#include "constants.h"
 #include "desktop/toplevel.h"
 #include "util.h"
 
@@ -118,11 +119,8 @@ static void output_configure_scene(struct comp_output *output,
 			float opacity = 1;
 			// Change the opacity of the grabbed toplevel if it's not displayed
 			// on it's active monitor
-			// TODO: Change toplevels active_output when the majority of the
-			// toplevel is on the other output
-			if (output != toplevel->workspace->output &&
-				server.grabbed_toplevel == toplevel) {
-				opacity = 0.4;
+			if (output != toplevel->workspace->output) {
+				opacity = TOPLEVEL_NON_MAIN_OUTPUT_OPACITY;
 			}
 			wlr_scene_buffer_set_opacity(buffer, opacity);
 			wlr_scene_buffer_set_opacity(titlebar->widget.scene_buffer,
