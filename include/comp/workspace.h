@@ -13,7 +13,7 @@ enum comp_workspace_type {
 };
 
 struct comp_workspace {
-	struct wl_list link;
+	struct wl_list output_link;
 
 	enum comp_workspace_type type;
 

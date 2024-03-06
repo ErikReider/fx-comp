@@ -120,11 +120,14 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 									   uint32_t time) {
 	/* Move the grabbed toplevel to the new position. */
 	struct comp_toplevel *toplevel = server->grabbed_toplevel;
-	if (server->grabbed_toplevel) {
-		wlr_scene_node_set_position(
-			&toplevel->object.scene_tree->node,
-			server->cursor->wlr_cursor->x - server->grab_x,
-			server->cursor->wlr_cursor->y - server->grab_y);
+	if (toplevel) {
+		// Adjust the toplevel coordinates to be root-relative
+		double lx = server->cursor->wlr_cursor->x - server->grab_x;
+		double ly = server->cursor->wlr_cursor->y - server->grab_y;
+		wlr_output_layout_output_coords(server->output_layout,
+										toplevel->workspace->output->wlr_output,
+										&lx, &ly);
+		wlr_scene_node_set_position(&toplevel->object.scene_tree->node, lx, ly);
 
 		// Update floating toplevels current monitor and workspace.
 		// Also raise the output node to the top so that it's floating toplevels

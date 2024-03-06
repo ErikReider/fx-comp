@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_output_layout.h>
 #include <wlr/util/log.h>
 
 #include "comp/output.h"
@@ -12,7 +13,7 @@
 int comp_workspace_find_index(struct wl_list *list, struct comp_workspace *ws) {
 	int pos = 0;
 	struct comp_workspace *pos_ws;
-	wl_list_for_each_reverse(pos_ws, list, link) {
+	wl_list_for_each_reverse(pos_ws, list, output_link) {
 		if (pos_ws == ws) {
 			return pos;
 		}
@@ -33,9 +34,20 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 	toplevel->workspace = dest_workspace;
 	wl_list_insert(&dest_workspace->toplevels, &toplevel->workspace_link);
 
+	int x, y;
+	wlr_scene_node_coords(&toplevel->object.scene_tree->node, &x, &y);
+
 	// Reparent node onto the new workspace
 	struct wlr_scene_tree *new_layer = comp_toplevel_get_layer(toplevel);
 	wlr_scene_node_reparent(&toplevel->object.scene_tree->node, new_layer);
+
+	// Adjust the node coordinates to be output-relative
+	double lx = x;
+	double ly = y;
+	wlr_output_layout_output_coords(server.output_layout,
+									toplevel->workspace->output->wlr_output,
+									&lx, &ly);
+	wlr_scene_node_set_position(&toplevel->object.scene_tree->node, lx, ly);
 }
 
 struct comp_workspace *comp_workspace_new(struct comp_output *output,
@@ -69,7 +81,7 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 
 	wl_list_init(&ws->toplevels);
 
-	wl_list_insert(&output->workspaces, &ws->link);
+	wl_list_insert(&output->workspaces, &ws->output_link);
 
 	comp_output_focus_workspace(output, ws);
 
@@ -77,7 +89,7 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 }
 
 void comp_workspace_destroy(struct comp_workspace *ws) {
-	wl_list_remove(&ws->link);
+	wl_list_remove(&ws->output_link);
 
 	wlr_scene_node_destroy(&ws->workspace_tree->node);
 

@@ -10,6 +10,7 @@
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
+#include <wlr/util/log.h>
 
 #include "comp/border/resize_edge.h"
 #include "comp/border/titlebar.h"
@@ -164,14 +165,14 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 		// Open new floating toplevels in the center of the output
-		struct wlr_box box;
+		struct wlr_box output_box;
 		wlr_output_layout_get_box(toplevel->server->output_layout,
 								  toplevel->workspace->output->wlr_output,
-								  &box);
+								  &output_box);
 		wlr_scene_node_set_position(
 			&toplevel->object.scene_tree->node,
-			box.x + (box.width - toplevel->initial_width) / 2,
-			box.y + (box.height - toplevel->initial_height) / 2);
+			(output_box.width - toplevel->initial_width) / 2,
+			(output_box.height - toplevel->initial_height) / 2);
 
 		xdg_update(toplevel, toplevel->initial_width, toplevel->initial_height);
 	} else {
@@ -206,13 +207,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	toplevel->object.width = geometry.width + 2 * BORDER_WIDTH;
 	toplevel->object.height = geometry.height + 2 * BORDER_WIDTH;
 
-	// Open new floating toplevels in the center of the output
-	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-		xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
-	} else {
-		// Tile the new toplevel
-		// TODO: Tile
-	}
+	xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -255,11 +250,16 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 	switch (mode) {
 	case COMP_CURSOR_PASSTHROUGH:
 		break;
-	case COMP_CURSOR_MOVE:
-		server->grab_x =
-			server->cursor->wlr_cursor->x - toplevel->object.scene_tree->node.x;
-		server->grab_y =
-			server->cursor->wlr_cursor->y - toplevel->object.scene_tree->node.y;
+	case COMP_CURSOR_MOVE:;
+		// Adjust the toplevel coordinates to be root-relative
+		struct wlr_box output_box;
+		wlr_output_layout_get_box(server->output_layout,
+								  toplevel->workspace->output->wlr_output,
+								  &output_box);
+		server->grab_x = server->cursor->wlr_cursor->x -
+						 toplevel->object.scene_tree->node.x - output_box.x;
+		server->grab_y = server->cursor->wlr_cursor->y -
+						 toplevel->object.scene_tree->node.y - output_box.y;
 
 		xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
 		break;
@@ -477,5 +477,9 @@ struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
 		return toplevel->workspace->layers.floating;
 	case COMP_TILING_MODE_TILED:
 		return toplevel->workspace->layers.lower;
+	default:
+		wlr_log(WLR_ERROR, "Toplevel tiling mode '%i' isn't valid",
+				toplevel->tiling_mode);
+		abort();
 	}
 }

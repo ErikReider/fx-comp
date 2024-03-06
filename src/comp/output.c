@@ -53,7 +53,7 @@ struct comp_workspace *comp_workspace_from_index(struct comp_output *output,
 												 size_t index) {
 	size_t pos = 0;
 	struct comp_workspace *pos_ws;
-	wl_list_for_each_reverse(pos_ws, &output->workspaces, link) {
+	wl_list_for_each_reverse(pos_ws, &output->workspaces, output_link) {
 		if (pos == index) {
 			return pos_ws;
 		}
@@ -193,13 +193,13 @@ static void evacuate_workspaces(struct comp_output *output) {
 	// TODO: Test this with multiple monitors
 	struct comp_workspace *workspace, *tmp_ws;
 	wl_list_for_each_reverse_safe(workspace, tmp_ws, &output->workspaces,
-								  link) {
+								  output_link) {
 		comp_output_move_workspace_to(dest_output, workspace);
 	}
 
 	// Focus the last workspace on the destination output
 	struct comp_workspace *last_ws =
-		wl_container_of(dest_output->workspaces.prev, last_ws, link);
+		wl_container_of(dest_output->workspaces.prev, last_ws, output_link);
 	comp_output_focus_workspace(dest_output, last_ws);
 }
 
@@ -357,8 +357,13 @@ void comp_output_update_sizes(struct comp_output *output) {
 	wlr_output_layout_get_box(server.output_layout, output->wlr_output,
 							  &output->geometry);
 
-	wlr_scene_output_set_position(output->scene_output, output->geometry.x,
-								  output->geometry.y);
+	const int output_x = output->geometry.x, output_y = output->geometry.y;
+
+	// Update the scene_output position
+	wlr_scene_output_set_position(output->scene_output, output_x, output_y);
+
+	// Update the output tree position to match the scene_output
+	wlr_scene_node_set_position(&output->output_tree->node, output_x, output_y);
 }
 
 void comp_output_move_workspace_to(struct comp_output *dest_output,
@@ -369,7 +374,7 @@ void comp_output_move_workspace_to(struct comp_output *dest_output,
 
 	// Remove from previous output
 	if (ws->output) {
-		wl_list_remove(&ws->link);
+		wl_list_remove(&ws->output_link);
 		ws->output = NULL;
 	}
 
@@ -380,7 +385,7 @@ void comp_output_move_workspace_to(struct comp_output *dest_output,
 
 	ws->output = dest_output;
 
-	wl_list_insert(&dest_output->workspaces, &ws->link);
+	wl_list_insert(&dest_output->workspaces, &ws->output_link);
 }
 
 void comp_output_focus_workspace(struct comp_output *output,
@@ -399,7 +404,7 @@ void comp_output_focus_workspace(struct comp_output *output,
 
 	// Make sure that all other workspaces are disabled
 	struct comp_workspace *workspace;
-	wl_list_for_each(workspace, &output->workspaces, link) {
+	wl_list_for_each(workspace, &output->workspaces, output_link) {
 		wlr_scene_node_set_enabled(&workspace->workspace_tree->node,
 								   workspace == output->active_workspace);
 	}
