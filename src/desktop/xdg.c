@@ -111,7 +111,8 @@ static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
 			wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
 		if (xdg_surface) {
 			if (xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-				wlr_scene_buffer_set_corner_radius(buffer, toplevel->corner_radius);
+				wlr_scene_buffer_set_corner_radius(buffer,
+												   toplevel->corner_radius);
 
 				if (toplevel->titlebar) {
 					struct comp_widget *titlebar_widget =
@@ -120,10 +121,11 @@ static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
 						titlebar_widget->scene_buffer;
 					wlr_scene_buffer_set_corner_radius(
 						titlebar_buffer, titlebar_widget->corner_radius);
-					wlr_scene_buffer_set_shadow_data(titlebar_buffer,
-													 titlebar_widget->shadow_data);
+					wlr_scene_buffer_set_shadow_data(
+						titlebar_buffer, titlebar_widget->shadow_data);
 				} else {
-					wlr_scene_buffer_set_shadow_data(buffer, toplevel->shadow_data);
+					wlr_scene_buffer_set_shadow_data(buffer,
+													 toplevel->shadow_data);
 				}
 			}
 
