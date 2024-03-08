@@ -1,10 +1,19 @@
 sources = files(
 	'main.c',
-	'comp/server.c',
+	'util.c',
+	'seat/cursor.c',
+	'comp/border/resize_edge.c',
+	'comp/border/titlebar.c',
+	'comp/cairo_buffer.c',
+	'comp/object.c',
 	'comp/output.c',
 	'comp/toplevel.c',
 	'comp/seat.c',
+	'comp/server.c',
+	'comp/widget.c',
+	'comp/workspace.c',
 	'desktop/xdg.c',
+	'desktop/xdg_decoration.c',
 )
 
 deps = [
@@ -16,6 +25,7 @@ deps = [
 	libudev,
 	math,
 	pango,
+	pangocairo,
 	pcre2,
 	pixman,
 	threads,
