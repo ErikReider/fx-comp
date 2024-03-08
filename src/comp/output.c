@@ -231,12 +231,18 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.shell_background =
 		wlr_scene_tree_create(output->output_tree);
 	output->layers.shell_bottom = wlr_scene_tree_create(output->output_tree);
+	output->layers.optimized_blur_node = wlr_scene_blur_create(
+		output->output_tree, wlr_output->width, wlr_output->height);
 	output->layers.workspaces = wlr_scene_tree_create(output->output_tree);
 	output->layers.shell_top = wlr_scene_tree_create(output->output_tree);
 	output->layers.fullscreen = wlr_scene_tree_create(output->output_tree);
 	output->layers.shell_overlay = wlr_scene_tree_create(output->output_tree);
 	output->layers.seat = wlr_scene_tree_create(output->output_tree);
 	output->layers.session_lock = wlr_scene_tree_create(output->output_tree);
+
+	// Initially disable due to this potentially being a fallback wlr_output
+	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node,
+							   false);
 
 	wl_list_init(&output->workspaces);
 
@@ -364,6 +370,14 @@ void comp_output_update_sizes(struct comp_output *output) {
 
 	// Update the output tree position to match the scene_output
 	wlr_scene_node_set_position(&output->output_tree->node, output_x, output_y);
+
+	// Update optimized blur node position and size
+	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node, true);
+	wlr_scene_node_set_position(&output->layers.optimized_blur_node->node,
+								output->geometry.x, output->geometry.y);
+	// Also marks the blur as dirty
+	wlr_scene_blur_set_size(output->layers.optimized_blur_node,
+							output->geometry.width, output->geometry.height);
 }
 
 void comp_output_move_workspace_to(struct comp_output *dest_output,

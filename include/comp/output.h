@@ -17,6 +17,8 @@ struct comp_output {
 	struct {
 		struct wlr_scene_tree *shell_background; // TODO: Layershell
 		struct wlr_scene_tree *shell_bottom;	 // TODO: Layershell
+		 // Renders blur of everything below (background and bottom layers)
+		struct wlr_scene_blur *optimized_blur_node;
 		struct wlr_scene_tree *workspaces;
 		struct wlr_scene_tree *shell_top;	  // TODO: Layershell
 		struct wlr_scene_tree *fullscreen;	  // TODO: Fullscreen
