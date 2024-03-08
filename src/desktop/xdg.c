@@ -128,7 +128,13 @@ static void iter_xdg_scene_buffers(struct wlr_scene_buffer *buffer, int sx,
 			}
 
 			wlr_scene_buffer_set_backdrop_blur(buffer, true);
-			wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
+			switch (toplevel->tiling_mode) {
+			case COMP_TILING_MODE_FLOATING:
+				wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
+			case COMP_TILING_MODE_TILED:
+				wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
+				break;
+			}
 			wlr_scene_buffer_set_backdrop_blur_ignore_transparent(buffer, true);
 		}
 	}
