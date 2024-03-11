@@ -10,6 +10,7 @@
 #include "constants.h"
 #include "desktop/toplevel.h"
 #include "seat/cursor.h"
+#include "seat/seat.h"
 
 static void set_xcursor_theme(enum xdg_toplevel_resize_edge edge) {
 	const char *cursor;
@@ -42,8 +43,8 @@ static void set_xcursor_theme(enum xdg_toplevel_resize_edge edge) {
 		cursor = "bottom_right_corner";
 		break;
 	}
-	wlr_cursor_set_xcursor(server.cursor->wlr_cursor, server.cursor->cursor_mgr,
-						   cursor);
+	wlr_cursor_set_xcursor(server.seat->cursor->wlr_cursor,
+						   server.seat->cursor->cursor_mgr, cursor);
 }
 
 static void edge_destroy(struct comp_widget *widget) {
@@ -62,7 +63,8 @@ static void edge_pointer_button(struct comp_widget *widget, double x, double y,
 	struct comp_toplevel *toplevel = edge->toplevel;
 
 	// Focus the titlebars toplevel
-	comp_toplevel_focus(toplevel, toplevel->xdg_toplevel->base->surface);
+	comp_seat_surface_focus(&toplevel->object,
+							toplevel->xdg_toplevel->base->surface);
 
 	// Begin resizing
 	comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE, edge->edge);
@@ -128,7 +130,8 @@ void comp_resize_edge_get_geometry(struct comp_resize_edge *edge, int *width,
 		titlebar->widget.object.height + BORDER_RESIZE_WIDTH * 2;
 
 	const int ORIGIN_X = -RESIZE_WIDTH;
-	const int ORIGIN_Y = -edge->toplevel->top_border_height - BORDER_RESIZE_WIDTH;
+	const int ORIGIN_Y =
+		-edge->toplevel->top_border_height - BORDER_RESIZE_WIDTH;
 
 	// NOTE: Maybe find a better way of doing this...
 	switch (edge->edge) {

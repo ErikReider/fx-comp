@@ -29,12 +29,17 @@ struct comp_output {
 	struct comp_workspace *active_workspace;
 	struct comp_workspace *prev_workspace;
 
-
+	struct wlr_box usable_area;
 	struct wlr_box geometry;
 
 	struct wl_listener frame;
 	struct wl_listener request_state;
 	struct wl_listener destroy;
+
+	// Custom output signals
+	struct {
+		struct wl_signal disable;
+	} events;
 };
 
 /*
@@ -74,5 +79,12 @@ struct comp_workspace *comp_output_prev_workspace(struct comp_output *output,
 												  bool should_wrap);
 struct comp_workspace *comp_output_next_workspace(struct comp_output *output,
 												  bool should_wrap);
+
+/*
+ * Arrange functions
+ */
+void comp_output_arrange_output(struct comp_output *output);
+
+void comp_output_arrange_layers(struct comp_output *output);
 
 #endif // !FX_COMP_OUTPUT_H

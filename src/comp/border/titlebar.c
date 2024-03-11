@@ -16,6 +16,7 @@
 #include "comp/widget.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
+#include "seat/seat.h"
 #include "util.h"
 
 bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel) {
@@ -47,7 +48,8 @@ static void titlebar_pointer_button(struct comp_widget *widget, double x,
 
 	// Focus the titlebars toplevel
 	struct comp_toplevel *toplevel = titlebar->toplevel;
-	comp_toplevel_focus(toplevel, toplevel->xdg_toplevel->base->surface);
+	comp_seat_surface_focus(&toplevel->object,
+							toplevel->xdg_toplevel->base->surface);
 
 	comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
 }
@@ -131,7 +133,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	float *background_color = (float[4])TITLEBAR_COLOR_BACKGROUND_FOCUSED;
 	float *foreground_color = (float[4])TITLEBAR_COLOR_FOREGROUND_FOCUSED;
 	float *border_color = (float[4])TITLEBAR_COLOR_BORDER_FOCUSED;
-	if (!titlebar->toplevel->focused) {
+	if (!comp_seat_object_is_focus(server.seat, &toplevel->object)) {
 		background_color = (float[4])TITLEBAR_COLOR_BACKGROUND_UNFOCUSED;
 		foreground_color = (float[4])TITLEBAR_COLOR_FOREGROUND_UNFOCUSED;
 		border_color = (float[4])TITLEBAR_COLOR_BORDER_UNFOCUSED;

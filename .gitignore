@@ -1,3 +1,6 @@
 subprojects
 .cache/
 build
+
+gdb*
+.gdb*

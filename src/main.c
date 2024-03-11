@@ -22,6 +22,7 @@
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
@@ -40,12 +41,13 @@
 #include <wlr/util/log.h>
 
 #include "comp/output.h"
-#include "comp/seat.h"
 #include "comp/server.h"
 #include "constants.h"
+#include "desktop/layer_shell.h"
 #include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
 #include "seat/cursor.h"
+#include "seat/seat.h"
 
 struct comp_server server = {0};
 
@@ -261,14 +263,13 @@ int main(int argc, char *argv[]) {
 				  &server.new_xdg_surface);
 
 	/*
-	 * Cursor
+	 * Layer shell
 	 */
 
-	/*
-	 * Creates a cursor, which is a wlroots utility for tracking the cursor
-	 * image shown on screen.
-	 */
-	server.cursor = comp_cursor_create(&server);
+	server.layer_shell = wlr_layer_shell_v1_create(server.wl_display, 4);
+	server.new_layer_surface.notify = layer_shell_new_surface;
+	wl_signal_add(&server.layer_shell->events.new_surface,
+				  &server.new_layer_surface);
 
 	server.relative_pointer_manager =
 		wlr_relative_pointer_manager_v1_create(server.wl_display);
@@ -281,25 +282,10 @@ int main(int argc, char *argv[]) {
 	// 			  &server.pointer_constraint);
 
 	/*
-	 * Keyboard
+	 * Seat
 	 */
 
-	/*
-	 * Configures a seat, which is a single "seat" at which a user sits and
-	 * operates the computer. This conceptually includes up to one keyboard,
-	 * pointer, touch, and drawing tablet device. We also rig up a listener to
-	 * let us know when new input devices are available on the backend.
-	 */
-	wl_list_init(&server.keyboards);
-	server.new_input.notify = comp_seat_new_input;
-	wl_signal_add(&server.backend->events.new_input, &server.new_input);
-	server.seat = wlr_seat_create(server.wl_display, "seat0");
-	server.request_cursor.notify = comp_seat_request_cursor;
-	wl_signal_add(&server.seat->events.request_set_cursor,
-				  &server.request_cursor);
-	server.request_set_selection.notify = comp_seat_request_set_selection;
-	wl_signal_add(&server.seat->events.request_set_selection,
-				  &server.request_set_selection);
+	server.seat = comp_seat_create(&server);
 
 	/*
 	 * Init protocols
@@ -392,7 +378,7 @@ int main(int argc, char *argv[]) {
 	/* Once wl_display_run returns, we destroy all clients then shut down the
 	 * server. */
 	wl_display_destroy_clients(server.wl_display);
-	comp_cursor_destroy(server.cursor);
+	comp_cursor_destroy(server.seat->cursor);
 	wlr_output_layout_destroy(server.output_layout);
 	wl_display_destroy(server.wl_display);
 	wlr_scene_node_destroy(&server.root_scene->tree.node);

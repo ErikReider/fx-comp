@@ -4,6 +4,7 @@
 #include "comp/cairo_buffer.h"
 #include "comp/widget.h"
 #include "pango/pangocairo.h"
+#include "seat/seat.h"
 #include "wlr/util/log.h"
 
 static void widget_destroy(struct wl_listener *listener, void *data) {
@@ -11,8 +12,8 @@ static void widget_destroy(struct wl_listener *listener, void *data) {
 
 	wl_list_remove(&widget->destroy.link);
 
-	if (server.hovered_widget == widget) {
-		server.hovered_widget = NULL;
+	if (server.seat->hovered_widget == widget) {
+		server.seat->hovered_widget = NULL;
 	}
 
 	if (widget->impl->destroy) {

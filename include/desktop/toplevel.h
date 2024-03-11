@@ -20,16 +20,12 @@ enum comp_tiling_mode {
 
 struct comp_toplevel {
 	struct wl_list workspace_link;
+	struct wl_list focus_link;
 
 	struct comp_server *server;
 	struct comp_workspace *workspace;
 
-	// XDG Toplevel
 	struct wlr_xdg_toplevel *xdg_toplevel;
-
-	// XDG Popup
-	struct wlr_xdg_popup *xdg_popup;
-	struct comp_toplevel *parent_toplevel;
 
 	struct wlr_scene_tree *xdg_scene_tree;
 
@@ -45,6 +41,8 @@ struct comp_toplevel {
 	struct wl_listener unmap;
 	struct wl_listener commit;
 	struct wl_listener destroy;
+
+	struct wl_listener new_popup;
 	struct wl_listener request_move;
 	struct wl_listener request_resize;
 	struct wl_listener request_maximize;
@@ -53,7 +51,6 @@ struct comp_toplevel {
 	enum comp_tiling_mode tiling_mode;
 	int initial_width;
 	int initial_height;
-	bool focused;
 	bool fullscreen;
 
 	struct comp_object object;
@@ -63,9 +60,6 @@ struct comp_toplevel {
 	int corner_radius;
 	struct shadow_data shadow_data;
 };
-
-void comp_toplevel_focus(struct comp_toplevel *view,
-						 struct wlr_surface *surface);
 
 void comp_toplevel_process_cursor_move(struct comp_server *server,
 									   uint32_t time);

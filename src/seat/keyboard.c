@@ -1,18 +1,16 @@
 #include <stdlib.h>
-#include <wlr/types/wlr_cursor.h>
-#include <wlr/types/wlr_data_device.h>
-#include <wlr/types/wlr_seat.h>
-#include <wlr/types/wlr_xdg_shell.h>
-#include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "comp/border/titlebar.h"
 #include "comp/output.h"
-#include "comp/seat.h"
 #include "comp/server.h"
+#include "comp/widget.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
 #include "seat/cursor.h"
+#include "seat/keyboard.h"
+#include "seat/seat.h"
 
 static void keyboard_handle_modifiers(struct wl_listener *listener,
 									  void *data) {
@@ -26,9 +24,9 @@ static void keyboard_handle_modifiers(struct wl_listener *listener,
 	 * same seat. You can swap out the underlying wlr_keyboard like this and
 	 * wlr_seat handles this transparently.
 	 */
-	wlr_seat_set_keyboard(keyboard->server->seat, keyboard->wlr_keyboard);
+	wlr_seat_set_keyboard(keyboard->seat->wlr_seat, keyboard->wlr_keyboard);
 	/* Send modifiers to the client. */
-	wlr_seat_keyboard_notify_modifiers(keyboard->server->seat,
+	wlr_seat_keyboard_notify_modifiers(keyboard->seat->wlr_seat,
 									   &keyboard->wlr_keyboard->modifiers);
 }
 
@@ -57,8 +55,8 @@ static bool handle_keybinding(struct comp_server *server,
 			}
 			struct comp_toplevel *next_toplevel = wl_container_of(
 				workspace->toplevels.prev, next_toplevel, workspace_link);
-			comp_toplevel_focus(next_toplevel,
-								next_toplevel->xdg_toplevel->base->surface);
+			comp_seat_surface_focus(&next_toplevel->object,
+									next_toplevel->xdg_toplevel->base->surface);
 			break;
 		default:
 			return false;
@@ -88,7 +86,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	struct comp_keyboard *keyboard = wl_container_of(listener, keyboard, key);
 	struct comp_server *server = keyboard->server;
 	struct wlr_keyboard_key_event *event = data;
-	struct wlr_seat *seat = server->seat;
+	struct comp_seat *seat = server->seat;
+	struct wlr_seat *wlr_seat = seat->wlr_seat;
 
 	/* Translate libinput keycode -> xkbcommon */
 	uint32_t keycode = event->keycode + 8;
@@ -142,8 +141,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 
 	if (!handled) {
 		/* Otherwise, we pass it along to the client. */
-		wlr_seat_set_keyboard(seat, keyboard->wlr_keyboard);
-		wlr_seat_keyboard_notify_key(seat, event->time_msec, event->keycode,
+		wlr_seat_set_keyboard(wlr_seat, keyboard->wlr_keyboard);
+		wlr_seat_keyboard_notify_key(wlr_seat, event->time_msec, event->keycode,
 									 event->state);
 	}
 }
@@ -162,12 +161,13 @@ static void keyboard_handle_destroy(struct wl_listener *listener, void *data) {
 	free(keyboard);
 }
 
-static void server_new_keyboard(struct comp_server *server,
-								struct wlr_input_device *device) {
+void comp_keyboard_create(struct comp_seat *seat,
+						  struct wlr_input_device *device) {
 	struct wlr_keyboard *wlr_keyboard = wlr_keyboard_from_input_device(device);
 
 	struct comp_keyboard *keyboard = calloc(1, sizeof(*keyboard));
-	keyboard->server = server;
+	keyboard->server = seat->server;
+	keyboard->seat = seat;
 	keyboard->wlr_keyboard = wlr_keyboard;
 
 	/* We need to prepare an XKB keymap and assign it to the keyboard. This
@@ -189,104 +189,8 @@ static void server_new_keyboard(struct comp_server *server,
 	keyboard->destroy.notify = keyboard_handle_destroy;
 	wl_signal_add(&device->events.destroy, &keyboard->destroy);
 
-	wlr_seat_set_keyboard(server->seat, keyboard->wlr_keyboard);
+	wlr_seat_set_keyboard(seat->wlr_seat, keyboard->wlr_keyboard);
 
 	/* And add the keyboard to our list of keyboards */
-	wl_list_insert(&server->keyboards, &keyboard->link);
-}
-
-static void server_new_pointer(struct comp_server *server,
-							   struct wlr_input_device *device) {
-	/* We don't do anything special with pointers. All of our pointer handling
-	 * is proxied through wlr_cursor. On another compositor, you might take this
-	 * opportunity to do libinput configuration on the device to set
-	 * acceleration, etc. */
-	wlr_cursor_attach_input_device(server->cursor->wlr_cursor, device);
-}
-
-void comp_seat_new_input(struct wl_listener *listener, void *data) {
-	/* This event is raised by the backend when a new input device becomes
-	 * available. */
-	struct comp_server *server = wl_container_of(listener, server, new_input);
-	struct wlr_input_device *device = data;
-
-	switch (device->type) {
-	case WLR_INPUT_DEVICE_KEYBOARD:
-		server_new_keyboard(server, device);
-		break;
-	case WLR_INPUT_DEVICE_POINTER:
-		server_new_pointer(server, device);
-
-		// Map the cursor to the output
-		const char *mapped_to_output =
-			wlr_pointer_from_input_device(device)->output_name;
-		if (mapped_to_output == NULL) {
-			break;
-		}
-		wlr_log(WLR_DEBUG, "Mapping input device %s to output %s", device->name,
-				mapped_to_output);
-		if (strcmp("*", mapped_to_output) == 0) {
-			wlr_cursor_map_input_to_output(server->cursor->wlr_cursor, device,
-										   NULL);
-			wlr_cursor_map_input_to_region(server->cursor->wlr_cursor, device,
-										   NULL);
-			wlr_log(WLR_DEBUG, "Reset output mapping");
-			return;
-		}
-		struct comp_output *output =
-			comp_output_by_name_or_id(mapped_to_output);
-		if (!output) {
-			wlr_log(WLR_DEBUG,
-					"Requested output %s for device %s isn't present",
-					mapped_to_output, device->name);
-			return;
-		}
-		wlr_cursor_map_input_to_output(server->cursor->wlr_cursor, device,
-									   output->wlr_output);
-		wlr_cursor_map_input_to_region(server->cursor->wlr_cursor, device,
-									   NULL);
-		wlr_log(WLR_DEBUG, "Mapped to output %s", output->wlr_output->name);
-		break;
-	default:
-		break;
-	}
-	/* We need to let the wlr_seat know what our capabilities are, which is
-	 * communiciated to the client. In TinyWL we always have a cursor, even if
-	 * there are no pointer devices, so we always include that capability. */
-	uint32_t caps = WL_SEAT_CAPABILITY_POINTER;
-	if (!wl_list_empty(&server->keyboards)) {
-		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
-	}
-	wlr_seat_set_capabilities(server->seat, caps);
-}
-
-void comp_seat_request_cursor(struct wl_listener *listener, void *data) {
-	struct comp_server *server =
-		wl_container_of(listener, server, request_cursor);
-	/* This event is raised by the seat when a client provides a cursor image */
-	struct wlr_seat_pointer_request_set_cursor_event *event = data;
-	struct wlr_seat_client *focused_client =
-		server->seat->pointer_state.focused_client;
-	/* This can be sent by any client, so we check to make sure this one is
-	 * actually has pointer focus first. */
-	if (focused_client == event->seat_client) {
-		/* Once we've vetted the client, we can tell the cursor to use the
-		 * provided surface as the cursor image. It will set the hardware cursor
-		 * on the output that it's currently on and continue to do so as the
-		 * cursor moves between outputs. */
-		wlr_cursor_set_surface(server->cursor->wlr_cursor, event->surface,
-							   event->hotspot_x, event->hotspot_y);
-	}
-}
-
-void comp_seat_request_set_selection(struct wl_listener *listener, void *data) {
-	/* This event is raised by the seat when a client wants to set the
-	 * selection, usually when the user copies something. wlroots allows
-	 * compositors to ignore such requests if they so choose, but in tinywl we
-	 * always honor
-	 */
-	struct comp_server *server =
-		wl_container_of(listener, server, request_set_selection);
-	struct wlr_seat_request_set_selection_event *event = data;
-	wlr_seat_set_selection(server->seat, event->source, event->serial);
+	wl_list_insert(&seat->keyboards, &keyboard->link);
 }

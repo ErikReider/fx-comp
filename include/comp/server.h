@@ -1,6 +1,7 @@
 #ifndef FX_COMP_SERVER_H
 #define FX_COMP_SERVER_H
 
+#include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wlr/util/box.h>
 
@@ -26,22 +27,14 @@ struct comp_server {
 	struct wl_listener new_xdg_decoration;
 	struct wl_list xdg_decorations;
 
-	struct comp_cursor *cursor;
+	struct wlr_layer_shell_v1 *layer_shell;
+	struct wl_listener new_layer_surface;
 
 	struct wlr_pointer_constraints_v1 *pointer_constraints;
 	struct wl_listener pointer_constraint;
 	struct wlr_relative_pointer_manager_v1 *relative_pointer_manager;
 
-	struct wlr_seat *seat;
-	struct wl_listener new_input;
-	struct wl_listener request_cursor;
-	struct wl_listener request_set_selection;
-	struct wl_list keyboards;
-	struct comp_widget *hovered_widget;
-	struct comp_toplevel *grabbed_toplevel;
-	double grab_x, grab_y;
-	struct wlr_box grab_geobox;
-	uint32_t resize_edges;
+	struct comp_seat *seat;
 
 	struct wlr_output_manager_v1 *output_manager;
 	struct wl_listener output_manager_apply;

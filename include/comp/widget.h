@@ -11,6 +11,8 @@
 #include "comp/object.h"
 #include "comp/server.h"
 
+struct comp_widget;
+
 struct comp_widget_click_region {
 	struct wlr_box region;
 	bool cursor_hovering;

@@ -6,6 +6,7 @@
 #include "comp/output.h"
 #include "comp/server.h"
 #include "seat/cursor.h"
+#include "seat/seat.h"
 
 static void server_update_monitors(struct comp_server *server) {
 	struct wlr_output_configuration_v1 *output_config =
@@ -94,7 +95,7 @@ server_apply_output_config(struct comp_server *server,
 			}
 			wlr_output_set_transform(output, head->state.transform);
 			wlr_output_set_scale(output, head->state.scale);
-			wlr_xcursor_manager_load(server->cursor->cursor_mgr,
+			wlr_xcursor_manager_load(server->seat->cursor->cursor_mgr,
 									 head->state.scale);
 			wlr_output_enable_adaptive_sync(output,
 											head->state.adaptive_sync_enabled);

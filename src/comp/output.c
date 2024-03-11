@@ -6,6 +6,7 @@
 #include <strings.h>
 #include <time.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/util/log.h>
@@ -15,6 +16,7 @@
 #include "comp/server.h"
 #include "comp/workspace.h"
 #include "constants.h"
+#include "desktop/layer_shell.h"
 #include "desktop/toplevel.h"
 #include "util.h"
 
@@ -206,12 +208,19 @@ static void evacuate_workspaces(struct comp_output *output) {
 static void output_destroy(struct wl_listener *listener, void *data) {
 	struct comp_output *output = wl_container_of(listener, output, destroy);
 
-	evacuate_workspaces(output);
+	if (output->wlr_output->enabled) {
+		comp_output_disable(output);
+	}
 
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
 	wl_list_remove(&output->destroy.link);
 	wl_list_remove(&output->link);
+
+	wlr_scene_output_destroy(output->scene_output);
+	output->wlr_output->data = NULL;
+	output->wlr_output = NULL;
+	output->scene_output = NULL;
 
 	wlr_scene_node_destroy(&output->output_tree->node);
 
@@ -301,6 +310,8 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 	 * Signals
 	 */
 
+	wl_signal_init(&output->events.disable);
+
 	/* Sets up a listener for the frame event. */
 	output->frame.notify = output_frame;
 	wl_signal_add(&wlr_output->events.frame, &output->frame);
@@ -332,7 +343,11 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 }
 
 void comp_output_disable(struct comp_output *output) {
+	wlr_log(WLR_DEBUG, "Disabling output '%s'", output->wlr_output->name);
+
 	struct comp_server *server = output->server;
+
+	wl_signal_emit_mutable(&output->events.disable, output);
 
 	// Disable output and set a new active output as active
 	if (output == server->active_output) {
@@ -364,6 +379,9 @@ void comp_output_update_sizes(struct comp_output *output) {
 
 	// Update the output tree position to match the scene_output
 	wlr_scene_node_set_position(&output->output_tree->node, output_x, output_y);
+
+	comp_output_arrange_layers(output);
+	comp_output_arrange_output(output);
 }
 
 void comp_output_move_workspace_to(struct comp_output *dest_output,
@@ -445,4 +463,53 @@ struct comp_workspace *comp_output_prev_workspace(struct comp_output *output,
 struct comp_workspace *comp_output_next_workspace(struct comp_output *output,
 												  bool should_wrap) {
 	return comp_output_dir_workspace(output, should_wrap, 1);
+}
+
+/*
+ * Arrange functions
+ */
+
+void comp_output_arrange_output(struct comp_output *output) {
+	// TODO:
+}
+
+static void arrange_layer_surfaces(struct comp_output *output,
+								   const struct wlr_box *full_area,
+								   struct wlr_box *usable_area,
+								   struct wlr_scene_tree *tree) {
+	struct wlr_scene_node *node;
+	wl_list_for_each(node, &tree->children, link) {
+		struct comp_layer_surface *layer_surface = node->data;
+
+		// surface could be null during destruction
+		if (!layer_surface || !layer_surface->scene_layer ||
+			!layer_surface->scene_layer->layer_surface->initialized) {
+			continue;
+		}
+
+		wlr_scene_layer_surface_v1_configure(layer_surface->scene_layer,
+											 full_area, usable_area);
+	}
+}
+
+void comp_output_arrange_layers(struct comp_output *output) {
+	struct wlr_box usable_area = {0};
+	wlr_output_effective_resolution(output->wlr_output, &usable_area.width,
+									&usable_area.height);
+	const struct wlr_box full_area = usable_area;
+
+	arrange_layer_surfaces(output, &full_area, &usable_area,
+						   output->layers.shell_background);
+	arrange_layer_surfaces(output, &full_area, &usable_area,
+						   output->layers.shell_bottom);
+	arrange_layer_surfaces(output, &full_area, &usable_area,
+						   output->layers.shell_top);
+	arrange_layer_surfaces(output, &full_area, &usable_area,
+						   output->layers.shell_overlay);
+
+	if (!wlr_box_equal(&usable_area, &output->usable_area)) {
+		wlr_log(WLR_DEBUG, "Usable area changed, rearranging output");
+		output->usable_area = usable_area;
+		comp_output_arrange_output(output);
+	}
 }
