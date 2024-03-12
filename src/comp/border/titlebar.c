@@ -2,6 +2,8 @@
 
 #include <cairo.h>
 #include <math.h>
+#include <pango/pango-font.h>
+#include <pango/pango-layout.h>
 #include <pango/pangocairo.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdio.h>
@@ -126,10 +128,14 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	const int total_button_width =
 		TITLEBAR_NUM_BUTTONS * (button_spacing + TITLEBAR_BUTTON_SIZE);
 
-	int button_left_padding =
+	const int button_left_padding =
 		titlebar->buttons.on_right
 			? titlebar->widget.object.width - total_button_width
 			: button_spacing;
+
+	const int max_text_width =
+		MAX(0, titlebar->widget.object.width -
+				   (total_button_width + button_spacing) * 2);
 
 	/*
 	 * Colors
@@ -214,7 +220,40 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 		 * Title
 		 */
 
-		// TODO: Title
+		// text rendering
+		if (toplevel->xdg_toplevel && toplevel->xdg_toplevel->title &&
+			max_text_width > 0) {
+			cairo_save(cr);
+
+			// Set font
+			PangoLayout *layout = pango_cairo_create_layout(cr);
+			pango_layout_set_font_description(layout, titlebar->font);
+			pango_layout_set_text(layout, toplevel->xdg_toplevel->title, -1);
+			pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
+			pango_layout_set_justify(layout, true);
+			pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
+			pango_layout_set_single_paragraph_mode(layout, true);
+			pango_layout_set_wrap(layout, PANGO_WRAP_WORD);
+			pango_layout_set_width(layout, max_text_width * PANGO_SCALE);
+
+			int text_width, text_height;
+			pango_layout_get_pixel_size(layout, &text_width, &text_height);
+
+			// Center vertically
+			cairo_move_to(cr, total_button_width + button_spacing,
+						  // Compensate for separator and border size
+						  BORDER_WIDTH + (titlebar->bar_height - text_height -
+										  TITLEBAR_SEPARATOR_HEIGHT) *
+											 0.5);
+
+			// Draw the text
+			cairo_set_source_rgba(cr, foreground_color[0], foreground_color[1],
+								  foreground_color[2], foreground_color[3]);
+			pango_cairo_show_layout(cr, layout);
+
+			g_object_unref(layout);
+			cairo_restore(cr);
+		}
 
 		/*
 		 * Titlebar buttons
@@ -250,6 +289,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 static void titlebar_destroy(struct comp_widget *widget) {
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
 
+	pango_font_description_free(titlebar->font);
 	free(titlebar);
 }
 
@@ -300,6 +340,13 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 	titlebar->toplevel = toplevel;
 
 	comp_titlebar_calculate_bar_height(titlebar);
+
+	// Pango font config
+	titlebar->font = pango_font_description_new();
+	pango_font_description_set_family(titlebar->font, TITLEBAR_TEXT_FONT);
+	pango_font_description_set_weight(titlebar->font, PANGO_WEIGHT_BOLD);
+	pango_font_description_set_absolute_size(titlebar->font,
+											 TITLEBAR_TEXT_SIZE * PANGO_SCALE);
 
 	// Set the titlebar decoration data
 	titlebar->widget.opacity = 1;

@@ -46,6 +46,7 @@ struct comp_toplevel {
 	struct wl_listener request_resize;
 	struct wl_listener request_maximize;
 	struct wl_listener request_fullscreen;
+	struct wl_listener set_title;
 
 	enum comp_tiling_mode tiling_mode;
 	int initial_width;

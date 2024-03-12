@@ -292,6 +292,15 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener *listener,
 	wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
 }
 
+static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(listener, toplevel, set_title);
+
+	if (comp_titlebar_should_be_shown(toplevel)) {
+		comp_widget_draw(&toplevel->titlebar->widget);
+	}
+}
+
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	/* Called when the surface is mapped, or ready to display on-screen. */
 	struct comp_toplevel *toplevel = wl_container_of(listener, toplevel, map);
@@ -347,6 +356,8 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	toplevel->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
 	wl_signal_add(&xdg_toplevel->events.request_fullscreen,
 				  &toplevel->request_fullscreen);
+	toplevel->set_title.notify = xdg_toplevel_set_title;
+	wl_signal_add(&xdg_toplevel->events.set_title, &toplevel->set_title);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -366,6 +377,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel->request_resize.link);
 	wl_list_remove(&toplevel->request_maximize.link);
 	wl_list_remove(&toplevel->request_fullscreen.link);
+	wl_list_remove(&toplevel->set_title.link);
 
 	comp_seat_surface_unfocus(toplevel->xdg_toplevel->base->surface, true);
 }

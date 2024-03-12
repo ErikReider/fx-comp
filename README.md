@@ -13,9 +13,9 @@ Todo:
 - [ ] Titlebar
     - [X] SSD
     - [X] Only display borders on CSD toplevels
-    - [ ] Dynamic height
+    - [X] Dynamic height
+    - [X] Program title in center
     - [ ] Button icons
-    - [ ] Program title in center
 - [ ] wlr workspace protocol
 - [ ] foreign toplevel for ironbar support
 - [ ] Tiling

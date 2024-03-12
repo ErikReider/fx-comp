@@ -1,6 +1,7 @@
 #ifndef FX_COMP_BORDER_TITLEBAR_H
 #define FX_COMP_BORDER_TITLEBAR_H
 
+#include <pango/pango-font.h>
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_pointer.h>
@@ -24,6 +25,8 @@ struct comp_titlebar {
 		bool on_right;
 		struct comp_widget_click_region *order[TITLEBAR_NUM_BUTTONS];
 	} buttons;
+
+	PangoFontDescription *font;
 };
 
 struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
