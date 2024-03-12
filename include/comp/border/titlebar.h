@@ -14,6 +14,8 @@ struct comp_titlebar {
 
 	struct comp_widget widget;
 
+	int bar_height;
+
 	struct {
 		struct comp_widget_click_region close;
 		struct comp_widget_click_region fullscreen;
@@ -26,6 +28,8 @@ struct comp_titlebar {
 
 struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 										 struct comp_toplevel *toplevel);
+
+void comp_titlebar_calculate_bar_height(struct comp_titlebar *titlebar);
 
 bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel);
 

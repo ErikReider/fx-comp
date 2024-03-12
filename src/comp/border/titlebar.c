@@ -27,6 +27,11 @@ bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel) {
 		   toplevel->titlebar->widget.scene_buffer->node.enabled;
 }
 
+void comp_titlebar_calculate_bar_height(struct comp_titlebar *titlebar) {
+	titlebar->bar_height = TITLEBAR_BUTTON_MARGIN * 2 + TITLEBAR_BUTTON_SIZE +
+						   TITLEBAR_SEPARATOR_HEIGHT;
+}
+
 static void titlebar_pointer_button(struct comp_widget *widget, double x,
 									double y,
 									struct wlr_pointer_button_event *event) {
@@ -108,7 +113,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	struct wlr_box geometry;
 	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
 
-	const int TITLEBAR_HEIGHT = toplevel->top_border_height;
+	const int TITLEBAR_HEIGHT = titlebar->bar_height + BORDER_WIDTH;
 
 	const int toplevel_radius = toplevel->corner_radius;
 	const int toplevel_x = BORDER_WIDTH;
@@ -167,11 +172,11 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 
 	if (!toplevel->using_csd) {
 		// Draw titlebar separator
-		cairo_set_line_width(cr, BORDER_SEPARATOR_HEIGHT);
+		cairo_set_line_width(cr, TITLEBAR_SEPARATOR_HEIGHT);
 		cairo_move_to(cr, toplevel_x,
-					  toplevel_y - BORDER_SEPARATOR_HEIGHT * 0.5);
+					  toplevel_y - TITLEBAR_SEPARATOR_HEIGHT * 0.5);
 		cairo_line_to(cr, toplevel_x + toplevel_width,
-					  toplevel_y - BORDER_SEPARATOR_HEIGHT * 0.5);
+					  toplevel_y - TITLEBAR_SEPARATOR_HEIGHT * 0.5);
 		cairo_stroke(cr);
 
 		/*
@@ -225,7 +230,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 				.height = TITLEBAR_BUTTON_SIZE,
 				.x = button_left_padding +
 					 (TITLEBAR_BUTTON_SIZE + button_spacing) * i,
-				.y = (TITLEBAR_HEIGHT - TITLEBAR_BUTTON_SIZE) / 2,
+				.y = BORDER_WIDTH + TITLEBAR_BUTTON_MARGIN,
 			};
 
 			if (button->cursor_hovering) {
@@ -293,6 +298,8 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 
 	wlr_scene_node_set_enabled(&titlebar->widget.scene_buffer->node, true);
 	titlebar->toplevel = toplevel;
+
+	comp_titlebar_calculate_bar_height(titlebar);
 
 	// Set the titlebar decoration data
 	titlebar->widget.opacity = 1;

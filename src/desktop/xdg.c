@@ -26,13 +26,16 @@
 #include "util.h"
 
 static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
+	struct comp_titlebar *titlebar = toplevel->titlebar;
+	bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
+
 	toplevel->object.width = width;
 	toplevel->object.height = height;
 
-	toplevel->top_border_height = BORDER_WIDTH;
-	if (comp_titlebar_should_be_shown(toplevel)) {
-		// TODO: Calculate titlebar height
-		toplevel->top_border_height = TITLEBAR_INIT_HEIGHT;
+	int top_border_height = BORDER_WIDTH;
+	if (show_full_titlebar) {
+		comp_titlebar_calculate_bar_height(titlebar);
+		top_border_height += toplevel->titlebar->bar_height;
 	}
 
 	if (toplevel->xdg_toplevel->base->client->shell->version >=
@@ -52,22 +55,20 @@ static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 	toplevel->object.width =
 		fmax(min_width + (2 * BORDER_WIDTH), toplevel->object.width);
 	toplevel->object.height =
-		fmax(min_height + toplevel->top_border_height, toplevel->object.height);
+		fmax(min_height + top_border_height, toplevel->object.height);
 
 	if (max_width > 0 && !(2 * BORDER_WIDTH > INT_MAX - max_width)) {
 		toplevel->object.width =
 			fmin(max_width + (2 * BORDER_WIDTH), toplevel->object.width);
 	}
-	if (max_height > 0 &&
-		!(toplevel->top_border_height > INT_MAX - max_height)) {
-		toplevel->object.height = fmin(max_height + toplevel->top_border_height,
-									   toplevel->object.height);
+	if (max_height > 0 && !(top_border_height > INT_MAX - max_height)) {
+		toplevel->object.height =
+			fmin(max_height + top_border_height, toplevel->object.height);
 	}
 
 	// Only redraw the titlebar if the size has changed
 	int new_titlebar_height =
-		toplevel->top_border_height + toplevel->object.height - BORDER_WIDTH;
-	struct comp_titlebar *titlebar = toplevel->titlebar;
+		top_border_height + toplevel->object.height - BORDER_WIDTH;
 	if (toplevel->titlebar &&
 		(titlebar->widget.object.width != toplevel->object.width ||
 		 titlebar->widget.object.height != new_titlebar_height)) {
@@ -75,8 +76,7 @@ static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 								new_titlebar_height);
 		// Position the titlebar above the window
 		wlr_scene_node_set_position(&titlebar->widget.object.scene_tree->node,
-									-BORDER_WIDTH,
-									-toplevel->top_border_height);
+									-BORDER_WIDTH, -top_border_height);
 
 		// Adjust edges
 		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
