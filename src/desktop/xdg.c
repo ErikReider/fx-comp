@@ -81,6 +81,8 @@ static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 		// Adjust edges
 		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
 			struct comp_resize_edge *edge = toplevel->edges[i];
+			wlr_scene_node_set_enabled(&edge->widget.object.scene_tree->node,
+									   show_full_titlebar);
 			int width, height, x, y;
 			comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
 
