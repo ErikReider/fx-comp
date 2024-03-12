@@ -18,6 +18,9 @@ struct wlr_scene_tree *alloc_tree(struct wlr_scene_tree *parent);
 
 /* cairo */
 
+/** Convert HEX colors to decimal */
+void cairo_set_rgba32(cairo_t *cr, const uint32_t *const c);
+
 void cairo_draw_rounded_rect(cairo_t *cr, double width, double height, double x,
 							 double y, double radius);
 

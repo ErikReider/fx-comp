@@ -115,6 +115,9 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	struct wlr_box geometry;
 	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
 
+	const bool is_focused =
+		comp_seat_object_is_focus(server.seat, &toplevel->object);
+
 	const int TITLEBAR_HEIGHT = titlebar->bar_height + BORDER_WIDTH;
 
 	const int toplevel_radius = toplevel->corner_radius;
@@ -141,13 +144,13 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	 * Colors
 	 */
 
-	float *background_color = (float[4])TITLEBAR_COLOR_BACKGROUND_FOCUSED;
-	float *foreground_color = (float[4])TITLEBAR_COLOR_FOREGROUND_FOCUSED;
-	float *border_color = (float[4])TITLEBAR_COLOR_BORDER_FOCUSED;
-	if (!comp_seat_object_is_focus(server.seat, &toplevel->object)) {
-		background_color = (float[4])TITLEBAR_COLOR_BACKGROUND_UNFOCUSED;
-		foreground_color = (float[4])TITLEBAR_COLOR_FOREGROUND_UNFOCUSED;
-		border_color = (float[4])TITLEBAR_COLOR_BORDER_UNFOCUSED;
+	uint32_t background_color = TITLEBAR_COLOR_BACKGROUND_FOCUSED;
+	uint32_t foreground_color = TITLEBAR_COLOR_FOREGROUND_FOCUSED;
+	uint32_t border_color = TITLEBAR_COLOR_BORDER_FOCUSED;
+	if (!is_focused) {
+		background_color = TITLEBAR_COLOR_BACKGROUND_UNFOCUSED;
+		foreground_color = TITLEBAR_COLOR_FOREGROUND_UNFOCUSED;
+		border_color = TITLEBAR_COLOR_BORDER_UNFOCUSED;
 	}
 
 	/*
@@ -159,8 +162,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 
 	// Draw background
 	if (!toplevel->using_csd) {
-		cairo_set_source_rgba(cr, background_color[0], background_color[1],
-							  background_color[2], background_color[3]);
+		cairo_set_rgba32(cr, &background_color);
 		cairo_draw_rounded_rect(cr, surface_width, surface_height, 0, 0,
 								titlebar_radii);
 		cairo_close_path(cr);
@@ -168,8 +170,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	}
 
 	// Draw whole perimeter border
-	cairo_set_source_rgba(cr, border_color[0], border_color[1], border_color[2],
-						  border_color[3]);
+	cairo_set_rgba32(cr, &border_color);
 	cairo_draw_rounded_rect(cr, surface_width - x, surface_height - y, x * 0.5,
 							y * 0.5,
 							toplevel->corner_radius + BORDER_WIDTH * 0.5);
@@ -247,8 +248,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 											 0.5);
 
 			// Draw the text
-			cairo_set_source_rgba(cr, foreground_color[0], foreground_color[1],
-								  foreground_color[2], foreground_color[3]);
+			cairo_set_rgba32(cr, &foreground_color);
 			pango_cairo_show_layout(cr, layout);
 
 			g_object_unref(layout);

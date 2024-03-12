@@ -40,6 +40,23 @@ struct wlr_scene_tree *alloc_tree(struct wlr_scene_tree *parent) {
 
 /* cairo */
 
+static double red(const uint32_t *const col) {
+	return ((const uint8_t *)(col))[2] / (double)(255);
+}
+static double green(const uint32_t *const col) {
+	return ((const uint8_t *)(col))[1] / (double)(255);
+}
+static double blue(const uint32_t *const col) {
+	return ((const uint8_t *)(col))[0] / (double)(255);
+}
+static double alpha(const uint32_t *const col) {
+	return ((const uint8_t *)(col))[3] / (double)(255);
+}
+
+void cairo_set_rgba32(cairo_t *cr, const uint32_t *const c) {
+	cairo_set_source_rgba(cr, red(c), green(c), blue(c), alpha(c));
+}
+
 void cairo_draw_rounded_rect(cairo_t *cr, double width, double height, double x,
 							 double y, double radius) {
 	cairo_new_sub_path(cr);
