@@ -96,28 +96,41 @@ static void get_bar_colors(bool is_focused, uint32_t *background_color,
 static void titlebar_pointer_button(struct comp_widget *widget, double x,
 									double y,
 									struct wlr_pointer_button_event *event) {
-	if (event->state != WLR_BUTTON_PRESSED || event->button != BTN_LEFT) {
+	if (event->button != BTN_LEFT) {
 		return;
 	}
 
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
+	struct comp_toplevel *toplevel = titlebar->toplevel;
 
-	// Check if the cursor is hovering over a button.
-	// Call click handler if hovered.
+	// Check if the cursor is hovering over a button
+	struct comp_widget_click_region *hovered_button = NULL;
 	for (size_t i = 0; i < TITLEBAR_NUM_BUTTONS; i++) {
 		struct comp_widget_click_region *button = titlebar->buttons.order[i];
 		if (button->cursor_hovering && button->handle_click != NULL) {
-			button->handle_click(widget, button);
-			return;
+			hovered_button = button;
+			break;
 		}
 	}
 
-	// Focus the titlebars toplevel
-	struct comp_toplevel *toplevel = titlebar->toplevel;
-	comp_seat_surface_focus(&toplevel->object,
-							toplevel->xdg_toplevel->base->surface);
+	switch (event->state) {
+	case WLR_BUTTON_RELEASED:
+		// Call click handler if hovered but only on click release
+		if (hovered_button) {
+			hovered_button->handle_click(widget, hovered_button);
+		}
+		break;
+	case WLR_BUTTON_PRESSED:
+		// Don't move the toplevel if we're pressing on a button
+		if (hovered_button == NULL) {
+			// Focus the titlebars toplevel
+			comp_seat_surface_focus(&toplevel->object,
+									toplevel->xdg_toplevel->base->surface);
 
-	comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+			comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+		}
+		break;
+	}
 }
 
 static void titlebar_pointer_motion(struct comp_widget *widget, double x,

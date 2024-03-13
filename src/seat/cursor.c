@@ -265,6 +265,18 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		comp_object_at(server, cursor->wlr_cursor->x, cursor->wlr_cursor->y,
 					   &sx, &sy, &scene_buffer, &surface);
 	if (event->state == WLR_BUTTON_RELEASED) {
+		if (object) {
+			switch (object->type) {
+			case COMP_OBJECT_TYPE_WIDGET:
+				comp_widget_pointer_button(object->data, sx, sy, event);
+				break;
+			case COMP_OBJECT_TYPE_TOPLEVEL:
+			case COMP_OBJECT_TYPE_XDG_POPUP:
+			case COMP_OBJECT_TYPE_LAYER_SURFACE:;
+				break;
+			}
+		}
+
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		comp_cursor_reset_cursor_mode(server->seat);
 	} else if (object) {
