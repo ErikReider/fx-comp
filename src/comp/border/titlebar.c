@@ -1,6 +1,7 @@
 #define _XOPEN_SOURCE 600 // for M_PI
 
 #include <cairo.h>
+#include <linux/input-event-codes.h>
 #include <math.h>
 #include <pango/pango-font.h>
 #include <pango/pango-layout.h>
@@ -37,7 +38,7 @@ void comp_titlebar_calculate_bar_height(struct comp_titlebar *titlebar) {
 static void titlebar_pointer_button(struct comp_widget *widget, double x,
 									double y,
 									struct wlr_pointer_button_event *event) {
-	if (event->state != WLR_BUTTON_PRESSED) {
+	if (event->state != WLR_BUTTON_PRESSED || event->button != BTN_LEFT) {
 		return;
 	}
 
