@@ -39,16 +39,16 @@ struct wlr_scene_tree *alloc_tree(struct wlr_scene_tree *parent) {
 }
 
 double hex_red(const uint32_t *const col) {
-	return ((const uint8_t *)(col))[2] / (double)(255);
+	return ((const uint8_t *)(col))[3] / (double)(255);
 }
 double hex_green(const uint32_t *const col) {
-	return ((const uint8_t *)(col))[1] / (double)(255);
+	return ((const uint8_t *)(col))[2] / (double)(255);
 }
 double hex_blue(const uint32_t *const col) {
-	return ((const uint8_t *)(col))[0] / (double)(255);
+	return ((const uint8_t *)(col))[1] / (double)(255);
 }
 double hex_alpha(const uint32_t *const col) {
-	return ((const uint8_t *)(col))[3] / (double)(255);
+	return ((const uint8_t *)(col))[0] / (double)(255);
 }
 
 GdkRGBA gdk_rgba_from_color(const uint32_t *const c) {
