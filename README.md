@@ -10,12 +10,12 @@ Todo:
 - [x] [SceneFX](https://github.com/wlrfx/scenefx) integration
 - [X] Per output workspaces
 - [x] Layer shell
-- [ ] Titlebar
+- [X] Titlebar
     - [X] SSD
     - [X] Only display borders on CSD toplevels
     - [X] Dynamic height
     - [X] Program title in center
-    - [ ] Button icons
+    - [X] Button icons
 - [x] Move/resize toplevels with MOD+mouse buttons
 - [ ] wlr workspace protocol
 - [ ] foreign toplevel for ironbar support
@@ -23,6 +23,8 @@ Todo:
 - [ ] Fullscreen
 - [ ] Minimize
 - [ ] XWayland
+- [ ] Tearing support
+- [ ] Adaptive sync support
 - [ ] WLR Portal support
 - [ ] Config
     - [ ] Output

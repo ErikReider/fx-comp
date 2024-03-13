@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 600 // for M_PI
 
+#include <assert.h>
 #include <cairo.h>
 #include <linux/input-event-codes.h>
 #include <math.h>
@@ -33,6 +34,63 @@ bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel) {
 void comp_titlebar_calculate_bar_height(struct comp_titlebar *titlebar) {
 	titlebar->bar_height = TITLEBAR_BUTTON_MARGIN * 2 + TITLEBAR_BUTTON_SIZE +
 						   TITLEBAR_SEPARATOR_HEIGHT;
+}
+
+static void get_button_colors(enum comp_titlebar_button_type type,
+							  uint32_t *focus_color, uint32_t *unfocus_color,
+							  uint32_t *hover_color,
+							  uint32_t *foreground_color) {
+	switch (type) {
+	case COMP_TITLEBAR_BUTTON_CLOSE:
+		*focus_color = TITLEBAR_COLOR_BUTTON_CLOSE_FOCUSED;
+		*unfocus_color = TITLEBAR_COLOR_BUTTON_CLOSE_UNFOCUSED;
+		*hover_color = TITLEBAR_COLOR_BUTTON_CLOSE_HOVER;
+		*foreground_color = TITLEBAR_COLOR_BUTTON_CLOSE_FOREGROUND;
+		break;
+	case COMP_TITLEBAR_BUTTON_FULLSCREEN:
+		*focus_color = TITLEBAR_COLOR_BUTTON_FULLSCREEN_FOCUSED;
+		*unfocus_color = TITLEBAR_COLOR_BUTTON_FULLSCREEN_UNFOCUSED;
+		*hover_color = TITLEBAR_COLOR_BUTTON_FULLSCREEN_HOVER;
+		*foreground_color = TITLEBAR_COLOR_BUTTON_FULLSCREEN_FOREGROUND;
+		break;
+	case COMP_TITLEBAR_BUTTON_MINIMIZE:
+		*focus_color = TITLEBAR_COLOR_BUTTON_MINIMIZE_FOCUSED;
+		*unfocus_color = TITLEBAR_COLOR_BUTTON_MINIMIZE_UNFOCUSED;
+		*hover_color = TITLEBAR_COLOR_BUTTON_MINIMIZE_HOVER;
+		*foreground_color = TITLEBAR_COLOR_BUTTON_MINIMIZE_FOREGROUND;
+		break;
+	}
+}
+
+static void get_button_props(enum comp_titlebar_button_type type,
+							 char **icon_name, int *padding) {
+	switch (type) {
+	case COMP_TITLEBAR_BUTTON_CLOSE:
+		*icon_name = TITLEBAR_BUTTON_CLOSE_ICON_NAME;
+		*padding = TITLEBAR_BUTTON_CLOSE_ICON_PADDING;
+		break;
+	case COMP_TITLEBAR_BUTTON_FULLSCREEN:
+		*icon_name = TITLEBAR_BUTTON_FULLSCREEN_ICON_NAME;
+		*padding = TITLEBAR_BUTTON_FULLSCREEN_ICON_PADDING;
+		break;
+	case COMP_TITLEBAR_BUTTON_MINIMIZE:
+		*icon_name = TITLEBAR_BUTTON_MINIMIZE_ICON_NAME;
+		*padding = TITLEBAR_BUTTON_MINIMIZE_ICON_PADDING;
+		break;
+	}
+}
+
+static void get_bar_colors(bool is_focused, uint32_t *background_color,
+						   uint32_t *foreground_color, uint32_t *border_color) {
+	if (!is_focused) {
+		*background_color = TITLEBAR_COLOR_BACKGROUND_UNFOCUSED;
+		*foreground_color = TITLEBAR_COLOR_FOREGROUND_UNFOCUSED;
+		*border_color = TITLEBAR_COLOR_BORDER_UNFOCUSED;
+	} else {
+		*background_color = TITLEBAR_COLOR_BACKGROUND_FOCUSED;
+		*foreground_color = TITLEBAR_COLOR_FOREGROUND_FOCUSED;
+		*border_color = TITLEBAR_COLOR_BORDER_FOCUSED;
+	}
 }
 
 static void titlebar_pointer_button(struct comp_widget *widget, double x,
@@ -128,31 +186,29 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	const int toplevel_height = geometry.height;
 
 	const int titlebar_radii = titlebar->widget.corner_radius;
-	const int button_spacing = titlebar_radii;
+	const int button_margin = titlebar_radii;
 	const int total_button_width =
-		TITLEBAR_NUM_BUTTONS * (button_spacing + TITLEBAR_BUTTON_SIZE);
+		((TITLEBAR_NUM_BUTTONS - 1) * TITLEBAR_BUTTON_SPACING) +
+		(TITLEBAR_NUM_BUTTONS * TITLEBAR_BUTTON_SIZE);
 
 	const int button_left_padding =
 		titlebar->buttons.on_right
-			? titlebar->widget.object.width - total_button_width
-			: button_spacing;
+			? titlebar->widget.object.width - total_button_width - button_margin
+			: button_margin;
 
 	const int max_text_width =
 		MAX(0, titlebar->widget.object.width -
-				   (total_button_width + button_spacing) * 2);
+				   (total_button_width + button_margin * 2) * 2);
 
 	/*
 	 * Colors
 	 */
 
-	uint32_t background_color = TITLEBAR_COLOR_BACKGROUND_FOCUSED;
-	uint32_t foreground_color = TITLEBAR_COLOR_FOREGROUND_FOCUSED;
-	uint32_t border_color = TITLEBAR_COLOR_BORDER_FOCUSED;
-	if (!is_focused) {
-		background_color = TITLEBAR_COLOR_BACKGROUND_UNFOCUSED;
-		foreground_color = TITLEBAR_COLOR_FOREGROUND_UNFOCUSED;
-		border_color = TITLEBAR_COLOR_BORDER_UNFOCUSED;
-	}
+	uint32_t background_color;
+	uint32_t foreground_color;
+	uint32_t border_color;
+	get_bar_colors(is_focused, &background_color, &foreground_color,
+				   &border_color);
 
 	/*
 	 * Draw titlebar
@@ -242,7 +298,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 			pango_layout_get_pixel_size(layout, &text_width, &text_height);
 
 			// Center vertically
-			cairo_move_to(cr, total_button_width + button_spacing,
+			cairo_move_to(cr, total_button_width + button_margin * 2,
 						  // Compensate for separator and border size
 						  BORDER_WIDTH + (titlebar->bar_height - text_height -
 										  TITLEBAR_SEPARATOR_HEIGHT) *
@@ -269,19 +325,53 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 				.width = TITLEBAR_BUTTON_SIZE,
 				.height = TITLEBAR_BUTTON_SIZE,
 				.x = button_left_padding +
-					 (TITLEBAR_BUTTON_SIZE + button_spacing) * i,
+					 (TITLEBAR_BUTTON_SIZE + TITLEBAR_BUTTON_SPACING) * i,
 				.y = BORDER_WIDTH + TITLEBAR_BUTTON_MARGIN,
 			};
+			enum comp_titlebar_button_type type =
+				*((enum comp_titlebar_button_type *)button->data);
 
-			if (button->cursor_hovering) {
-				cairo_set_source_rgba(cr, 1, 0, 0, 0.5);
+			// Colors
+			uint32_t focus_color;
+			uint32_t unfocus_color;
+			uint32_t hover_color;
+			uint32_t foreground_color;
+			get_button_colors(type, &focus_color, &unfocus_color, &hover_color,
+							  &foreground_color);
+
+			// Draw background
+			if (!is_focused) {
+				cairo_set_rgba32(cr, &unfocus_color);
+			} else if (button->cursor_hovering) {
+				cairo_set_rgba32(cr, &hover_color);
 			} else {
-				cairo_set_source_rgba(cr, 1, 0, 0, 1);
+				cairo_set_rgba32(cr, &focus_color);
 			}
-
-			cairo_rectangle(cr, button->region.x, button->region.y,
-							button->region.width, button->region.height);
+			assert(button->region.width == button->region.height);
+			const int button_radius = button->region.width * 0.5;
+			cairo_new_path(cr);
+			cairo_arc(cr, button->region.x + button_radius,
+					  button->region.y + button_radius, button_radius, 0,
+					  2 * M_PI);
+			cairo_close_path(cr);
 			cairo_fill(cr);
+
+			// Draw icon
+			if (TITLEBAR_BUTTONS_ALWAYS_VISIBLE ||
+				(is_focused && button->cursor_hovering)) {
+				char *icon_name = NULL;
+				int icon_padding;
+				get_button_props(type, &icon_name, &icon_padding);
+				if (icon_name == NULL) {
+					continue;
+				}
+				int x = button->region.x + icon_padding;
+				int y = button->region.y + icon_padding;
+				int size = TITLEBAR_BUTTON_SIZE - icon_padding * 2;
+
+				cairo_draw_icon_from_name(cr, icon_name, &foreground_color,
+										  size, x, y, scale);
+			}
 		}
 		cairo_restore(cr);
 	}
@@ -289,6 +379,10 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 
 static void titlebar_destroy(struct comp_widget *widget) {
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
+
+	free(titlebar->buttons.close.data);
+	free(titlebar->buttons.fullscreen.data);
+	free(titlebar->buttons.minimize.data);
 
 	pango_font_description_free(titlebar->font);
 	free(titlebar);
@@ -379,6 +473,17 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 	titlebar->buttons.close.handle_click = handle_close_click;
 	titlebar->buttons.fullscreen.handle_click = handle_fullscreen_click;
 	titlebar->buttons.minimize.handle_click = handle_minimize_click;
+
+	// Close
+	titlebar->buttons.close.data = malloc(sizeof(int));
+	*((int *)titlebar->buttons.close.data) = COMP_TITLEBAR_BUTTON_CLOSE;
+	// Fullscreen
+	titlebar->buttons.fullscreen.data = malloc(sizeof(int));
+	*((int *)titlebar->buttons.fullscreen.data) =
+		COMP_TITLEBAR_BUTTON_FULLSCREEN;
+	// Minimize
+	titlebar->buttons.minimize.data = malloc(sizeof(int));
+	*((int *)titlebar->buttons.minimize.data) = COMP_TITLEBAR_BUTTON_MINIMIZE;
 
 	return titlebar;
 }

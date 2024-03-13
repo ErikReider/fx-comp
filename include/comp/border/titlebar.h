@@ -10,6 +10,12 @@
 
 #define TITLEBAR_NUM_BUTTONS 3
 
+enum comp_titlebar_button_type {
+	COMP_TITLEBAR_BUTTON_CLOSE,
+	COMP_TITLEBAR_BUTTON_FULLSCREEN,
+	COMP_TITLEBAR_BUTTON_MINIMIZE,
+};
+
 struct comp_titlebar {
 	struct comp_toplevel *toplevel;
 

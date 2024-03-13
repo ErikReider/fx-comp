@@ -38,6 +38,9 @@ deps = [
 	xkbcommon,
 	xcb,
 	xcb_icccm,
+	glib,
+	gio,
+	gtk3,
 ]
 
 executable(

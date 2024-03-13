@@ -46,6 +46,8 @@ struct comp_server {
 	struct comp_output *fallback_output;
 	struct wl_listener new_output;
 	struct wl_listener layout_change;
+
+	bool initialized_gtk;
 };
 
 extern struct comp_server server;

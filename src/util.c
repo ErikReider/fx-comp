@@ -38,23 +38,33 @@ struct wlr_scene_tree *alloc_tree(struct wlr_scene_tree *parent) {
 	return tree;
 }
 
-/* cairo */
-
-static double red(const uint32_t *const col) {
+double hex_red(const uint32_t *const col) {
 	return ((const uint8_t *)(col))[2] / (double)(255);
 }
-static double green(const uint32_t *const col) {
+double hex_green(const uint32_t *const col) {
 	return ((const uint8_t *)(col))[1] / (double)(255);
 }
-static double blue(const uint32_t *const col) {
+double hex_blue(const uint32_t *const col) {
 	return ((const uint8_t *)(col))[0] / (double)(255);
 }
-static double alpha(const uint32_t *const col) {
+double hex_alpha(const uint32_t *const col) {
 	return ((const uint8_t *)(col))[3] / (double)(255);
 }
 
+GdkRGBA gdk_rgba_from_color(const uint32_t *const c) {
+	return (GdkRGBA){
+		.red = hex_red(c),
+		.green = hex_green(c),
+		.blue = hex_blue(c),
+		.alpha = hex_alpha(c),
+	};
+}
+
+/* cairo */
+
 void cairo_set_rgba32(cairo_t *cr, const uint32_t *const c) {
-	cairo_set_source_rgba(cr, red(c), green(c), blue(c), alpha(c));
+	cairo_set_source_rgba(cr, hex_red(c), hex_green(c), hex_blue(c),
+						  hex_alpha(c));
 }
 
 void cairo_draw_rounded_rect(cairo_t *cr, double width, double height, double x,
@@ -71,4 +81,29 @@ void cairo_draw_rounded_rect(cairo_t *cr, double width, double height, double x,
 	// Top left
 	cairo_arc(cr, x + radius, y + radius, radius, M_PI, M_PI * 1.5);
 	cairo_close_path(cr);
+}
+
+void cairo_draw_icon_from_name(cairo_t *cr, const char *icon_name,
+							   const uint32_t *const fg_color, int icon_size,
+							   int x, int y, double scale) {
+	GtkIconInfo *icon_info = gtk_icon_theme_lookup_icon_for_scale(
+		gtk_icon_theme_get_default(), icon_name, icon_size, scale, 0);
+
+	// Icon pixel buffer
+	const GdkRGBA fg = gdk_rgba_from_color(fg_color);
+	GdkPixbuf *icon_pixbuf = gtk_icon_info_load_symbolic(
+		icon_info, &fg, NULL, NULL, NULL, NULL, NULL);
+	cairo_surface_t *icon_surface =
+		gdk_cairo_surface_create_from_pixbuf(icon_pixbuf, scale, NULL);
+
+	// Render
+	cairo_save(cr);
+
+	cairo_set_source_surface(cr, icon_surface, x, y);
+	cairo_paint(cr);
+
+	cairo_restore(cr);
+
+	cairo_surface_destroy(icon_surface);
+	g_object_unref(icon_pixbuf);
 }

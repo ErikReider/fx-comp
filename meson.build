@@ -85,6 +85,10 @@ math = cc.find_library('m')
 rt = cc.find_library('rt')
 xcb_icccm = dependency('xcb-icccm', required: true)
 threads = dependency('threads') # for pthread_setschedparam
+glib_version = '>=2.7'
+glib = dependency('glib-2.0', version: glib_version, required: true)
+gio = dependency('gio-2.0', version: glib_version, required: true)
+gtk3 = dependency('gtk+-3.0', version: '>=3.24', required: true)
 
 inc_dirs = include_directories('include')
 

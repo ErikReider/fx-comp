@@ -19,6 +19,8 @@ struct comp_widget_click_region {
 
 	void (*handle_click)(struct comp_widget *widget,
 						 struct comp_widget_click_region *region);
+
+	void *data;
 };
 
 struct comp_widget {

@@ -122,6 +122,8 @@ int main(int argc, char *argv[]) {
 
 	wlr_log_init(log_importance, NULL);
 
+	server.initialized_gtk = false;
+
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	server.wl_display = wl_display_create();

@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <gtk-3.0/gtk/gtk.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -262,6 +263,15 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 	struct wlr_output *wlr_output = data;
 
 	if (wlr_output == server->fallback_output->wlr_output) {
+		return;
+	}
+
+	/*
+	 * Initialize GTK if not initialized
+	 */
+	if (!server->initialized_gtk && !gtk_init_check(NULL, NULL)) {
+		wlr_log(WLR_ERROR, "Failed to initialize GTK");
+		wl_display_terminate(server->wl_display);
 		return;
 	}
 
