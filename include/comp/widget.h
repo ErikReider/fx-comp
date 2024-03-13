@@ -25,6 +25,7 @@ struct comp_widget {
 	struct wlr_scene_buffer *scene_buffer;
 
 	struct comp_object object;
+	struct comp_object *parent_object;
 
 	bool sets_cursor; // If the widget sets it's own cursor or not
 
@@ -53,7 +54,7 @@ struct comp_widget_impl {
 };
 
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
-					  struct comp_object *obj,
+					  struct comp_object *parent_obj,
 					  const struct comp_widget_impl *impl);
 
 void comp_widget_pointer_button(struct comp_widget *widget, double x, double y,

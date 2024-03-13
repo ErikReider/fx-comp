@@ -16,6 +16,7 @@ Todo:
     - [X] Dynamic height
     - [X] Program title in center
     - [ ] Button icons
+- [x] Move/resize toplevels with MOD+mouse buttons
 - [ ] wlr workspace protocol
 - [ ] foreign toplevel for ironbar support
 - [ ] Tiling

@@ -1,3 +1,4 @@
+#include <libevdev/libevdev.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
@@ -13,6 +14,7 @@
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/widget.h"
+#include "constants.h"
 #include "desktop/toplevel.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"
@@ -206,6 +208,47 @@ static void comp_server_cursor_motion_absolute(struct wl_listener *listener,
 				   dy);
 }
 
+static bool try_resize_or_move_toplevel(struct comp_object *object,
+										struct wlr_pointer_button_event *event,
+										struct comp_cursor *cursor) {
+	if (object == NULL) {
+		return false;
+	}
+
+	struct comp_toplevel *toplevel = NULL;
+	// Get Toplevel
+	switch (object->type) {
+	case COMP_OBJECT_TYPE_TOPLEVEL:
+		toplevel = object->data;
+		break;
+	case COMP_OBJECT_TYPE_WIDGET:;
+		struct comp_widget *widget = object->data;
+		return try_resize_or_move_toplevel(widget->parent_object, event,
+										   cursor);
+	case COMP_OBJECT_TYPE_XDG_POPUP:
+	case COMP_OBJECT_TYPE_LAYER_SURFACE:
+		return false;
+	}
+
+	struct wlr_keyboard *keyboard =
+		wlr_seat_get_keyboard(server.seat->wlr_seat);
+	uint32_t modifiers = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;
+	if (modifiers & FLOATING_MOD) {
+		switch (event->button) {
+		case BTN_LEFT:
+			comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+			return true;
+		case BTN_RIGHT:;
+			uint32_t edge =
+				comp_toplevel_get_edge_from_cursor_coords(toplevel, cursor);
+			comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE, edge);
+			return true;
+		}
+	}
+
+	return false;
+}
+
 static void comp_server_cursor_button(struct wl_listener *listener,
 									  void *data) {
 	/* This event is forwarded by the cursor when a pointer emits a button
@@ -227,14 +270,21 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 	} else if (object) {
 		switch (object->type) {
 		case COMP_OBJECT_TYPE_TOPLEVEL:
+			if (try_resize_or_move_toplevel(object, event, cursor)) {
+				return;
+			}
+			/* FALLTHROUGH */
 		case COMP_OBJECT_TYPE_XDG_POPUP:
-		case COMP_OBJECT_TYPE_LAYER_SURFACE:
+		case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 			if (surface) {
 				/* Focus that client if the button was _pressed_ */
 				comp_seat_surface_focus(object, surface);
 			}
 			break;
 		case COMP_OBJECT_TYPE_WIDGET:
+			if (try_resize_or_move_toplevel(object, event, cursor)) {
+				return;
+			}
 			comp_widget_pointer_button(object->data, sx, sy, event);
 			break;
 		}

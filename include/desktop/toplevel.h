@@ -10,6 +10,7 @@
 #include "comp/object.h"
 #include "comp/server.h"
 #include "desktop/xdg_decoration.h"
+#include "seat/cursor.h"
 
 #define NUMBER_OF_RESIZE_TARGETS 8
 
@@ -66,6 +67,10 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 
 void comp_toplevel_process_cursor_resize(struct comp_server *server,
 										 uint32_t time);
+
+uint32_t
+comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
+										  struct comp_cursor *cursor);
 
 void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 									 enum comp_cursor_mode mode,

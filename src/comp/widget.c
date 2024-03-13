@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
 
@@ -22,9 +23,10 @@ static void widget_destroy(struct wl_listener *listener, void *data) {
 }
 
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
-					  struct comp_object *obj,
+					  struct comp_object *parent_obj,
 					  const struct comp_widget_impl *impl) {
-	widget->object.scene_tree = wlr_scene_tree_create(obj->scene_tree);
+	assert(parent_obj);
+	widget->object.scene_tree = wlr_scene_tree_create(parent_obj->scene_tree);
 	if (widget->object.scene_tree == NULL) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar wlr_scene_tree");
 		return false;
@@ -46,6 +48,8 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 	widget->object.scene_tree->node.data = &widget->object;
 	widget->object.type = COMP_OBJECT_TYPE_WIDGET;
 	widget->object.data = widget;
+
+	widget->parent_object = parent_obj;
 
 	widget->impl = impl;
 

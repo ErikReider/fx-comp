@@ -135,3 +135,32 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	int new_height = new_bottom - new_top;
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
 }
+
+uint32_t comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
+											struct comp_cursor *cursor) {
+	uint32_t edge = 0;
+	if (toplevel->object.width == 0 || toplevel->object.height == 0) {
+		return edge;
+	}
+
+	int lx, ly;
+	wlr_scene_node_coords(&toplevel->object.scene_tree->node, &lx, &ly);
+
+	const double y =
+		MAX(0, (cursor->wlr_cursor->y - ly) / toplevel->object.height);
+	if (y > 0.5) {
+		edge |= WLR_EDGE_BOTTOM;
+	} else if (y < 0.5) {
+		edge |= WLR_EDGE_TOP;
+	}
+
+	const double x =
+		MAX(0, (cursor->wlr_cursor->x - lx) / toplevel->object.width);
+	if (x > 0.5) {
+		edge |= WLR_EDGE_RIGHT;
+	} else if (x < 0.5) {
+		edge |= WLR_EDGE_LEFT;
+	}
+
+	return edge;
+}
