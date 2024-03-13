@@ -55,20 +55,21 @@ static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 	toplevel->object.width =
 		fmax(min_width + (2 * BORDER_WIDTH), toplevel->object.width);
 	toplevel->object.height =
-		fmax(min_height + top_border_height, toplevel->object.height);
+		fmax(min_height + BORDER_WIDTH, toplevel->object.height);
 
 	if (max_width > 0 && !(2 * BORDER_WIDTH > INT_MAX - max_width)) {
 		toplevel->object.width =
 			fmin(max_width + (2 * BORDER_WIDTH), toplevel->object.width);
 	}
-	if (max_height > 0 && !(top_border_height > INT_MAX - max_height)) {
+	if (max_height > 0 &&
+		!(top_border_height + BORDER_WIDTH > INT_MAX - max_height)) {
 		toplevel->object.height =
-			fmin(max_height + top_border_height, toplevel->object.height);
+			fmin(max_height + top_border_height + BORDER_WIDTH,
+				 toplevel->object.height);
 	}
 
 	// Only redraw the titlebar if the size has changed
-	int new_titlebar_height =
-		top_border_height + toplevel->object.height - BORDER_WIDTH;
+	int new_titlebar_height = top_border_height + toplevel->object.height;
 	if (toplevel->titlebar &&
 		(titlebar->widget.object.width != toplevel->object.width ||
 		 titlebar->widget.object.height != new_titlebar_height)) {
@@ -237,11 +238,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 		server->seat->resize_edges = edges;
 
-		// TODO: RESIZE
-		toplevel->object.width =
-			server->seat->grab_geobox.width + 2 * BORDER_WIDTH;
-		toplevel->object.height =
-			server->seat->grab_geobox.height + 2 * BORDER_WIDTH;
+		toplevel->object.width = geo_box.width + 2 * BORDER_WIDTH;
+		toplevel->object.height = geo_box.height + 2 * BORDER_WIDTH;
 		xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
 		break;
 	}
@@ -314,10 +312,8 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	// Set geometry
 	struct wlr_box geometry;
 	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
-	toplevel->initial_width = geometry.width + 2 * BORDER_WIDTH;
-	toplevel->initial_height = geometry.height + 2 * BORDER_WIDTH;
-	toplevel->object.width = toplevel->initial_width;
-	toplevel->object.height = toplevel->initial_height;
+	toplevel->object.width = geometry.width + 2 * BORDER_WIDTH;
+	toplevel->object.height = geometry.height + 2 * BORDER_WIDTH;
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 		// Open new floating toplevels in the center of the output
@@ -327,10 +323,10 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 								  &output_box);
 		wlr_scene_node_set_position(
 			&toplevel->object.scene_tree->node,
-			(output_box.width - toplevel->initial_width) / 2,
-			(output_box.height - toplevel->initial_height) / 2);
+			(output_box.width - toplevel->object.width) / 2,
+			(output_box.height - toplevel->object.height) / 2);
 
-		xdg_update(toplevel, toplevel->initial_width, toplevel->initial_height);
+		xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
 	} else {
 		// Tile the new toplevel
 		// TODO: Tile

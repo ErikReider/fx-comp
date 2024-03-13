@@ -50,8 +50,6 @@ struct comp_toplevel {
 	struct wl_listener set_title;
 
 	enum comp_tiling_mode tiling_mode;
-	int initial_width;
-	int initial_height;
 	bool fullscreen;
 
 	struct comp_object object;
