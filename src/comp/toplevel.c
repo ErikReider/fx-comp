@@ -7,12 +7,12 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 
-#include "comp/border/titlebar.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/widget.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
+#include "desktop/widgets/titlebar.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"
 
@@ -136,8 +136,9 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, new_width, new_height);
 }
 
-uint32_t comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
-											struct comp_cursor *cursor) {
+uint32_t
+comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
+										  struct comp_cursor *cursor) {
 	uint32_t edge = 0;
 	if (toplevel->object.width == 0 || toplevel->object.height == 0) {
 		return edge;

@@ -15,11 +15,11 @@
 #include <wlr/util/box.h>
 #include <wlr/util/log.h>
 
-#include "comp/border/titlebar.h"
 #include "comp/server.h"
 #include "comp/widget.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
+#include "desktop/widgets/titlebar.h"
 #include "seat/seat.h"
 #include "util.h"
 

@@ -2,12 +2,12 @@
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
-#include "comp/border/titlebar.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/widget.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
+#include "desktop/widgets/titlebar.h"
 #include "seat/cursor.h"
 #include "seat/keyboard.h"
 #include "seat/seat.h"

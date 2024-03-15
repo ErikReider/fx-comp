@@ -12,13 +12,13 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/util/log.h>
 
-#include "comp/border/titlebar.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/layer_shell.h"
 #include "desktop/toplevel.h"
+#include "desktop/widgets/titlebar.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -249,7 +249,6 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.session_lock = wlr_scene_tree_create(output->output_tree);
 
 	wl_list_init(&output->workspaces);
-
 
 	wl_list_insert(&server->outputs, &output->link);
 

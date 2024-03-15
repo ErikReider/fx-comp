@@ -11,8 +11,6 @@
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 
-#include "comp/border/resize_edge.h"
-#include "comp/border/titlebar.h"
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
@@ -20,6 +18,8 @@
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
+#include "desktop/widgets/resize_edge.h"
+#include "desktop/widgets/titlebar.h"
 #include "desktop/xdg.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"

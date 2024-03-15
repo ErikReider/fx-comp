@@ -2,9 +2,9 @@
 #include <stdlib.h>
 #include <wayland-util.h>
 
-#include "comp/border/titlebar.h"
-#include "desktop/toplevel.h"
 #include "comp/widget.h"
+#include "desktop/toplevel.h"
+#include "desktop/widgets/titlebar.h"
 #include "desktop/xdg_decoration.h"
 
 static void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {

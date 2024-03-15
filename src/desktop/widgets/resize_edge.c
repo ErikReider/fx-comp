@@ -5,11 +5,11 @@
 #include <wlr/util/log.h>
 #include <xdg-shell-protocol.h>
 
-#include "comp/border/resize_edge.h"
-#include "comp/border/titlebar.h"
 #include "comp/server.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
+#include "desktop/widgets/resize_edge.h"
+#include "desktop/widgets/titlebar.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"
 
