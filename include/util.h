@@ -26,8 +26,10 @@ double hex_blue(const uint32_t *const col);
 /** Get alpha component from HEX color */
 double hex_alpha(const uint32_t *const col);
 
-/** Get GdkRGBA from HEX color */
+/** Get `GdkRGBA` from HEX color */
 GdkRGBA gdk_rgba_from_color(const uint32_t *const c);
+/** Get `struct wlr_render_color` from HEX color */
+struct wlr_render_color wlr_render_color_from_color(const uint32_t *const c);
 
 /* cairo */
 

@@ -3,6 +3,7 @@
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
@@ -405,8 +406,10 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	/* Set the scene_nodes decoration data */
 	toplevel->opacity = 1;
 	toplevel->corner_radius = EFFECTS_CORNER_RADII;
-	toplevel->shadow_data = shadow_data_get_default();
 	toplevel->shadow_data.enabled = true;
+	toplevel->shadow_data.color =
+		wlr_render_color_from_color(&(const uint32_t){TOPLEVEL_SHADOW_COLOR});
+	toplevel->shadow_data.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA;
 
 	toplevel->xdg_toplevel = xdg_surface->toplevel;
 

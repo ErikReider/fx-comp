@@ -60,6 +60,15 @@ GdkRGBA gdk_rgba_from_color(const uint32_t *const c) {
 	};
 }
 
+struct wlr_render_color wlr_render_color_from_color(const uint32_t *const c) {
+	return (struct wlr_render_color){
+		.r = hex_red(c),
+		.g = hex_green(c),
+		.b = hex_blue(c),
+		.a = hex_alpha(c),
+	};
+}
+
 /* cairo */
 
 void cairo_set_rgba32(cairo_t *cr, const uint32_t *const c) {
