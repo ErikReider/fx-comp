@@ -52,7 +52,7 @@ struct comp_output *comp_output_by_name_or_id(const char *name_or_id) {
 	return NULL;
 }
 
-struct comp_workspace *comp_workspace_from_index(struct comp_output *output,
+struct comp_workspace *comp_output_ws_from_index(struct comp_output *output,
 												 size_t index) {
 	size_t pos = 0;
 	struct comp_workspace *pos_ws;
@@ -64,6 +64,18 @@ struct comp_workspace *comp_workspace_from_index(struct comp_output *output,
 	}
 
 	return NULL;
+}
+
+int comp_output_find_ws_index(struct wl_list *list, struct comp_workspace *ws) {
+	int pos = 0;
+	struct comp_workspace *pos_ws;
+	wl_list_for_each_reverse(pos_ws, list, output_link) {
+		if (pos_ws == ws) {
+			return pos;
+		}
+		pos++;
+	}
+	return -1;
 }
 
 struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
@@ -445,7 +457,7 @@ comp_output_dir_workspace(struct comp_output *output, bool should_wrap,
 		return NULL;
 	}
 
-	int index = comp_workspace_find_index(&output->workspaces,
+	int index = comp_output_find_ws_index(&output->workspaces,
 										  output->active_workspace);
 
 	size_t new_index;
@@ -458,7 +470,7 @@ comp_output_dir_workspace(struct comp_output *output, bool should_wrap,
 		new_index = wrap(index + dir, wl_list_length(&output->workspaces));
 	}
 
-	struct comp_workspace *ws = comp_workspace_from_index(output, new_index);
+	struct comp_workspace *ws = comp_output_ws_from_index(output, new_index);
 	wlr_log(WLR_DEBUG, "Switched to workspace %zu on output %s", new_index,
 			output->wlr_output->name);
 	return ws;

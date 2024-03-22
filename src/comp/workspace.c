@@ -10,18 +10,6 @@
 #include "desktop/toplevel.h"
 #include "util.h"
 
-int comp_workspace_find_index(struct wl_list *list, struct comp_workspace *ws) {
-	int pos = 0;
-	struct comp_workspace *pos_ws;
-	wl_list_for_each_reverse(pos_ws, list, output_link) {
-		if (pos_ws == ws) {
-			return pos;
-		}
-		pos++;
-	}
-	return -1;
-}
-
 void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 									 struct comp_toplevel *toplevel) {
 	if (toplevel->workspace == dest_workspace) {

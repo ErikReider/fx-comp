@@ -46,8 +46,10 @@ struct comp_output {
  * Util
  */
 
-struct comp_workspace *comp_workspace_from_index(struct comp_output *output,
+struct comp_workspace *comp_output_ws_from_index(struct comp_output *output,
 												 size_t index);
+
+int comp_output_find_ws_index(struct wl_list *list, struct comp_workspace *ws);
 
 struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 												 bool fullscreen);
