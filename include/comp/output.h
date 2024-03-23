@@ -53,6 +53,10 @@ struct comp_workspace *comp_output_ws_from_index(struct comp_output *output,
 
 int comp_output_find_ws_index(struct wl_list *list, struct comp_workspace *ws);
 
+void comp_output_new_workspace(struct comp_output *output);
+void comp_output_remove_workspace(struct comp_output *output,
+								  struct comp_workspace *ws);
+
 struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 												 bool fullscreen);
 

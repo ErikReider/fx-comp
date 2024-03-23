@@ -30,8 +30,7 @@ static void keyboard_handle_modifiers(struct wl_listener *listener,
 									   &keyboard->wlr_keyboard->modifiers);
 }
 
-static bool handle_keybinding(struct comp_server *server,
-							  enum wlr_keyboard_modifier modifier,
+static bool handle_keybinding(struct comp_server *server, int modifier,
 							  xkb_keysym_t sym) {
 	/*
 	 * Here we handle compositor keybindings. This is when the compositor is
@@ -40,6 +39,8 @@ static bool handle_keybinding(struct comp_server *server,
 	 *
 	 * This function assumes Alt/Super is held down.
 	 */
+	struct comp_output *output = get_active_output(server);
+
 	switch (modifier) {
 	case WLR_MODIFIER_ALT:
 		switch (sym) {
@@ -48,7 +49,6 @@ static bool handle_keybinding(struct comp_server *server,
 			break;
 		case XKB_KEY_F1:;
 			/* Cycle to the next view */
-			struct comp_output *output = get_active_output(server);
 			struct comp_workspace *workspace = output->active_workspace;
 			if (wl_list_length(&workspace->toplevels) < 2) {
 				break;
@@ -58,6 +58,30 @@ static bool handle_keybinding(struct comp_server *server,
 			comp_seat_surface_focus(&next_toplevel->object,
 									next_toplevel->xdg_toplevel->base->surface);
 			break;
+
+		case XKB_KEY_Left: {
+			struct comp_workspace *ws =
+				comp_output_prev_workspace(output, true);
+			comp_output_focus_workspace(output, ws);
+			break;
+		}
+		case XKB_KEY_Right: {
+			struct comp_workspace *ws =
+				comp_output_next_workspace(output, true);
+			comp_output_focus_workspace(output, ws);
+			break;
+		}
+
+		case XKB_KEY_N:
+		case XKB_KEY_n:
+			comp_output_new_workspace(output);
+			return true;
+
+		case XKB_KEY_M:
+		case XKB_KEY_m:
+			comp_output_remove_workspace(output, output->active_workspace);
+			return true;
+
 		default:
 			return false;
 		}
@@ -65,11 +89,11 @@ static bool handle_keybinding(struct comp_server *server,
 	case WLR_MODIFIER_LOGO:
 		switch (sym) {
 		case XKB_KEY_Tab:;
-			struct comp_output *output = get_active_output(server);
 			struct comp_workspace *ws =
 				comp_output_next_workspace(output, true);
 			comp_output_focus_workspace(output, ws);
 			break;
+
 		default:
 			return false;
 		}

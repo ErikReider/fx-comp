@@ -80,6 +80,35 @@ int comp_output_find_ws_index(struct wl_list *list, struct comp_workspace *ws) {
 	return -1;
 }
 
+void comp_output_new_workspace(struct comp_output *output) {
+	comp_workspace_new(output, COMP_WORKSPACE_TYPE_REGULAR);
+}
+
+void comp_output_remove_workspace(struct comp_output *output,
+								  struct comp_workspace *ws) {
+	const int num_ws = wl_list_length(&output->workspaces);
+	if (num_ws <= 1 || !wl_list_empty(&ws->toplevels)) {
+		return;
+	}
+
+	bool is_active = ws == output->active_workspace;
+	comp_workspace_destroy(ws);
+
+	if (is_active) {
+		comp_output_focus_workspace(output, output->prev_workspace);
+		// The previous workspace should be set to NULL when there's only one
+		// workspace visible
+		if (num_ws - 1 == 1) {
+			output->prev_workspace = NULL;
+			return;
+		}
+
+		struct comp_workspace *prev_ws = wl_container_of(
+			output->active_workspace->output_link.next, prev_ws, output_link);
+		output->prev_workspace = prev_ws;
+	}
+}
+
 struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 												 bool fullscreen) {
 	enum comp_workspace_type new_ws_type;

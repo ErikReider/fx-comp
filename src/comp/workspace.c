@@ -73,7 +73,11 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 
 	wl_list_init(&ws->toplevels);
 
-	wl_list_insert(&output->workspaces, &ws->output_link);
+	// Insert next to active workspace
+	struct wl_list *pos = output->active_workspace
+							  ? output->active_workspace->output_link.prev
+							  : &output->workspaces;
+	wl_list_insert(pos, &ws->output_link);
 
 	comp_output_focus_workspace(output, ws);
 
