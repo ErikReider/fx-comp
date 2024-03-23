@@ -392,6 +392,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 
 static void titlebar_destroy(struct comp_widget *widget) {
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
+	titlebar->toplevel->titlebar = NULL;
 
 	free(titlebar->buttons.close.data);
 	free(titlebar->buttons.fullscreen.data);
@@ -439,6 +440,7 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 	}
 
 	if (!comp_widget_init(&titlebar->widget, server, &toplevel->object,
+						  toplevel->object.scene_tree,
 						  &comp_titlebar_widget_impl)) {
 		free(titlebar);
 		return NULL;

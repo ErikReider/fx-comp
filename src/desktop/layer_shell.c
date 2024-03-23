@@ -233,7 +233,7 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 	layer_surface->scene_layer->tree->node.data = &layer_surface->object;
 
 	// layer_surface->object.scene_tree = layer_surface->scene_layer->tree;
-	layer_surface->object.scene_tree->node.data = layer_surface;
+	layer_surface->object.scene_tree->node.data = &layer_surface->object;
 	layer_surface->object.data = layer_surface;
 	layer_surface->object.type = COMP_OBJECT_TYPE_LAYER_SURFACE;
 	wlr_layer_surface->data = layer_surface->object.scene_tree;

@@ -5,6 +5,7 @@
 #include <wayland-server-core.h>
 #include <wayland-util.h>
 
+#include "comp/object.h"
 #include "desktop/toplevel.h"
 #include "server.h"
 
@@ -20,7 +21,10 @@ struct comp_workspace {
 
 	struct comp_output *output;
 
-	struct wlr_scene_tree *workspace_tree;
+	// Geometry never set
+	struct comp_object object;
+
+	// struct wlr_scene_tree *workspace_tree;
 	struct {
 		struct wlr_scene_tree *lower; // Used for tiled / fullscreen
 		struct wlr_scene_tree *floating;

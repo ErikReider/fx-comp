@@ -57,6 +57,7 @@ struct comp_widget_impl {
 
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 					  struct comp_object *parent_obj,
+					  struct wlr_scene_tree *parent_tree,
 					  const struct comp_widget_impl *impl);
 
 void comp_widget_pointer_button(struct comp_widget *widget, double x, double y,

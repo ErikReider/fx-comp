@@ -50,22 +50,26 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 	ws->output = output;
 
 	// Create workspace tree
-	ws->workspace_tree = alloc_tree(output->layers.workspaces);
-	if (!ws->workspace_tree) {
+	ws->object.scene_tree = alloc_tree(output->layers.workspaces);
+	if (!ws->object.scene_tree) {
 		return NULL;
 	}
+	ws->object.scene_tree->node.data = &ws->object;
+	ws->object.data = ws;
+	ws->object.type = COMP_OBJECT_TYPE_WORKSPACE;
+
 	// Create tiled/fullscreen
-	ws->layers.lower = alloc_tree(ws->workspace_tree);
+	ws->layers.lower = alloc_tree(ws->object.scene_tree);
 	if (!ws->layers.lower) {
 		return NULL;
 	}
-	ws->layers.lower->node.data = ws;
+	ws->layers.lower->node.data = &ws->object;
 	// Create floating
-	ws->layers.floating = alloc_tree(ws->workspace_tree);
+	ws->layers.floating = alloc_tree(ws->object.scene_tree);
 	if (!ws->layers.floating) {
 		return NULL;
 	}
-	ws->layers.floating->node.data = ws;
+	ws->layers.floating->node.data = &ws->object;
 
 	wl_list_init(&ws->toplevels);
 
@@ -79,7 +83,7 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 void comp_workspace_destroy(struct comp_workspace *ws) {
 	wl_list_remove(&ws->output_link);
 
-	wlr_scene_node_destroy(&ws->workspace_tree->node);
+	wlr_scene_node_destroy(&ws->object.scene_tree->node);
 
 	free(ws);
 }

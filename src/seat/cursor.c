@@ -29,7 +29,7 @@ static void set_active_output_from_cursor_pos(struct comp_cursor *cursor) {
 	if (hovered_output) {
 		struct comp_output *output = hovered_output->data;
 		server.active_output = output;
-		wlr_scene_node_raise_to_top(&output->output_tree->node);
+		wlr_scene_node_raise_to_top(&output->object.scene_tree->node);
 	}
 }
 
@@ -120,6 +120,9 @@ static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 				wlr_cursor_set_xcursor(cursor->wlr_cursor, cursor->cursor_mgr,
 									   "left_ptr");
 			}
+			break;
+		case COMP_OBJECT_TYPE_OUTPUT:
+		case COMP_OBJECT_TYPE_WORKSPACE:
 			break;
 		}
 	}
@@ -227,6 +230,8 @@ static bool try_resize_or_move_toplevel(struct comp_object *object,
 										   cursor);
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
+	case COMP_OBJECT_TYPE_OUTPUT:
+	case COMP_OBJECT_TYPE_WORKSPACE:
 		return false;
 	}
 
@@ -273,6 +278,8 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			case COMP_OBJECT_TYPE_TOPLEVEL:
 			case COMP_OBJECT_TYPE_XDG_POPUP:
 			case COMP_OBJECT_TYPE_LAYER_SURFACE:;
+			case COMP_OBJECT_TYPE_OUTPUT:
+			case COMP_OBJECT_TYPE_WORKSPACE:
 				break;
 			}
 		}
@@ -298,6 +305,9 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 				return;
 			}
 			comp_widget_pointer_button(object->data, sx, sy, event);
+			break;
+		case COMP_OBJECT_TYPE_OUTPUT:
+		case COMP_OBJECT_TYPE_WORKSPACE:
 			break;
 		}
 	}

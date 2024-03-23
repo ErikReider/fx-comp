@@ -6,6 +6,7 @@
 #include "comp/widget.h"
 #include "pango/pangocairo.h"
 #include "seat/seat.h"
+#include "util.h"
 #include "wlr/util/log.h"
 
 static void widget_destroy(struct wl_listener *listener, void *data) {
@@ -24,9 +25,10 @@ static void widget_destroy(struct wl_listener *listener, void *data) {
 
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 					  struct comp_object *parent_obj,
+					  struct wlr_scene_tree *parent_tree,
 					  const struct comp_widget_impl *impl) {
 	assert(parent_obj);
-	widget->object.scene_tree = wlr_scene_tree_create(parent_obj->scene_tree);
+	widget->object.scene_tree = alloc_tree(parent_tree);
 	if (widget->object.scene_tree == NULL) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar wlr_scene_tree");
 		return false;

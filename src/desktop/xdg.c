@@ -442,7 +442,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	toplevel->xdg_scene_tree = wlr_scene_xdg_surface_create(
 		toplevel->object.scene_tree, toplevel->xdg_toplevel->base);
 	toplevel->xdg_scene_tree->node.data = &toplevel->object;
-	toplevel->object.scene_tree->node.data = toplevel;
+	toplevel->object.scene_tree->node.data = &toplevel->object;
 	toplevel->object.data = toplevel;
 	toplevel->object.type = COMP_OBJECT_TYPE_TOPLEVEL;
 	xdg_surface->data = toplevel->object.scene_tree;

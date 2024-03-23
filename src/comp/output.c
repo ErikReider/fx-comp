@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <gtk-3.0/gtk/gtk.h>
 #include <scenefx/types/wlr_scene.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -12,6 +13,7 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/util/log.h>
 
+#include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/workspace.h"
@@ -235,7 +237,7 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 	output->wlr_output = NULL;
 	output->scene_output = NULL;
 
-	wlr_scene_node_destroy(&output->output_tree->node);
+	wlr_scene_node_destroy(&output->object.scene_tree->node);
 
 	free(output);
 }
@@ -247,18 +249,20 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	wlr_output->data = output;
 	output->server = server;
 
-	// Initialize layers
-	output->output_tree = wlr_scene_tree_create(&server->root_scene->tree);
+	output->object.scene_tree = alloc_tree(&server->root_scene->tree);
+	output->object.scene_tree->node.data = &output->object;
+	output->object.data = output;
+	output->object.type = COMP_OBJECT_TYPE_OUTPUT;
 
-	output->layers.shell_background =
-		wlr_scene_tree_create(output->output_tree);
-	output->layers.shell_bottom = wlr_scene_tree_create(output->output_tree);
-	output->layers.workspaces = wlr_scene_tree_create(output->output_tree);
-	output->layers.shell_top = wlr_scene_tree_create(output->output_tree);
-	output->layers.fullscreen = wlr_scene_tree_create(output->output_tree);
-	output->layers.shell_overlay = wlr_scene_tree_create(output->output_tree);
-	output->layers.seat = wlr_scene_tree_create(output->output_tree);
-	output->layers.session_lock = wlr_scene_tree_create(output->output_tree);
+	// Initialize layers
+	output->layers.shell_background = alloc_tree(output->object.scene_tree);
+	output->layers.shell_bottom = alloc_tree(output->object.scene_tree);
+	output->layers.workspaces = alloc_tree(output->object.scene_tree);
+	output->layers.shell_top = alloc_tree(output->object.scene_tree);
+	output->layers.fullscreen = alloc_tree(output->object.scene_tree);
+	output->layers.shell_overlay = alloc_tree(output->object.scene_tree);
+	output->layers.seat = alloc_tree(output->object.scene_tree);
+	output->layers.session_lock = alloc_tree(output->object.scene_tree);
 
 	wl_list_init(&output->workspaces);
 
@@ -399,7 +403,8 @@ void comp_output_update_sizes(struct comp_output *output) {
 	wlr_scene_output_set_position(output->scene_output, output_x, output_y);
 
 	// Update the output tree position to match the scene_output
-	wlr_scene_node_set_position(&output->output_tree->node, output_x, output_y);
+	wlr_scene_node_set_position(&output->object.scene_tree->node, output_x,
+								output_y);
 
 	comp_output_arrange_layers(output);
 	comp_output_arrange_output(output);
@@ -418,9 +423,9 @@ void comp_output_move_workspace_to(struct comp_output *dest_output,
 	}
 
 	// Add to the new output
-	wlr_scene_node_reparent(&ws->workspace_tree->node,
+	wlr_scene_node_reparent(&ws->object.scene_tree->node,
 							dest_output->layers.workspaces);
-	wlr_scene_node_set_enabled(&ws->workspace_tree->node, false);
+	wlr_scene_node_set_enabled(&ws->object.scene_tree->node, false);
 
 	ws->output = dest_output;
 
@@ -434,7 +439,7 @@ void comp_output_focus_workspace(struct comp_output *output,
 	// Disable the previous workspace
 	if (output->active_workspace) {
 		wlr_scene_node_set_enabled(
-			&output->active_workspace->workspace_tree->node, false);
+			&output->active_workspace->object.scene_tree->node, false);
 	}
 	output->prev_workspace = output->active_workspace;
 
@@ -444,7 +449,7 @@ void comp_output_focus_workspace(struct comp_output *output,
 	// Make sure that all other workspaces are disabled
 	struct comp_workspace *workspace;
 	wl_list_for_each(workspace, &output->workspaces, output_link) {
-		wlr_scene_node_set_enabled(&workspace->workspace_tree->node,
+		wlr_scene_node_set_enabled(&workspace->object.scene_tree->node,
 								   workspace == output->active_workspace);
 	}
 }
@@ -500,7 +505,11 @@ static void arrange_layer_surfaces(struct comp_output *output,
 								   struct wlr_scene_tree *tree) {
 	struct wlr_scene_node *node;
 	wl_list_for_each(node, &tree->children, link) {
-		struct comp_layer_surface *layer_surface = node->data;
+		struct comp_object *object = node->data;
+		if (!object || object->type != COMP_OBJECT_TYPE_LAYER_SURFACE) {
+			continue;
+		}
+		struct comp_layer_surface *layer_surface = object->data;
 
 		// surface could be null during destruction
 		if (!layer_surface || !layer_surface->scene_layer ||

@@ -9,7 +9,6 @@
 
 #include "comp/output.h"
 #include "comp/server.h"
-#include "comp/widget.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
@@ -73,7 +72,8 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 				comp_workspace_move_toplevel_to(ws, toplevel);
 				// Update the active output
 				server->active_output = new_output;
-				wlr_scene_node_raise_to_top(&new_output->output_tree->node);
+				wlr_scene_node_raise_to_top(
+					&new_output->object.scene_tree->node);
 			}
 		}
 	}

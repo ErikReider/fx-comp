@@ -4,6 +4,7 @@
 #include <wayland-server-core.h>
 #include <wayland-util.h>
 
+#include "comp/object.h"
 #include "server.h"
 
 struct comp_output {
@@ -13,7 +14,8 @@ struct comp_output {
 	struct wlr_output *wlr_output;
 	struct wlr_scene_output *scene_output;
 
-	struct wlr_scene_tree *output_tree;
+	// Geometry never set
+	struct comp_object object;
 	struct {
 		struct wlr_scene_tree *shell_background; // TODO: Layershell
 		struct wlr_scene_tree *shell_bottom;	 // TODO: Layershell

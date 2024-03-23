@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <wayland-util.h>
 
+#include "comp/object.h"
 #include "comp/widget.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
@@ -52,7 +53,11 @@ static void xdg_decoration_handle_request_mode(struct wl_listener *listener,
 void handle_xdg_decoration(struct wl_listener *listener, void *data) {
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
 	struct wlr_scene_tree *tree = wlr_deco->toplevel->base->data;
-	struct comp_toplevel *comp_toplevel = tree->node.data;
+	struct comp_object *object = tree->node.data;
+	if (!object || object->type != COMP_OBJECT_TYPE_TOPLEVEL) {
+		return;
+	}
+	struct comp_toplevel *comp_toplevel = object->data;
 
 	struct comp_xdg_decoration *deco = calloc(1, sizeof(*deco));
 	if (deco == NULL) {

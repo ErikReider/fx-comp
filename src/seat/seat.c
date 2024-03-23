@@ -28,6 +28,14 @@
 bool comp_seat_object_is_focus(struct comp_seat *seat,
 							   struct comp_object *object) {
 	switch (object->type) {
+	case COMP_OBJECT_TYPE_WORKSPACE:
+		if (server.active_output == NULL ||
+			server.active_output->active_workspace == NULL) {
+			return false;
+		}
+		return object == &server.active_output->active_workspace->object;
+	case COMP_OBJECT_TYPE_OUTPUT:
+		return object == &server.active_output->object;
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		// Only focused if no layer_surface is focused
 		struct comp_toplevel *toplevel = object->data;
@@ -169,8 +177,10 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 		wlr_xdg_toplevel_set_activated(xdg_surface->toplevel, false);
 
 		struct wlr_scene_tree *scene_tree = xdg_surface->data;
-		struct comp_toplevel *toplevel = scene_tree->node.data;
-		if (toplevel) {
+		struct comp_object *object = scene_tree->node.data;
+		struct comp_toplevel *toplevel;
+		if (object && object->type == COMP_OBJECT_TYPE_TOPLEVEL &&
+			(toplevel = object->data)) {
 			if (toplevel == server.seat->focused_toplevel) {
 				server.seat->focused_toplevel = NULL;
 			}
@@ -194,8 +204,12 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 	if ((wlr_layer_surface =
 			 wlr_layer_surface_v1_try_from_wlr_surface(surface))) {
 		struct wlr_scene_tree *scene_tree = wlr_layer_surface->data;
-		struct comp_layer_surface *layer_surface = scene_tree->node.data;
-		if (layer_surface == server.seat->focused_layer_surface) {
+
+		struct comp_object *object = scene_tree->node.data;
+		struct comp_layer_surface *layer_surface;
+		if (object && object->type == COMP_OBJECT_TYPE_LAYER_SURFACE &&
+			(layer_surface = object->data) &&
+			layer_surface == server.seat->focused_layer_surface) {
 			server.seat->focused_layer_surface = NULL;
 		}
 
@@ -266,6 +280,8 @@ void comp_seat_surface_focus(struct comp_object *object,
 		break;
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
+	case COMP_OBJECT_TYPE_OUTPUT:
+	case COMP_OBJECT_TYPE_WORKSPACE:
 		return;
 	}
 
@@ -304,7 +320,9 @@ void comp_seat_surface_focus(struct comp_object *object,
 		break;
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
-		break;
+	case COMP_OBJECT_TYPE_OUTPUT:
+	case COMP_OBJECT_TYPE_WORKSPACE:
+		return;
 	}
 
 	/* Move the node to the front */
@@ -323,6 +341,8 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_WIDGET:
+	case COMP_OBJECT_TYPE_OUTPUT:
+	case COMP_OBJECT_TYPE_WORKSPACE:
 		return;
 	}
 }

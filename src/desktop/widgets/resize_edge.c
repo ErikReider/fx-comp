@@ -103,6 +103,7 @@ comp_resize_edge_init(struct comp_server *server,
 	}
 
 	if (!comp_widget_init(&edge->widget, server, &toplevel->object,
+						  toplevel->object.scene_tree,
 						  &comp_resize_edge_widget_impl)) {
 		free(edge);
 		return NULL;
