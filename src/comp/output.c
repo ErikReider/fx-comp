@@ -89,7 +89,7 @@ void comp_output_new_workspace(struct comp_output *output) {
 void comp_output_remove_workspace(struct comp_output *output,
 								  struct comp_workspace *ws) {
 	const int num_ws = wl_list_length(&output->workspaces);
-	if (num_ws <= 1 || !wl_list_empty(&ws->toplevels)) {
+	if (num_ws <= 2 || !wl_list_empty(&ws->toplevels)) {
 		return;
 	}
 
@@ -251,18 +251,25 @@ static void evacuate_workspaces(struct comp_output *output) {
 	wlr_log(WLR_DEBUG, "Evacuating workspace to output '%s'",
 			dest_output->wlr_output->name);
 
-	// TODO: Test this with multiple monitors
+	bool moved = false;
 	struct comp_workspace *workspace, *tmp_ws;
 	wl_list_for_each_reverse_safe(workspace, tmp_ws, &output->workspaces,
 								  output_link) {
-		comp_output_move_workspace_to(dest_output, workspace);
+		// Ignore empty workspaces
+		if (!wl_list_empty(&workspace->toplevels)) {
+			comp_output_move_workspace_to(dest_output, workspace);
+			moved = true;
+		}
 	}
 
-	// Focus the last workspace on the destination output
-	struct comp_workspace *last_ws =
-		wl_container_of(dest_output->workspaces.prev, last_ws, output_link);
-	comp_output_focus_workspace(dest_output, last_ws);
-	wl_signal_emit_mutable(&output->events.ws_change, output);
+	// Ignore if no workspaces were moved
+	if (moved) {
+		// Focus the last workspace on the destination output
+		struct comp_workspace *last_ws =
+			wl_container_of(dest_output->workspaces.next, last_ws, output_link);
+		comp_output_focus_workspace(dest_output, last_ws);
+		wl_signal_emit_mutable(&output->events.ws_change, output);
+	}
 }
 
 static void output_destroy(struct wl_listener *listener, void *data) {
@@ -372,12 +379,17 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 	 * Workspaces
 	 */
 
-	// Create the initial workspace
-	if (comp_workspace_new(output, COMP_WORKSPACE_TYPE_REGULAR) == NULL) {
+	// Create the initial workspaces
+	struct comp_workspace *first_ws =
+		comp_workspace_new(output, COMP_WORKSPACE_TYPE_REGULAR);
+	struct comp_workspace *second_ws =
+		comp_workspace_new(output, COMP_WORKSPACE_TYPE_REGULAR);
+	if (!first_ws || !second_ws) {
 		wlr_log(WLR_ERROR, "Could not create initial workspaces for output: %s",
 				output->wlr_output->name);
 		abort();
 	}
+	comp_output_focus_workspace(output, first_ws);
 
 	output->ws_indicator = comp_ws_indicator_init(server, output);
 
