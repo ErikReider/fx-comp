@@ -116,3 +116,14 @@ void cairo_draw_icon_from_name(cairo_t *cr, const char *icon_name,
 	cairo_surface_destroy(icon_surface);
 	g_object_unref(icon_pixbuf);
 }
+
+/* Animation Helpers */
+
+double lerp(double a, double b, double t) {
+	return a * (1.0 - t) + b * t;
+}
+
+double ease_out_cubic(double t) {
+	double p = t - 1;
+	return pow(p, 3) + 1;
+}

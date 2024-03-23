@@ -69,4 +69,7 @@ void comp_widget_draw_resize(struct comp_widget *widget, int width, int height);
 
 void comp_widget_draw(struct comp_widget *widget);
 
+void comp_widget_center_on_output(struct comp_widget *widget,
+								  struct comp_output *output);
+
 #endif // !FX_COMP_WIDGET_H

@@ -1,13 +1,13 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <wlr/util/log.h>
 
 #include "comp/cairo_buffer.h"
+#include "comp/output.h"
 #include "comp/widget.h"
-#include "pango/pangocairo.h"
 #include "seat/seat.h"
 #include "util.h"
-#include "wlr/util/log.h"
 
 static void widget_destroy(struct wl_listener *listener, void *data) {
 	struct comp_widget *widget = wl_container_of(listener, widget, destroy);
@@ -102,7 +102,7 @@ void comp_widget_draw_resize(struct comp_widget *widget, int width,
 	widget->object.height = height;
 	wlr_scene_buffer_set_dest_size(widget->scene_buffer, width, height);
 
-	if (widget->impl->draw == NULL) {
+	if (widget->impl->draw == NULL || width <= 0 || height <= 0) {
 		return;
 	}
 
@@ -176,4 +176,12 @@ err_create_cairo:
 void comp_widget_draw(struct comp_widget *widget) {
 	comp_widget_draw_resize(widget, widget->object.width,
 							widget->object.height);
+}
+
+void comp_widget_center_on_output(struct comp_widget *widget,
+								  struct comp_output *output) {
+	struct wlr_scene_node *node = &widget->object.scene_tree->node;
+	int width = (output->geometry.width - widget->object.width) / 2;
+	int height = (output->geometry.height - widget->object.height) / 2;
+	wlr_scene_node_set_position(node, width, height);
 }

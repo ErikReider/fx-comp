@@ -1,6 +1,7 @@
 sources = files(
 	'main.c',
 	'util.c',
+	'comp/animation_mgr.c',
 	'comp/cairo_buffer.c',
 	'comp/object.c',
 	'comp/output.c',
@@ -14,6 +15,7 @@ sources = files(
 	'desktop/xdg_popup.c',
 	'desktop/widgets/resize_edge.c',
 	'desktop/widgets/titlebar.c',
+	'desktop/widgets/workspace_indicator.c',
 	'seat/cursor.c',
 	'seat/keyboard.c',
 	'seat/seat.c',

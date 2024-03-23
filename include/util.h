@@ -43,4 +43,10 @@ void cairo_draw_icon_from_name(cairo_t *cr, const char *icon_name,
 							   const uint32_t *const fg_color, int icon_size,
 							   int x, int y, double scale);
 
+/* Animation helpers */
+
+double lerp(double a, double b, double t);
+
+double ease_out_cubic(double t);
+
 #endif // !FX_COMP_UTIL_H

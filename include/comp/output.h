@@ -5,6 +5,7 @@
 #include <wayland-util.h>
 
 #include "comp/object.h"
+#include "desktop/widgets/workspace_indicator.h"
 #include "server.h"
 
 struct comp_output {
@@ -27,6 +28,8 @@ struct comp_output {
 		struct wlr_scene_tree *session_lock;  // TODO: session_lock
 	} layers;
 
+	struct comp_ws_indicator *ws_indicator;
+
 	struct wl_list workspaces;
 	struct comp_workspace *active_workspace;
 	struct comp_workspace *prev_workspace;
@@ -34,13 +37,18 @@ struct comp_output {
 	struct wlr_box usable_area;
 	struct wlr_box geometry;
 
+	uint32_t refresh_nsec;
+	float refresh_sec;
+
 	struct wl_listener frame;
 	struct wl_listener request_state;
+	struct wl_listener present;
 	struct wl_listener destroy;
 
 	// Custom output signals
 	struct {
 		struct wl_signal disable;
+		struct wl_signal ws_change;
 	} events;
 };
 

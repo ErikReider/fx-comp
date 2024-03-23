@@ -16,11 +16,13 @@
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
+#include "comp/widget.h"
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/layer_shell.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
+#include "desktop/widgets/workspace_indicator.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -217,6 +219,19 @@ static void output_request_state(struct wl_listener *listener, void *data) {
 	wlr_output_commit_state(output->wlr_output, event->state);
 }
 
+static void output_present(struct wl_listener *listener, void *data) {
+	struct comp_output *output = wl_container_of(listener, output, present);
+
+	struct wlr_output_event_present *output_event = data;
+
+	if (!output->wlr_output->enabled || !output_event->presented) {
+		return;
+	}
+
+	output->refresh_nsec = output_event->refresh;
+	output->refresh_sec = (float)output_event->refresh / NSEC_IN_SECONDS;
+}
+
 static void evacuate_workspaces(struct comp_output *output) {
 	if (wl_list_empty(&output->workspaces)) {
 		return;
@@ -247,6 +262,7 @@ static void evacuate_workspaces(struct comp_output *output) {
 	struct comp_workspace *last_ws =
 		wl_container_of(dest_output->workspaces.prev, last_ws, output_link);
 	comp_output_focus_workspace(dest_output, last_ws);
+	wl_signal_emit_mutable(&output->events.ws_change, output);
 }
 
 static void output_destroy(struct wl_listener *listener, void *data) {
@@ -258,6 +274,7 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 
 	wl_list_remove(&output->frame.link);
 	wl_list_remove(&output->request_state.link);
+	wl_list_remove(&output->present.link);
 	wl_list_remove(&output->destroy.link);
 	wl_list_remove(&output->link);
 
@@ -296,6 +313,8 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	wl_list_init(&output->workspaces);
 
 	wl_list_insert(&server->outputs, &output->link);
+
+	wl_signal_init(&output->events.ws_change);
 
 	return output;
 }
@@ -360,6 +379,8 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 		abort();
 	}
 
+	output->ws_indicator = comp_ws_indicator_init(server, output);
+
 	/*
 	 * Signals
 	 */
@@ -373,6 +394,10 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 	/* Sets up a listener for the state request event. */
 	output->request_state.notify = output_request_state;
 	wl_signal_add(&wlr_output->events.request_state, &output->request_state);
+
+	/* Sets up a listener for the present event. */
+	output->present.notify = output_present;
+	wl_signal_add(&wlr_output->events.present, &output->present);
 
 	/* Sets up a listener for the destroy event. */
 	output->destroy.notify = output_destroy;
@@ -459,6 +484,7 @@ void comp_output_move_workspace_to(struct comp_output *dest_output,
 	ws->output = dest_output;
 
 	wl_list_insert(&dest_output->workspaces, &ws->output_link);
+	wl_signal_emit_mutable(&dest_output->events.ws_change, dest_output);
 }
 
 void comp_output_focus_workspace(struct comp_output *output,
@@ -481,6 +507,8 @@ void comp_output_focus_workspace(struct comp_output *output,
 		wlr_scene_node_set_enabled(&workspace->object.scene_tree->node,
 								   workspace == output->active_workspace);
 	}
+
+	wl_signal_emit_mutable(&output->events.ws_change, output);
 }
 
 static struct comp_workspace *
@@ -525,7 +553,8 @@ struct comp_workspace *comp_output_next_workspace(struct comp_output *output,
  */
 
 void comp_output_arrange_output(struct comp_output *output) {
-	// TODO:
+	// Center Workspace Switcher
+	comp_widget_center_on_output(&output->ws_indicator->widget, output);
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,

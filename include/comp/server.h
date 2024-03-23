@@ -1,6 +1,7 @@
 #ifndef FX_COMP_SERVER_H
 #define FX_COMP_SERVER_H
 
+#include "comp/animation_mgr.h"
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wlr/util/box.h>
@@ -18,6 +19,7 @@ struct comp_server {
 	struct wlr_backend *backend;
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
+	struct wl_event_loop *wl_event_loop;
 
 	struct wlr_scene *root_scene;
 	struct wlr_scene_output_layout *scene_layout;
@@ -48,10 +50,11 @@ struct comp_server {
 	struct wl_listener layout_change;
 
 	bool initialized_gtk;
+
+	struct comp_animation_mgr *animation_mgr;
 };
 
 extern struct comp_server server;
-
 
 void comp_server_layout_change(struct wl_listener *listener, void *data);
 void comp_server_output_manager_apply(struct wl_listener *listener, void *data);
