@@ -180,6 +180,12 @@ void comp_widget_draw(struct comp_widget *widget) {
 
 void comp_widget_center_on_output(struct comp_widget *widget,
 								  struct comp_output *output) {
+	// Override the default centering logic if needed
+	if (widget && widget->impl && widget->impl->center &&
+		widget->impl->center(widget)) {
+		return;
+	}
+
 	struct wlr_scene_node *node = &widget->object.scene_tree->node;
 	int width = (output->geometry.width - widget->object.width) / 2;
 	int height = (output->geometry.height - widget->object.height) / 2;

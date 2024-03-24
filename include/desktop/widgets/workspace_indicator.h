@@ -23,6 +23,8 @@ struct comp_ws_indicator {
 	int active_ws_index;
 	int num_workspaces;
 
+	int item_width, item_height;
+
 	enum {
 		COMP_WS_INDICATOR_STATE_OPENING,
 		COMP_WS_INDICATOR_STATE_OPEN,

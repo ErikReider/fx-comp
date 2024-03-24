@@ -53,6 +53,8 @@ struct comp_widget_impl {
 								  double y,
 								  struct wlr_pointer_button_event *event);
 	void (*destroy)(struct comp_widget *widget);
+	// Return true to override the default centering logic
+	bool (*center)(struct comp_widget *widget);
 };
 
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,

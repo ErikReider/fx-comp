@@ -12,11 +12,6 @@
 #include "desktop/widgets/workspace_indicator.h"
 #include "util.h"
 
-// TODO: Make configurable and adapt the width and height to the outputs aspect
-// ratio
-#define SIZE 80
-#define PADDING 8
-
 static void set_visible(struct comp_ws_indicator *indicator, bool state) {
 	indicator->visible = state;
 	wlr_scene_node_set_enabled(&indicator->widget.object.scene_tree->node,
@@ -41,28 +36,25 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 	struct comp_ws_indicator *indicator =
 		wl_container_of(widget, indicator, widget);
 
-	const int ws_width = (width - PADDING * (indicator->num_workspaces + 1)) /
-						 indicator->num_workspaces;
-	const int ws_height = (height - PADDING * 2);
-
 	// Background
-	cairo_set_rgba32(cr,
-					 &(const uint32_t){TITLEBAR_COLOR_BACKGROUND_UNFOCUSED});
+	cairo_set_rgba32(cr, &(const uint32_t){OVERLAY_COLOR_BACKGROUND});
 	cairo_draw_rounded_rect(cr, width, height, 0, 0, EFFECTS_CORNER_RADII);
 	cairo_fill(cr);
 
 	for (int i = 0; i < indicator->num_workspaces; i++) {
-		const int x_offset = PADDING + (ws_width + PADDING) * i;
+		const int x_offset =
+			OVERLAY_PADDING + (indicator->item_width + OVERLAY_PADDING) * i;
 
-		uint32_t bg_color = TITLEBAR_COLOR_BACKGROUND_FOCUSED;
-		uint32_t fg_color = TITLEBAR_COLOR_FOREGROUND_FOCUSED;
+		uint32_t bg_color = WORKSPACE_SWITCHER_COLOR_FOCUSED_BACKGROUND;
+		uint32_t fg_color = WORKSPACE_SWITCHER_COLOR_FOCUSED_FOREGROUND;
 		if (i == indicator->active_ws_index) {
-			bg_color = TITLEBAR_COLOR_FOREGROUND_UNFOCUSED;
-			fg_color = TITLEBAR_COLOR_BACKGROUND_UNFOCUSED;
+			bg_color = WORKSPACE_SWITCHER_COLOR_UNFOCUSED_BACKGROUND;
+			fg_color = WORKSPACE_SWITCHER_COLOR_UNFOCUSED_FOREGROUND;
 		}
 		cairo_set_rgba32(cr, &bg_color);
-		cairo_draw_rounded_rect(cr, ws_width, ws_height, x_offset, PADDING,
-								EFFECTS_CORNER_RADII - PADDING);
+		cairo_draw_rounded_rect(
+			cr, indicator->item_width, indicator->item_height, x_offset,
+			OVERLAY_PADDING, EFFECTS_CORNER_RADII - OVERLAY_PADDING);
 		cairo_fill(cr);
 
 		// text rendering
@@ -81,7 +73,7 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 		pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
 		pango_layout_set_single_paragraph_mode(layout, true);
 		pango_layout_set_wrap(layout, PANGO_WRAP_WORD);
-		pango_layout_set_width(layout, ws_width * PANGO_SCALE);
+		pango_layout_set_width(layout, indicator->item_width * PANGO_SCALE);
 
 		int text_width, text_height;
 		pango_layout_get_pixel_size(layout, &text_width, &text_height);
@@ -89,7 +81,8 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 		// Center vertically
 		cairo_move_to(cr, x_offset,
 					  // Compensate for separator and border size
-					  PADDING + (ws_height - text_height) * 0.5);
+					  OVERLAY_PADDING +
+						  (indicator->item_height - text_height) * 0.5);
 
 		// Draw the text
 		cairo_set_rgba32(cr, &fg_color);
@@ -119,9 +112,41 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 	wlr_scene_buffer_set_opacity(indicator->widget.scene_buffer, alpha);
 }
 
+static void resize_and_draw(struct comp_ws_indicator *indicator) {
+	// Match each items aspect ratio with the outputs aspect ratio
+	struct comp_output *output = indicator->output;
+	const float output_width = output->geometry.width;
+	const float output_height = output->geometry.height;
+	indicator->item_width = WORKSPACE_SWITCHER_ITEM_WIDTH;
+	indicator->item_height = WORKSPACE_SWITCHER_ITEM_HEIGHT;
+	if (output_width > output_height) {
+		indicator->item_width *= output_width / output_height;
+	} else if (output_width < output_height) {
+		indicator->item_height *= output_height / output_width;
+	}
+
+	const int width = indicator->item_width * indicator->num_workspaces +
+					  OVERLAY_PADDING * 2 +
+					  OVERLAY_PADDING * (indicator->num_workspaces - 1);
+	const int height = indicator->item_height + OVERLAY_PADDING * 2;
+	comp_widget_draw_resize(&indicator->widget, width, height);
+}
+
+static bool center(struct comp_widget *widget) {
+	struct comp_ws_indicator *indicator =
+		wl_container_of(widget, indicator, widget);
+	if (indicator->num_workspaces > 0) {
+		resize_and_draw(indicator);
+	}
+
+	// Return false to not override the default centering logic
+	return false;
+}
+
 static const struct comp_widget_impl comp_ws_indicator_widget_impl = {
 	.draw = indicator_draw,
 	.destroy = indicator_destroy,
+	.center = center,
 };
 
 static void indicator_ws_change(struct wl_listener *listener, void *data) {
@@ -164,15 +189,13 @@ static void animation_update(struct comp_animation_mgr *mgr,
 		(indicator->state != COMP_WS_INDICATOR_STATE_OPEN ||
 		 indicator->force_update)) {
 		indicator->force_update = false;
-		const int width = SIZE * indicator->num_workspaces + PADDING * 2 +
-						  PADDING * indicator->num_workspaces;
-		const int height = SIZE + PADDING * 2;
-		comp_widget_draw_resize(&indicator->widget, width, height);
+		resize_and_draw(indicator);
 
 		// Always center
 		comp_widget_center_on_output(&indicator->widget, indicator->output);
 	}
 }
+
 static void animation_done(struct comp_animation_mgr *mgr,
 						   struct comp_animation_client *client) {
 	struct comp_ws_indicator *indicator = client->data;
@@ -228,6 +251,9 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 	indicator->animation_client = comp_animation_client_init(
 		server->animation_mgr, WORKSPACE_SWITCHER_FADE_IN_MS,
 		&comp_animatino_client_impl, indicator);
+
+	indicator->item_width = WORKSPACE_SWITCHER_ITEM_WIDTH;
+	indicator->item_height = WORKSPACE_SWITCHER_ITEM_HEIGHT;
 
 	// Pango font config
 	indicator->font = pango_font_description_new();
