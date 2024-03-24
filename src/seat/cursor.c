@@ -235,6 +235,10 @@ static bool try_resize_or_move_toplevel(struct comp_object *object,
 		return false;
 	}
 
+	if (toplevel->fullscreen) {
+		return false;
+	}
+
 	struct wlr_keyboard *keyboard =
 		wlr_seat_get_keyboard(server.seat->wlr_seat);
 	uint32_t modifiers = keyboard ? wlr_keyboard_get_modifiers(keyboard) : 0;

@@ -420,9 +420,7 @@ static void handle_close_click(struct comp_widget *widget,
 static void handle_fullscreen_click(struct comp_widget *widget,
 									struct comp_widget_click_region *region) {
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
-	struct wlr_xdg_toplevel *xdg_toplevel = titlebar->toplevel->xdg_toplevel;
-	wlr_xdg_toplevel_set_fullscreen(xdg_toplevel,
-									!xdg_toplevel->current.fullscreen);
+	comp_toplevel_toggle_fullscreen(titlebar->toplevel);
 }
 
 static void handle_minimize_click(struct comp_widget *widget,
@@ -440,7 +438,7 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 	}
 
 	if (!comp_widget_init(&titlebar->widget, server, &toplevel->object,
-						  toplevel->object.scene_tree,
+						  toplevel->decoration_scene_tree,
 						  &comp_titlebar_widget_impl)) {
 		free(titlebar);
 		return NULL;

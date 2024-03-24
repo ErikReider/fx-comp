@@ -5,6 +5,7 @@
 #include <wayland-util.h>
 
 #include "comp/object.h"
+#include "comp/workspace.h"
 #include "desktop/widgets/workspace_indicator.h"
 #include "server.h"
 
@@ -22,7 +23,6 @@ struct comp_output {
 		struct wlr_scene_tree *shell_bottom;	 // TODO: Layershell
 		struct wlr_scene_tree *workspaces;
 		struct wlr_scene_tree *shell_top;	  // TODO: Layershell
-		struct wlr_scene_tree *fullscreen;	  // TODO: Fullscreen
 		struct wlr_scene_tree *shell_overlay; // TODO: Layershell
 		struct wlr_scene_tree *seat;		  // TODO: Drag and drop
 		struct wlr_scene_tree *session_lock;  // TODO: session_lock
@@ -61,7 +61,8 @@ struct comp_workspace *comp_output_ws_from_index(struct comp_output *output,
 
 int comp_output_find_ws_index(struct wl_list *list, struct comp_workspace *ws);
 
-void comp_output_new_workspace(struct comp_output *output);
+struct comp_workspace *comp_output_new_workspace(struct comp_output *output,
+												 enum comp_workspace_type type);
 void comp_output_remove_workspace(struct comp_output *output,
 								  struct comp_workspace *ws);
 

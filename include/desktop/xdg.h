@@ -4,6 +4,7 @@
 #include <wayland-server-core.h>
 
 #include "comp/object.h"
+#include "desktop/toplevel.h"
 
 /*
  * XDG Toplevel
@@ -15,6 +16,8 @@ void xdg_new_decoration(struct wl_listener *listener, void *data);
 
 void xdg_iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 										  int sx, int sy, void *user_data);
+
+void xdg_update(struct comp_toplevel *toplevel, int width, int height);
 
 /*
  * XDG Popup

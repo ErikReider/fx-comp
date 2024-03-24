@@ -1,4 +1,5 @@
 #include <cairo.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <wlr/util/log.h>
 
@@ -35,19 +36,22 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 						   int height, float scale) {
 	struct comp_ws_indicator *indicator =
 		wl_container_of(widget, indicator, widget);
+	struct comp_output *output = indicator->output;
 
 	// Background
 	cairo_set_rgba32(cr, &(const uint32_t){OVERLAY_COLOR_BACKGROUND});
 	cairo_draw_rounded_rect(cr, width, height, 0, 0, EFFECTS_CORNER_RADII);
 	cairo_fill(cr);
 
-	for (int i = 0; i < indicator->num_workspaces; i++) {
+	int i = 0;
+	struct comp_workspace *ws;
+	wl_list_for_each_reverse(ws, &output->workspaces, output_link) {
 		const int x_offset =
 			OVERLAY_PADDING + (indicator->item_width + OVERLAY_PADDING) * i;
 
 		uint32_t bg_color = WORKSPACE_SWITCHER_COLOR_FOCUSED_BACKGROUND;
 		uint32_t fg_color = WORKSPACE_SWITCHER_COLOR_FOCUSED_FOREGROUND;
-		if (i == indicator->active_ws_index) {
+		if (ws == output->active_workspace) {
 			bg_color = WORKSPACE_SWITCHER_COLOR_UNFOCUSED_BACKGROUND;
 			fg_color = WORKSPACE_SWITCHER_COLOR_UNFOCUSED_FOREGROUND;
 		}
@@ -91,6 +95,7 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 		free(str);
 		g_object_unref(layout);
 		cairo_restore(cr);
+		i++;
 	}
 
 	// Fade
@@ -125,9 +130,10 @@ static void resize_and_draw(struct comp_ws_indicator *indicator) {
 		indicator->item_height *= output_height / output_width;
 	}
 
-	const int width = indicator->item_width * indicator->num_workspaces +
+	const int num_workspaces = wl_list_length(&output->workspaces);
+	const int width = indicator->item_width * num_workspaces +
 					  OVERLAY_PADDING * 2 +
-					  OVERLAY_PADDING * (indicator->num_workspaces - 1);
+					  OVERLAY_PADDING * (num_workspaces - 1);
 	const int height = indicator->item_height + OVERLAY_PADDING * 2;
 	comp_widget_draw_resize(&indicator->widget, width, height);
 }
@@ -135,7 +141,7 @@ static void resize_and_draw(struct comp_ws_indicator *indicator) {
 static bool center(struct comp_widget *widget) {
 	struct comp_ws_indicator *indicator =
 		wl_container_of(widget, indicator, widget);
-	if (indicator->num_workspaces > 0) {
+	if (!wl_list_empty(&indicator->output->workspaces)) {
 		resize_and_draw(indicator);
 	}
 
@@ -152,17 +158,6 @@ static const struct comp_widget_impl comp_ws_indicator_widget_impl = {
 static void indicator_ws_change(struct wl_listener *listener, void *data) {
 	struct comp_ws_indicator *indicator =
 		wl_container_of(listener, indicator, ws_change);
-	struct comp_output *output = indicator->output;
-
-	int length = 0;
-	struct comp_workspace *pos_ws;
-	wl_list_for_each_reverse(pos_ws, &output->workspaces, output_link) {
-		if (pos_ws == output->active_workspace) {
-			indicator->active_ws_index = length;
-		}
-		length++;
-	}
-	indicator->num_workspaces = length;
 
 	if (!indicator->visible) {
 		set_visible(indicator, true);
@@ -185,7 +180,7 @@ static void animation_update(struct comp_animation_mgr *mgr,
 							 struct comp_animation_client *client) {
 	struct comp_ws_indicator *indicator = client->data;
 	// Don't redraw when not animating (open state)
-	if (indicator->num_workspaces > 0 &&
+	if (!wl_list_empty(&indicator->output->workspaces) &&
 		(indicator->state != COMP_WS_INDICATOR_STATE_OPEN ||
 		 indicator->force_update)) {
 		indicator->force_update = false;

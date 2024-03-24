@@ -19,6 +19,7 @@ enum comp_tiling_mode {
 	COMP_TILING_MODE_TILED,	   // Tiled / Fullscreen
 };
 
+// TODO: Make more generic for XWayland and others...
 struct comp_toplevel {
 	struct wl_list workspace_link;
 	struct wl_list focus_link;
@@ -28,6 +29,7 @@ struct comp_toplevel {
 
 	struct wlr_xdg_toplevel *xdg_toplevel;
 
+	struct wlr_scene_tree *decoration_scene_tree;
 	struct wlr_scene_tree *xdg_scene_tree;
 
 	// Borders
@@ -54,6 +56,15 @@ struct comp_toplevel {
 
 	struct comp_object object;
 
+	// Used to restore the state when exiting fullscreen
+	struct {
+		int x;
+		int y;
+		int width;
+		int height;
+		struct comp_workspace *workspace;
+	} saved_state;
+
 	// Effects
 	float opacity;
 	int corner_radius;
@@ -75,5 +86,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 									 uint32_t edges);
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
+
+void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
+void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
 
 #endif // !FX_COMP_TOPLEVEL_H

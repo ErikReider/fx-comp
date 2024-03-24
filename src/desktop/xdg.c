@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <limits.h>
 #include <scenefx/types/fx/shadow_data.h>
 #include <scenefx/types/wlr_scene.h>
@@ -26,18 +27,73 @@
 #include "seat/seat.h"
 #include "util.h"
 
-static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
+static void save_state(struct comp_toplevel *toplevel) {
+	// Position
+	int x, y;
+	wlr_scene_node_coords(&toplevel->object.scene_tree->node, &x, &y);
+	// Adjust the node coordinates to be output-relative
+	double lx = x;
+	double ly = y;
+	wlr_output_layout_output_coords(server.output_layout,
+									toplevel->workspace->output->wlr_output,
+									&lx, &ly);
+	toplevel->saved_state.x = lx;
+	toplevel->saved_state.y = ly;
+	// Size
+	struct wlr_box geometry;
+	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
+	toplevel->saved_state.width = geometry.width;
+	toplevel->saved_state.height = geometry.height;
+
+	toplevel->saved_state.workspace = toplevel->workspace;
+}
+
+static void restore_state(struct comp_toplevel *toplevel) {
+	struct comp_output *output = toplevel->workspace->output;
+	struct comp_workspace *fs_ws = toplevel->workspace;
+	assert(fs_ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN);
+
+	// TODO: Move to the original workspace
+	struct comp_workspace *saved_ws = toplevel->saved_state.workspace;
+	// Make sure that the workspace still exists...
+	struct comp_workspace *pos, *ws = NULL;
+	wl_list_for_each_reverse(pos, &output->workspaces, output_link) {
+		if (pos == saved_ws) {
+			ws = saved_ws;
+			break;
+		}
+	}
+	// If the saved workspace got removed, move to the closest previous
+	// workspace
+	if (!ws) {
+		ws = comp_output_prev_workspace(output, true);
+	}
+
+	comp_workspace_move_toplevel_to(ws, toplevel);
+	comp_output_remove_workspace(output, fs_ws);
+	comp_output_focus_workspace(output, ws);
+
+	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
+								toplevel->saved_state.x,
+								toplevel->saved_state.y);
+	wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel,
+							  toplevel->saved_state.width,
+							  toplevel->saved_state.height);
+	xdg_update(toplevel, toplevel->saved_state.width,
+			   toplevel->saved_state.height);
+
+	toplevel->saved_state.x = 0;
+	toplevel->saved_state.y = 0;
+	toplevel->saved_state.width = 0;
+	toplevel->saved_state.height = 0;
+	toplevel->saved_state.workspace = NULL;
+}
+
+void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 	struct comp_titlebar *titlebar = toplevel->titlebar;
-	bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
 
 	toplevel->object.width = width;
 	toplevel->object.height = height;
-
-	int top_border_height = BORDER_WIDTH;
-	if (show_full_titlebar) {
-		comp_titlebar_calculate_bar_height(titlebar);
-		top_border_height += toplevel->titlebar->bar_height;
-	}
 
 	if (toplevel->xdg_toplevel->base->client->shell->version >=
 			XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION &&
@@ -47,51 +103,65 @@ static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 									toplevel->object.height);
 	}
 
-	struct wlr_xdg_toplevel_state *state = &toplevel->xdg_toplevel->current;
-	int max_width = state->max_width;
-	int max_height = state->max_height;
-	int min_width = state->min_width;
-	int min_height = state->min_height;
-
-	toplevel->object.width =
-		fmax(min_width + (2 * BORDER_WIDTH), toplevel->object.width);
-	toplevel->object.height =
-		fmax(min_height + BORDER_WIDTH, toplevel->object.height);
-
-	if (max_width > 0 && !(2 * BORDER_WIDTH > INT_MAX - max_width)) {
-		toplevel->object.width =
-			fmin(max_width + (2 * BORDER_WIDTH), toplevel->object.width);
-	}
-	if (max_height > 0 &&
-		!(top_border_height + BORDER_WIDTH > INT_MAX - max_height)) {
-		toplevel->object.height =
-			fmin(max_height + top_border_height + BORDER_WIDTH,
-				 toplevel->object.height);
-	}
-
-	// Only redraw the titlebar if the size has changed
-	int new_titlebar_height = top_border_height + toplevel->object.height;
-	if (toplevel->titlebar &&
-		(titlebar->widget.object.width != toplevel->object.width ||
-		 titlebar->widget.object.height != new_titlebar_height)) {
-		comp_widget_draw_resize(&titlebar->widget, toplevel->object.width,
-								new_titlebar_height);
-		// Position the titlebar above the window
-		wlr_scene_node_set_position(&titlebar->widget.object.scene_tree->node,
-									-BORDER_WIDTH, -top_border_height);
-
-		// Adjust edges
-		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
-			struct comp_resize_edge *edge = toplevel->edges[i];
-			wlr_scene_node_set_enabled(&edge->widget.object.scene_tree->node,
-									   show_full_titlebar);
-			int width, height, x, y;
-			comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
-
-			comp_widget_draw_resize(&edge->widget, width, height);
-			wlr_scene_node_set_position(&edge->widget.object.scene_tree->node,
-										x, y);
+	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
+							   !toplevel->fullscreen);
+	if (!toplevel->fullscreen) {
+		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
+		int top_border_height = BORDER_WIDTH;
+		if (show_full_titlebar) {
+			comp_titlebar_calculate_bar_height(titlebar);
+			top_border_height += toplevel->titlebar->bar_height;
 		}
+
+		struct wlr_xdg_toplevel_state *state = &toplevel->xdg_toplevel->current;
+		int max_width = state->max_width;
+		int max_height = state->max_height;
+		int min_width = state->min_width;
+		int min_height = state->min_height;
+
+		toplevel->object.width =
+			fmax(min_width + (2 * BORDER_WIDTH), toplevel->object.width);
+		toplevel->object.height =
+			fmax(min_height + BORDER_WIDTH, toplevel->object.height);
+
+		if (max_width > 0 && !(2 * BORDER_WIDTH > INT_MAX - max_width)) {
+			toplevel->object.width =
+				fmin(max_width + (2 * BORDER_WIDTH), toplevel->object.width);
+		}
+		if (max_height > 0 &&
+			!(top_border_height + BORDER_WIDTH > INT_MAX - max_height)) {
+			toplevel->object.height =
+				fmin(max_height + top_border_height + BORDER_WIDTH,
+					 toplevel->object.height);
+		}
+
+		// Only redraw the titlebar if the size has changed
+		int new_titlebar_height = top_border_height + toplevel->object.height;
+		if (toplevel->titlebar &&
+			(titlebar->widget.object.width != toplevel->object.width ||
+			 titlebar->widget.object.height != new_titlebar_height)) {
+			comp_widget_draw_resize(&titlebar->widget, toplevel->object.width,
+									new_titlebar_height);
+			// Position the titlebar above the window
+			wlr_scene_node_set_position(
+				&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
+				-top_border_height);
+
+			// Adjust edges
+			for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
+				struct comp_resize_edge *edge = toplevel->edges[i];
+				wlr_scene_node_set_enabled(
+					&edge->widget.object.scene_tree->node, show_full_titlebar);
+				int width, height, x, y;
+				comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
+
+				comp_widget_draw_resize(&edge->widget, width, height);
+				wlr_scene_node_set_position(
+					&edge->widget.object.scene_tree->node, x, y);
+			}
+		}
+	} else {
+		wlr_scene_node_set_position(&toplevel->object.scene_tree->node, 0, 0);
 	}
 }
 
@@ -165,8 +235,15 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	// Set geometry
 	struct wlr_box geometry;
 	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
-	toplevel->object.width = geometry.width + 2 * BORDER_WIDTH;
-	toplevel->object.height = geometry.height + 2 * BORDER_WIDTH;
+	toplevel->object.width = geometry.width;
+	toplevel->object.height = geometry.height;
+
+	if (!toplevel->fullscreen) {
+		toplevel->object.width += 2 * BORDER_WIDTH;
+		toplevel->object.height += 2 * BORDER_WIDTH;
+	} else {
+		wlr_scene_node_set_position(&toplevel->object.scene_tree->node, 0, 0);
+	}
 
 	xdg_update(toplevel, toplevel->object.width, toplevel->object.height);
 }
@@ -255,7 +332,9 @@ static void xdg_toplevel_request_move(struct wl_listener *listener,
 	 * client, to prevent the client from requesting this whenever they want. */
 	struct comp_toplevel *toplevel =
 		wl_container_of(listener, toplevel, request_move);
-	comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+	if (!toplevel->fullscreen) {
+		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+	}
 }
 
 static void xdg_toplevel_request_resize(struct wl_listener *listener,
@@ -268,7 +347,10 @@ static void xdg_toplevel_request_resize(struct wl_listener *listener,
 	struct wlr_xdg_toplevel_resize_event *event = data;
 	struct comp_toplevel *toplevel =
 		wl_container_of(listener, toplevel, request_resize);
-	comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE, event->edges);
+	if (!toplevel->fullscreen) {
+		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE,
+										event->edges);
+	}
 }
 
 static void xdg_toplevel_request_maximize(struct wl_listener *listener,
@@ -288,7 +370,14 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener *listener,
 	/* Just as with request_maximize, we must send a configure here. */
 	struct comp_toplevel *toplevel =
 		wl_container_of(listener, toplevel, request_fullscreen);
-	wlr_xdg_surface_schedule_configure(toplevel->xdg_toplevel->base);
+	struct wlr_xdg_toplevel *xdg_toplevel = toplevel->xdg_toplevel;
+
+	if (!xdg_toplevel->base->surface->mapped) {
+		return;
+	}
+
+	struct wlr_xdg_toplevel_requested *req = &xdg_toplevel->requested;
+	comp_toplevel_set_fullscreen(toplevel, req->fullscreen);
 }
 
 static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
@@ -415,7 +504,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 
 	struct comp_output *output = get_active_output(server);
 
-	toplevel->fullscreen = toplevel->xdg_toplevel->pending.fullscreen;
+	toplevel->fullscreen = toplevel->xdg_toplevel->requested.fullscreen;
 
 	// Add the toplevel to the tiled/floating layer
 	// TODO: Check if it should be in the floating layer or not
@@ -429,6 +518,14 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	struct wlr_scene_tree *tree = comp_toplevel_get_layer(toplevel);
 	toplevel->object.scene_tree = alloc_tree(tree);
 
+	toplevel->decoration_scene_tree = alloc_tree(toplevel->object.scene_tree);
+
+	// Initialize saved position/size
+	toplevel->saved_state.x = 0;
+	toplevel->saved_state.y = 0;
+	toplevel->saved_state.width = 0;
+	toplevel->saved_state.height = 0;
+
 	/*
 	 * Titlebar
 	 */
@@ -439,6 +536,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	 * XDG Surface
 	 */
 
+	// TODO: event.output_enter/output_leave for primary output
 	toplevel->xdg_scene_tree = wlr_scene_xdg_surface_create(
 		toplevel->object.scene_tree, toplevel->xdg_toplevel->base);
 	toplevel->xdg_scene_tree->node.data = &toplevel->object;
@@ -490,4 +588,36 @@ struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
 				toplevel->tiling_mode);
 		abort();
 	}
+}
+
+void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
+	if (toplevel->fullscreen == state) {
+		return;
+	}
+	toplevel->fullscreen = state;
+
+	wlr_xdg_toplevel_set_fullscreen(toplevel->xdg_toplevel, state);
+	// TODO: Also call foreign toplevel fullscreen function
+
+	if (state) {
+		// Save the floating state
+		save_state(toplevel);
+
+		// Create a new neighbouring fullscreen workspace
+		struct comp_workspace *fs_ws = comp_output_new_workspace(
+			toplevel->workspace->output, COMP_WORKSPACE_TYPE_FULLSCREEN);
+		comp_workspace_move_toplevel_to(fs_ws, toplevel);
+	} else {
+		if (toplevel->workspace->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
+			// Restore the floating state
+			restore_state(toplevel);
+		}
+	}
+
+	// Update the output
+	comp_output_arrange_output(toplevel->workspace->output);
+}
+
+void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel) {
+	comp_toplevel_set_fullscreen(toplevel, !toplevel->fullscreen);
 }

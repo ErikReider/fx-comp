@@ -20,8 +20,6 @@ struct comp_ws_indicator {
 
 	bool force_update;
 	bool visible;
-	int active_ws_index;
-	int num_workspaces;
 
 	int item_width, item_height;
 

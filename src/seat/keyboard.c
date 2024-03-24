@@ -4,10 +4,8 @@
 
 #include "comp/output.h"
 #include "comp/server.h"
-#include "comp/widget.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
-#include "desktop/widgets/titlebar.h"
 #include "seat/cursor.h"
 #include "seat/keyboard.h"
 #include "seat/seat.h"
@@ -40,6 +38,7 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 	 * This function assumes Alt/Super is held down.
 	 */
 	struct comp_output *output = get_active_output(server);
+	struct comp_workspace *workspace = output->active_workspace;
 
 	switch (modifier) {
 	case WLR_MODIFIER_ALT:
@@ -49,7 +48,6 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			break;
 		case XKB_KEY_F1:;
 			/* Cycle to the next view */
-			struct comp_workspace *workspace = output->active_workspace;
 			if (wl_list_length(&workspace->toplevels) < 2) {
 				break;
 			}
@@ -58,6 +56,15 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			comp_seat_surface_focus(&next_toplevel->object,
 									next_toplevel->xdg_toplevel->base->surface);
 			break;
+
+		case XKB_KEY_f:
+		case XKB_KEY_F:;
+			// Toggle fullscreen
+			struct comp_toplevel *toplevel = server->seat->focused_toplevel;
+			if (toplevel) {
+				comp_toplevel_toggle_fullscreen(toplevel);
+			}
+			return true;
 
 		case XKB_KEY_Left: {
 			struct comp_workspace *ws =
@@ -74,7 +81,7 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 
 		case XKB_KEY_N:
 		case XKB_KEY_n:
-			comp_output_new_workspace(output);
+			comp_output_new_workspace(output, COMP_WORKSPACE_TYPE_REGULAR);
 			return true;
 
 		case XKB_KEY_M:

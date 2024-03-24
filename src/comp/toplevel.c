@@ -52,7 +52,7 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 									   uint32_t time) {
 	/* Move the grabbed toplevel to the new position. */
 	struct comp_toplevel *toplevel = server->seat->grabbed_toplevel;
-	if (toplevel) {
+	if (toplevel && !toplevel->fullscreen) {
 		// Adjust the toplevel coordinates to be root-relative
 		double lx = server->seat->cursor->wlr_cursor->x - server->seat->grab_x;
 		double ly = server->seat->cursor->wlr_cursor->y - server->seat->grab_y;
@@ -92,6 +92,9 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	 * size, then commit any movement that was prepared.
 	 */
 	struct comp_toplevel *toplevel = server->seat->grabbed_toplevel;
+	if (toplevel->fullscreen) {
+		return;
+	}
 	double border_x =
 		server->seat->cursor->wlr_cursor->x - server->seat->grab_x;
 	double border_y =

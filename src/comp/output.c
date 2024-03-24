@@ -23,6 +23,7 @@
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
 #include "desktop/widgets/workspace_indicator.h"
+#include "desktop/xdg.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -82,14 +83,23 @@ int comp_output_find_ws_index(struct wl_list *list, struct comp_workspace *ws) {
 	return -1;
 }
 
-void comp_output_new_workspace(struct comp_output *output) {
-	comp_workspace_new(output, COMP_WORKSPACE_TYPE_REGULAR);
+struct comp_workspace *
+comp_output_new_workspace(struct comp_output *output,
+						  enum comp_workspace_type type) {
+	return comp_workspace_new(output, type);
 }
 
 void comp_output_remove_workspace(struct comp_output *output,
 								  struct comp_workspace *ws) {
+	if (!wl_list_empty(&ws->toplevels)) {
+		return;
+	}
+
 	const int num_ws = wl_list_length(&output->workspaces);
-	if (num_ws <= 2 || !wl_list_empty(&ws->toplevels)) {
+	// Replace the fullscreen workspace with a regular one
+	if (num_ws <= 2 && ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
+		comp_output_new_workspace(output, COMP_WORKSPACE_TYPE_REGULAR);
+	} else if (num_ws <= 2) {
 		return;
 	}
 
@@ -312,7 +322,6 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.shell_bottom = alloc_tree(output->object.scene_tree);
 	output->layers.workspaces = alloc_tree(output->object.scene_tree);
 	output->layers.shell_top = alloc_tree(output->object.scene_tree);
-	output->layers.fullscreen = alloc_tree(output->object.scene_tree);
 	output->layers.shell_overlay = alloc_tree(output->object.scene_tree);
 	output->layers.seat = alloc_tree(output->object.scene_tree);
 	output->layers.session_lock = alloc_tree(output->object.scene_tree);
@@ -520,6 +529,8 @@ void comp_output_focus_workspace(struct comp_output *output,
 								   workspace == output->active_workspace);
 	}
 
+	comp_output_arrange_output(output);
+
 	wl_signal_emit_mutable(&output->events.ws_change, output);
 }
 
@@ -566,7 +577,21 @@ struct comp_workspace *comp_output_next_workspace(struct comp_output *output,
 
 void comp_output_arrange_output(struct comp_output *output) {
 	// Center Workspace Switcher
-	comp_widget_center_on_output(&output->ws_indicator->widget, output);
+	if (output->ws_indicator) {
+		comp_widget_center_on_output(&output->ws_indicator->widget, output);
+	}
+
+	// TODO: Update all toplevels/widgets on workspace
+
+	// Disable unneeded layers when fullscreen
+	struct comp_workspace *ws = output->active_workspace;
+	bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
+						 !wl_list_empty(&ws->toplevels);
+	wlr_scene_node_set_enabled(&output->layers.shell_background->node,
+							   !is_fullscreen);
+	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
+							   !is_fullscreen);
+	wlr_scene_node_set_enabled(&output->layers.shell_top->node, !is_fullscreen);
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,
