@@ -57,32 +57,6 @@ struct comp_output *comp_output_by_name_or_id(const char *name_or_id) {
 	return NULL;
 }
 
-struct comp_workspace *comp_output_ws_from_index(struct comp_output *output,
-												 size_t index) {
-	size_t pos = 0;
-	struct comp_workspace *pos_ws;
-	wl_list_for_each_reverse(pos_ws, &output->workspaces, output_link) {
-		if (pos == index) {
-			return pos_ws;
-		}
-		pos++;
-	}
-
-	return NULL;
-}
-
-int comp_output_find_ws_index(struct wl_list *list, struct comp_workspace *ws) {
-	int pos = 0;
-	struct comp_workspace *pos_ws;
-	wl_list_for_each_reverse(pos_ws, list, output_link) {
-		if (pos_ws == ws) {
-			return pos;
-		}
-		pos++;
-	}
-	return -1;
-}
-
 struct comp_workspace *
 comp_output_new_workspace(struct comp_output *output,
 						  enum comp_workspace_type type) {
@@ -534,41 +508,53 @@ void comp_output_focus_workspace(struct comp_output *output,
 	wl_signal_emit_mutable(&output->events.ws_change, output);
 }
 
+enum workspace_dir {
+	WORKSPACE_DIR_NEXT,
+	WORKSPACE_DIR_PREV,
+};
+
 static struct comp_workspace *
 comp_output_dir_workspace(struct comp_output *output, bool should_wrap,
-						  int dir) {
+						  enum workspace_dir dir) {
 	if (!output) {
 		wlr_log(WLR_ERROR, "Could not switch workspace on NULL output");
 		return NULL;
 	}
 
-	int index = comp_output_find_ws_index(&output->workspaces,
-										  output->active_workspace);
-
-	size_t new_index;
-	if (!should_wrap) {
-		new_index = index += dir;
-		if (index < 0 || index >= wl_list_length(&output->workspaces)) {
-			return NULL;
+	struct wl_list *link;
+	switch (dir) {
+	case WORKSPACE_DIR_NEXT:
+		link = output->active_workspace->output_link.prev;
+		if (link == &output->workspaces) {
+			if (!should_wrap) {
+				return NULL;
+			}
+			link = output->workspaces.prev;
 		}
-	} else {
-		new_index = wrap(index + dir, wl_list_length(&output->workspaces));
+		break;
+	case WORKSPACE_DIR_PREV:
+		link = output->active_workspace->output_link.next;
+		if (link == &output->workspaces) {
+			if (!should_wrap) {
+				return NULL;
+			}
+			link = output->workspaces.next;
+		}
+		break;
 	}
 
-	struct comp_workspace *ws = comp_output_ws_from_index(output, new_index);
-	wlr_log(WLR_DEBUG, "Switched to workspace %zu on output %s", new_index,
-			output->wlr_output->name);
+	struct comp_workspace *ws = wl_container_of(link, ws, output_link);
 	return ws;
 }
 
 struct comp_workspace *comp_output_prev_workspace(struct comp_output *output,
 												  bool should_wrap) {
-	return comp_output_dir_workspace(output, should_wrap, -1);
+	return comp_output_dir_workspace(output, should_wrap, WORKSPACE_DIR_PREV);
 }
 
 struct comp_workspace *comp_output_next_workspace(struct comp_output *output,
 												  bool should_wrap) {
-	return comp_output_dir_workspace(output, should_wrap, 1);
+	return comp_output_dir_workspace(output, should_wrap, WORKSPACE_DIR_NEXT);
 }
 
 /*
