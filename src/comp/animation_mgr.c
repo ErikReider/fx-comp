@@ -16,8 +16,7 @@ struct comp_animation_client *
 comp_animation_client_init(struct comp_animation_mgr *mgr, int duration_ms,
 						   const struct comp_animation_client_impl *impl,
 						   void *data) {
-	struct comp_animation_client *client =
-		malloc(sizeof(struct comp_animation_client));
+	struct comp_animation_client *client = calloc(1, sizeof(*client));
 	if (!client) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_animation_mgr");
 		return NULL;
@@ -97,7 +96,7 @@ static int animation_timer(void *data) {
 }
 
 struct comp_animation_mgr *comp_animation_mgr_init(void) {
-	struct comp_animation_mgr *mgr = malloc(sizeof(struct comp_animation_mgr));
+	struct comp_animation_mgr *mgr = calloc(1, sizeof(*mgr));
 	if (!mgr) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_animation_mgr");
 		return NULL;

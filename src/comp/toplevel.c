@@ -1,4 +1,5 @@
 #include <float.h>
+#include <glib.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdio.h>
 #include <wayland-util.h>
@@ -11,7 +12,6 @@
 #include "comp/server.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
-#include "desktop/widgets/titlebar.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"
 

@@ -242,7 +242,7 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 	}
 
 	if (!comp_widget_init(&indicator->widget, server, &output->object,
-						  output->layers.shell_top,
+						  output->layers.shell_overlay,
 						  &comp_ws_indicator_widget_impl)) {
 		free(indicator);
 		return NULL;
