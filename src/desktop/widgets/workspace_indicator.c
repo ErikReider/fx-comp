@@ -45,9 +45,6 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 						 indicator->num_workspaces;
 	const int ws_height = (height - PADDING * 2);
 
-	cairo_save(cr);
-	cairo_push_group(cr);
-
 	// Background
 	cairo_set_rgba32(cr,
 					 &(const uint32_t){TITLEBAR_COLOR_BACKGROUND_UNFOCUSED});
@@ -104,31 +101,22 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 	}
 
 	// Fade
-	cairo_save(cr);
-	cairo_rectangle(cr, 0, 0, width, height);
 	double alpha;
 	switch (indicator->state) {
 	case COMP_WS_INDICATOR_STATE_OPENING:
 		alpha = lerp(
-			0, 1,
-			ease_out_cubic(fabs(1 - indicator->animation_client->progress)));
+			0, 1, ease_out_cubic(fabs(indicator->animation_client->progress)));
 		break;
 	case COMP_WS_INDICATOR_STATE_OPEN:
-		alpha = 0;
+		alpha = 1;
 		break;
 	case COMP_WS_INDICATOR_STATE_CLOSING:
 		alpha = lerp(
-			0, 1, ease_out_cubic(fabs(indicator->animation_client->progress)));
+			0, 1,
+			ease_out_cubic(fabs(1 - indicator->animation_client->progress)));
 		break;
 	}
-	cairo_set_source_rgba(cr, 1, 1, 1, alpha);
-	cairo_set_operator(cr, CAIRO_OPERATOR_DEST_OUT);
-	cairo_fill(cr);
-	cairo_restore(cr);
-
-	cairo_pop_group_to_source(cr);
-	cairo_paint(cr);
-	cairo_restore(cr);
+	wlr_scene_buffer_set_opacity(indicator->widget.scene_buffer, alpha);
 }
 
 static const struct comp_widget_impl comp_ws_indicator_widget_impl = {
@@ -250,6 +238,15 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 
 	wlr_scene_node_set_enabled(&indicator->widget.scene_buffer->node, true);
 	set_visible(indicator, false);
+
+	wlr_scene_buffer_set_corner_radius(indicator->widget.scene_buffer,
+									   EFFECTS_CORNER_RADII);
+	indicator->widget.shadow_data.enabled = true;
+	indicator->widget.shadow_data.color =
+		wlr_render_color_from_color(&(const uint32_t){TOPLEVEL_SHADOW_COLOR});
+	indicator->widget.shadow_data.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA;
+	wlr_scene_buffer_set_shadow_data(indicator->widget.scene_buffer,
+									 indicator->widget.shadow_data);
 
 	indicator->force_update = false;
 
