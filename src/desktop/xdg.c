@@ -69,7 +69,12 @@ static void restore_state(struct comp_toplevel *toplevel) {
 		ws = comp_output_prev_workspace(output, true);
 	}
 
-	comp_workspace_move_toplevel_to(ws, toplevel);
+	// Move all toplevels to the regular workspace
+	struct comp_toplevel *toplevel_pos, *tmp;
+	wl_list_for_each_reverse_safe(toplevel_pos, tmp, &fs_ws->toplevels,
+								  workspace_link) {
+		comp_workspace_move_toplevel_to(ws, toplevel_pos);
+	}
 	comp_output_remove_workspace(output, fs_ws);
 	comp_output_focus_workspace(output, ws);
 
@@ -450,6 +455,10 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	struct comp_toplevel *toplevel = wl_container_of(listener, toplevel, unmap);
 
+	if (toplevel->fullscreen) {
+		comp_toplevel_set_fullscreen(toplevel, false);
+	}
+
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
 	if (toplevel == toplevel->server->seat->grabbed_toplevel) {
 		comp_cursor_reset_cursor_mode(toplevel->server->seat);
@@ -578,16 +587,24 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 }
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
-	switch (toplevel->tiling_mode) {
-	case COMP_TILING_MODE_FLOATING:
+	switch (toplevel->workspace->type) {
+	case COMP_WORKSPACE_TYPE_FULLSCREEN:
+		if (toplevel->fullscreen) {
+			return toplevel->workspace->layers.lower;
+		}
+		// Always float sub toplevels
 		return toplevel->workspace->layers.floating;
-	case COMP_TILING_MODE_TILED:
-		return toplevel->workspace->layers.lower;
-	default:
-		wlr_log(WLR_ERROR, "Toplevel tiling mode '%i' isn't valid",
-				toplevel->tiling_mode);
-		abort();
+	case COMP_WORKSPACE_TYPE_REGULAR:
+		switch (toplevel->tiling_mode) {
+		case COMP_TILING_MODE_FLOATING:
+			return toplevel->workspace->layers.floating;
+		case COMP_TILING_MODE_TILED:
+			return toplevel->workspace->layers.lower;
+		}
+		break;
 	}
+
+	return NULL;
 }
 
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {

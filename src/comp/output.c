@@ -592,6 +592,20 @@ void comp_output_arrange_output(struct comp_output *output) {
 	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
 							   !is_fullscreen);
 	wlr_scene_node_set_enabled(&output->layers.shell_top->node, !is_fullscreen);
+
+	if (is_fullscreen) {
+		// Update the position and size of the fullscreen toplevel
+		struct comp_toplevel *toplevel;
+		wl_list_for_each_reverse(toplevel, &ws->toplevels, workspace_link) {
+			if (!toplevel->fullscreen) {
+				continue;
+			}
+			struct wlr_box output_box = toplevel->workspace->output->geometry;
+			wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, output_box.width,
+									  output_box.height);
+			xdg_update(toplevel, output_box.width, output_box.height);
+		}
+	}
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,
