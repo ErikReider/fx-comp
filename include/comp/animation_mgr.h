@@ -22,6 +22,8 @@ struct comp_animation_client {
 	// 0.0f -> 1.0f
 	double progress;
 
+	bool animating;
+
 	// Duration in ms
 	int duration_ms;
 
@@ -43,6 +45,8 @@ struct comp_animation_client *
 comp_animation_client_init(struct comp_animation_mgr *mgr, int duration_ms,
 						   const struct comp_animation_client_impl *impl,
 						   void *data);
+
+void comp_animation_client_remove(struct comp_animation_client *client);
 
 void comp_animation_client_destroy(struct comp_animation_client *client);
 

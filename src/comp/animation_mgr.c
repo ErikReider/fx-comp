@@ -25,27 +25,32 @@ comp_animation_client_init(struct comp_animation_mgr *mgr, int duration_ms,
 	client->duration_ms = duration_ms;
 	client->inited = false;
 	client->progress = 0.0;
+	client->animating = false;
 	client->impl = impl;
 	client->data = data;
 
 	return client;
 }
 
-void comp_animation_client_destroy(struct comp_animation_client *client) {
+void comp_animation_client_remove(struct comp_animation_client *client) {
 	if (client->inited) {
 		wl_list_remove(&client->link);
 		client->inited = false;
 	}
+
+	client->animating = false;
+}
+
+void comp_animation_client_destroy(struct comp_animation_client *client) {
+	comp_animation_client_remove(client);
 	free(client);
 }
 
 void comp_animation_client_add(struct comp_animation_mgr *mgr,
 							   struct comp_animation_client *client) {
-	if (client->inited) {
-		wl_list_remove(&client->link);
-	}
-
+	comp_animation_client_remove(client);
 	client->inited = true;
+
 	client->progress = 0.0;
 	wl_list_insert(&mgr->clients, &client->link);
 }
@@ -76,16 +81,16 @@ static int animation_timer(void *data) {
 	wl_list_for_each_reverse_safe(client, tmp, &mgr->clients, link) {
 		client->progress += fastest_output_refresh_s / client->duration_ms;
 
+		client->animating = true;
+
 		if (client->impl->update) {
 			client->impl->update(mgr, client);
 		}
 
 		if (client->progress >= 1.0) {
-			if (client->inited) {
-				wl_list_remove(&client->link);
-				client->inited = false;
-			}
+			comp_animation_client_remove(client);
 
+			client->progress = 1.0;
 			if (client->impl->done) {
 				client->impl->done(mgr, client);
 			}
