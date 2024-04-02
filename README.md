@@ -17,10 +17,13 @@ Todo:
     - [X] Program title in center
     - [X] Button icons
 - [x] Move/resize toplevels with MOD+mouse buttons
-- [ ] wlr workspace protocol
+- [ ] ext_workspace_unstable_v1
 - [ ] foreign toplevel for ironbar support
 - [ ] Tiling
-- [ ] Fullscreen
+- [x] Fullscreen
+- [ ] Fullscreen titlebar on top hover
+    - [ ] Delay
+    - [ ] Animation
 - [ ] Minimize
 - [ ] XWayland
 - [ ] Tearing support
