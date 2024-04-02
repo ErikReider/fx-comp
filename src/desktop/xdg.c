@@ -627,9 +627,14 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 		// Create a new neighbouring fullscreen workspace
 		struct comp_workspace *fs_ws = comp_output_new_workspace(
 			toplevel->workspace->output, COMP_WORKSPACE_TYPE_FULLSCREEN);
+
+		fs_ws->fullscreen_toplevel = toplevel;
+
 		comp_workspace_move_toplevel_to(fs_ws, toplevel);
 	} else {
 		if (toplevel->workspace->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
+			toplevel->workspace->fullscreen_toplevel = NULL;
+
 			// Restore the floating state
 			restore_state(toplevel);
 		}

@@ -32,6 +32,8 @@ struct comp_workspace {
 
 	// Toplevels and Popups. Also contains the focus order
 	struct wl_list toplevels;
+
+	struct comp_toplevel *fullscreen_toplevel;
 };
 
 /*
