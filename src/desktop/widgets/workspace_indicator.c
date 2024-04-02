@@ -102,16 +102,15 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 	double alpha;
 	switch (indicator->state) {
 	case COMP_WS_INDICATOR_STATE_OPENING:
-		alpha = lerp(
-			0, 1, ease_out_cubic(fabs(indicator->animation_client->progress)));
+		alpha =
+			lerp(0, 1, ease_out_cubic(indicator->animation_client->progress));
 		break;
 	case COMP_WS_INDICATOR_STATE_OPEN:
 		alpha = 1;
 		break;
 	case COMP_WS_INDICATOR_STATE_CLOSING:
-		alpha = lerp(
-			0, 1,
-			ease_out_cubic(fabs(1 - indicator->animation_client->progress)));
+		alpha =
+			lerp(1, 0, ease_out_cubic(indicator->animation_client->progress));
 		break;
 	}
 	wlr_scene_buffer_set_opacity(indicator->widget.scene_buffer, alpha);
