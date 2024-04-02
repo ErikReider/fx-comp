@@ -7,6 +7,7 @@
 #include <pango/pango-font.h>
 #include <pango/pango-layout.h>
 #include <pango/pangocairo.h>
+#include <pixman.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -23,6 +24,15 @@
 #include "desktop/xdg.h"
 #include "seat/seat.h"
 #include "util.h"
+
+void comp_titlebar_change_title(struct comp_titlebar *titlebar) {
+	if (comp_titlebar_should_be_shown(titlebar->toplevel)) {
+		pixman_region32_union_rect(
+			&titlebar->widget.damage, &titlebar->widget.damage, 0, BORDER_WIDTH,
+			titlebar->widget.object.width, titlebar->bar_height);
+		comp_widget_draw_damaged(&titlebar->widget);
+	}
+}
 
 bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel) {
 	switch (toplevel->type) {
@@ -154,15 +164,21 @@ static void titlebar_pointer_motion(struct comp_widget *widget, double x,
 			if (button->cursor_hovering) {
 				continue;
 			}
+			pixman_region32_union_rect(
+				&widget->damage, &widget->damage, button->region.x,
+				button->region.y, button->region.width, button->region.height);
 			button->cursor_hovering = true;
 			should_redraw = true;
 		} else if (button->cursor_hovering) {
+			pixman_region32_union_rect(
+				&widget->damage, &widget->damage, button->region.x,
+				button->region.y, button->region.width, button->region.height);
 			button->cursor_hovering = false;
 			should_redraw = true;
 		}
 	}
 	if (should_redraw) {
-		comp_widget_draw(widget);
+		comp_widget_draw_damaged(widget);
 	}
 }
 
@@ -178,12 +194,15 @@ static void titlebar_pointer_leave(struct comp_widget *widget) {
 	for (size_t i = 0; i < TITLEBAR_NUM_BUTTONS; i++) {
 		struct comp_widget_click_region *button = titlebar->buttons.order[i];
 		if (button->cursor_hovering) {
+			pixman_region32_union_rect(
+				&widget->damage, &widget->damage, button->region.x,
+				button->region.y, button->region.width, button->region.height);
 			should_redraw = true;
 		}
 		button->cursor_hovering = false;
 	}
 	if (should_redraw) {
-		comp_widget_draw(widget);
+		comp_widget_draw_damaged(widget);
 	}
 }
 

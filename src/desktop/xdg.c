@@ -278,9 +278,7 @@ static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xdg, set_title);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
-	if (comp_titlebar_should_be_shown(toplevel)) {
-		comp_widget_draw(&toplevel->titlebar->widget);
-	}
+	comp_titlebar_change_title(toplevel->titlebar);
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {

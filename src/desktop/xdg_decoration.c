@@ -21,7 +21,7 @@ static void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	toplevel->using_csd =
 		client_mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 
-	comp_widget_draw(&toplevel->titlebar->widget);
+	comp_widget_draw_full(&toplevel->titlebar->widget);
 
 	if (floating && client_mode) {
 		mode = client_mode;

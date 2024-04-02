@@ -36,6 +36,8 @@ struct comp_widget {
 
 	const struct comp_widget_impl *impl;
 
+	pixman_region32_t damage;
+
 	// Effects
 	float opacity;
 	int corner_radius;
@@ -68,8 +70,10 @@ void comp_widget_pointer_motion(struct comp_widget *widget, double x, double y);
 void comp_widget_pointer_enter(struct comp_widget *widget);
 void comp_widget_pointer_leave(struct comp_widget *widget);
 void comp_widget_draw_resize(struct comp_widget *widget, int width, int height);
-
-void comp_widget_draw(struct comp_widget *widget);
+/** Only draws the damaged areas */
+void comp_widget_draw_damaged(struct comp_widget *widget);
+/** Redraws the full widget (fully damaged) */
+void comp_widget_draw_full(struct comp_widget *widget);
 
 void comp_widget_center_on_output(struct comp_widget *widget,
 								  struct comp_output *output);

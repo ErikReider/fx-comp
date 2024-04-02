@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <pixman.h>
 #include <stdbool.h>
 #include <stdlib.h>
 #include <wlr/util/log.h>
@@ -13,6 +14,8 @@ static void widget_destroy(struct wl_listener *listener, void *data) {
 	struct comp_widget *widget = wl_container_of(listener, widget, destroy);
 
 	wl_list_remove(&widget->destroy.link);
+
+	pixman_region32_fini(&widget->damage);
 
 	if (server.seat->hovered_widget == widget) {
 		server.seat->hovered_widget = NULL;
@@ -54,6 +57,8 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 	widget->parent_object = parent_obj;
 
 	widget->impl = impl;
+
+	pixman_region32_init(&widget->damage);
 
 	return true;
 }
@@ -155,10 +160,11 @@ void comp_widget_draw_resize(struct comp_widget *widget, int width,
 	wlr_buffer_init(&buffer->base, &cairo_buffer_buffer_impl, scaled_width,
 					scaled_height);
 
-	wlr_scene_buffer_set_buffer(widget->scene_buffer, &buffer->base);
+	wlr_scene_buffer_set_buffer_with_damage(widget->scene_buffer, &buffer->base,
+											&widget->damage);
 	wlr_buffer_drop(&buffer->base);
 
-	return;
+	goto clear_damage;
 
 err:
 	if (pango) {
@@ -170,10 +176,19 @@ err_create_font_options:
 	cairo_destroy(cairo);
 err_create_cairo:
 	cairo_surface_destroy(surface);
-	return;
+
+clear_damage:
+	pixman_region32_clear(&widget->damage);
 }
 
-void comp_widget_draw(struct comp_widget *widget) {
+void comp_widget_draw_damaged(struct comp_widget *widget) {
+	comp_widget_draw_resize(widget, widget->object.width,
+							widget->object.height);
+}
+
+void comp_widget_draw_full(struct comp_widget *widget) {
+	pixman_region32_init_rect(&widget->damage, 0, 0, widget->object.width,
+							  widget->object.height);
 	comp_widget_draw_resize(widget, widget->object.width,
 							widget->object.height);
 }

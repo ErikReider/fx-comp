@@ -42,4 +42,6 @@ void comp_titlebar_calculate_bar_height(struct comp_titlebar *titlebar);
 
 bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel);
 
+void comp_titlebar_change_title(struct comp_titlebar *titlebar);
+
 #endif // !FX_COMP_BORDER_TITLEBAR_H

@@ -195,7 +195,7 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 			 * Redraw
 			 */
 			if (toplevel->titlebar) {
-				comp_widget_draw(&toplevel->titlebar->widget);
+				comp_widget_draw_full(&toplevel->titlebar->widget);
 			}
 		}
 		return;
@@ -338,7 +338,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 		/*
 		 * Redraw
 		 */
-		comp_widget_draw(&toplevel->titlebar->widget);
+		comp_widget_draw_full(&toplevel->titlebar->widget);
 		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
