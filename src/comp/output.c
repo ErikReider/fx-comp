@@ -23,7 +23,6 @@
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
 #include "desktop/widgets/workspace_indicator.h"
-#include "desktop/xdg.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -134,17 +133,12 @@ static void output_configure_scene(struct comp_output *output,
 
 		struct wlr_scene_surface *scene_surface =
 			wlr_scene_surface_try_from_buffer(buffer);
-		if (!scene_surface) {
+		struct comp_object *object = data;
+		if (!scene_surface || !object) {
 			return;
 		}
 
-		struct wlr_xdg_surface *xdg_surface =
-			wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
-
-		if (data && xdg_surface &&
-			xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-
-			struct comp_object *object = data;
+		if (object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
 			struct comp_toplevel *toplevel = object->data;
 			struct comp_titlebar *titlebar = toplevel->titlebar;
 
@@ -587,9 +581,12 @@ void comp_output_arrange_output(struct comp_output *output) {
 				continue;
 			}
 			struct wlr_box output_box = toplevel->workspace->output->geometry;
-			wlr_xdg_toplevel_set_size(toplevel->xdg_toplevel, output_box.width,
-									  output_box.height);
-			xdg_update(toplevel, output_box.width, output_box.height);
+			comp_toplevel_set_size(toplevel, output_box.width,
+								   output_box.height);
+			comp_toplevel_set_size(toplevel, output_box.width,
+								   output_box.height);
+
+			comp_toplevel_update(toplevel, output_box.width, output_box.height);
 		}
 	}
 }

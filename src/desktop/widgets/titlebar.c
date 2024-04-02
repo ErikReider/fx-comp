@@ -20,11 +20,19 @@
 #include "constants.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
+#include "desktop/xdg.h"
 #include "seat/seat.h"
 #include "util.h"
 
 bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel) {
-	if (toplevel->using_csd || toplevel->xdg_decoration == NULL) {
+	switch (toplevel->type) {
+	case COMP_TOPLEVEL_TYPE_XDG:
+		if (toplevel->toplevel_xdg->xdg_decoration == NULL) {
+			return false;
+		}
+		break;
+	}
+	if (toplevel->using_csd) {
 		return false;
 	}
 	return toplevel->titlebar &&
@@ -125,7 +133,7 @@ static void titlebar_pointer_button(struct comp_widget *widget, double x,
 		if (hovered_button == NULL) {
 			// Focus the titlebars toplevel
 			comp_seat_surface_focus(&toplevel->object,
-									toplevel->xdg_toplevel->base->surface);
+									comp_toplevel_get_wlr_surface(toplevel));
 
 			comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
 		}
@@ -184,8 +192,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
 	struct comp_toplevel *toplevel = titlebar->toplevel;
 
-	struct wlr_box geometry;
-	wlr_xdg_surface_get_geometry(toplevel->xdg_toplevel->base, &geometry);
+	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
 
 	const bool is_focused =
 		comp_seat_object_is_focus(server.seat, &toplevel->object);
@@ -292,14 +299,14 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 		 */
 
 		// text rendering
-		if (toplevel->xdg_toplevel && toplevel->xdg_toplevel->title &&
-			max_text_width > 0) {
+		char *title = comp_toplevel_get_title(toplevel);
+		if (title && max_text_width > 0) {
 			cairo_save(cr);
 
 			// Set font
 			PangoLayout *layout = pango_cairo_create_layout(cr);
 			pango_layout_set_font_description(layout, titlebar->font);
-			pango_layout_set_text(layout, toplevel->xdg_toplevel->title, -1);
+			pango_layout_set_text(layout, title, -1);
 			pango_layout_set_alignment(layout, PANGO_ALIGN_CENTER);
 			pango_layout_set_justify(layout, true);
 			pango_layout_set_ellipsize(layout, PANGO_ELLIPSIZE_END);
@@ -414,7 +421,7 @@ static const struct comp_widget_impl comp_titlebar_widget_impl = {
 static void handle_close_click(struct comp_widget *widget,
 							   struct comp_widget_click_region *region) {
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
-	wlr_xdg_toplevel_send_close(titlebar->toplevel->xdg_toplevel);
+	comp_toplevel_close(titlebar->toplevel);
 }
 
 static void handle_fullscreen_click(struct comp_widget *widget,

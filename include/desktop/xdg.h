@@ -5,19 +5,35 @@
 
 #include "comp/object.h"
 #include "desktop/toplevel.h"
+#include "desktop/xdg_decoration.h"
 
 /*
  * XDG Toplevel
  */
 
+struct comp_xdg_toplevel {
+	struct comp_toplevel *toplevel;
+
+	struct wlr_xdg_toplevel *xdg_toplevel;
+	struct comp_xdg_decoration *xdg_decoration;
+
+	// Signals
+	struct wl_listener map;
+	struct wl_listener unmap;
+	struct wl_listener commit;
+	struct wl_listener destroy;
+
+	struct wl_listener new_popup;
+	struct wl_listener request_move;
+	struct wl_listener request_resize;
+	struct wl_listener request_maximize;
+	struct wl_listener request_fullscreen;
+	struct wl_listener set_title;
+};
+
 void xdg_new_xdg_surface(struct wl_listener *listener, void *data);
 
 void xdg_new_decoration(struct wl_listener *listener, void *data);
-
-void xdg_update(struct comp_toplevel *toplevel, int width, int height);
-
-/** Set the effects for each scene_buffer */
-void xdg_apply_effects(struct wlr_scene_tree *tree, void *data);
 
 /*
  * XDG Popup

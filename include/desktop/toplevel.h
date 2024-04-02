@@ -9,7 +9,6 @@
 
 #include "comp/object.h"
 #include "comp/server.h"
-#include "desktop/xdg_decoration.h"
 #include "seat/cursor.h"
 
 #define NUMBER_OF_RESIZE_TARGETS 8
@@ -17,6 +16,10 @@
 enum comp_tiling_mode {
 	COMP_TILING_MODE_FLOATING, // Only floating
 	COMP_TILING_MODE_TILED,	   // Tiled / Fullscreen
+};
+
+enum comp_toplevel_type {
+	COMP_TOPLEVEL_TYPE_XDG,
 };
 
 // TODO: Make more generic for XWayland and others...
@@ -27,34 +30,25 @@ struct comp_toplevel {
 	struct comp_server *server;
 	struct comp_workspace *workspace;
 
-	struct wlr_xdg_toplevel *xdg_toplevel;
+	struct comp_object object;
 
 	struct wlr_scene_tree *decoration_scene_tree;
-	struct wlr_scene_tree *xdg_scene_tree;
+	struct wlr_scene_tree *toplevel_scene_tree;
+
+	// Type
+	enum comp_toplevel_type type;
+	union {
+		struct comp_xdg_toplevel *toplevel_xdg;
+	};
+	const struct comp_toplevel_impl *impl;
 
 	// Borders
 	struct comp_titlebar *titlebar;
 	struct comp_resize_edge *edges[NUMBER_OF_RESIZE_TARGETS];
-	struct comp_xdg_decoration *xdg_decoration;
 	bool using_csd;
-
-	// Signals
-	struct wl_listener map;
-	struct wl_listener unmap;
-	struct wl_listener commit;
-	struct wl_listener destroy;
-
-	struct wl_listener new_popup;
-	struct wl_listener request_move;
-	struct wl_listener request_resize;
-	struct wl_listener request_maximize;
-	struct wl_listener request_fullscreen;
-	struct wl_listener set_title;
 
 	enum comp_tiling_mode tiling_mode;
 	bool fullscreen;
-
-	struct comp_object object;
 
 	// Used to restore the state when exiting fullscreen
 	struct {
@@ -70,6 +64,25 @@ struct comp_toplevel {
 	int corner_radius;
 	struct shadow_data shadow_data;
 };
+
+struct comp_toplevel_impl {
+	struct wlr_box (*get_geometry)(struct comp_toplevel *toplevel);
+	struct wlr_surface *(*get_wlr_surface)(struct comp_toplevel *toplevel);
+	char *(*get_title)(struct comp_toplevel *toplevel);
+	void (*set_size)(struct comp_toplevel *toplevel, int width, int height);
+	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
+	void (*update)(struct comp_toplevel *toplevel, int width, int height);
+	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
+	void (*close)(struct comp_toplevel *toplevel);
+	void (*unfocus)(struct comp_toplevel *toplevel);
+};
+
+struct comp_toplevel *comp_toplevel_init(struct comp_output *output,
+										 struct comp_workspace *workspace,
+										 enum comp_toplevel_type type,
+										 enum comp_tiling_mode tiling_mode,
+										 bool fullscreen,
+										 const struct comp_toplevel_impl *impl);
 
 void comp_toplevel_process_cursor_move(struct comp_server *server,
 									   uint32_t time);
@@ -87,7 +100,29 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
 
+/** Set the effects for each scene_buffer */
+void comp_toplevel_apply_effects(struct wlr_scene_tree *tree, void *data);
+
+/*
+ * Implementation functions
+ */
+
+char *comp_toplevel_get_title(struct comp_toplevel *toplevel);
+struct wlr_surface *
+comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel);
+struct wlr_box comp_toplevel_get_geometry(struct comp_toplevel *toplevel);
+
+void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
+void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
+							int height);
+
+void comp_toplevel_update(struct comp_toplevel *toplevel, int width,
+						  int height);
+
+void comp_toplevel_close(struct comp_toplevel *toplevel);
+
+void comp_toplevel_destroy(struct comp_toplevel *toplevel);
 
 #endif // !FX_COMP_TOPLEVEL_H

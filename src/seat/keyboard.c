@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <wlr/types/wlr_seat.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -53,8 +54,9 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			}
 			struct comp_toplevel *next_toplevel = wl_container_of(
 				workspace->toplevels.prev, next_toplevel, workspace_link);
-			comp_seat_surface_focus(&next_toplevel->object,
-									next_toplevel->xdg_toplevel->base->surface);
+			comp_seat_surface_focus(
+				&next_toplevel->object,
+				comp_toplevel_get_wlr_surface(next_toplevel));
 			break;
 
 		case XKB_KEY_f:

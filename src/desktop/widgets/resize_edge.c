@@ -65,7 +65,7 @@ static void edge_pointer_button(struct comp_widget *widget, double x, double y,
 
 	// Focus the titlebars toplevel
 	comp_seat_surface_focus(&toplevel->object,
-							toplevel->xdg_toplevel->base->surface);
+							comp_toplevel_get_wlr_surface(toplevel));
 
 	// Begin resizing
 	comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE, edge->edge);

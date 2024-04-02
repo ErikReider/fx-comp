@@ -4,12 +4,14 @@
 
 #include "comp/object.h"
 #include "comp/widget.h"
-#include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
+#include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
 
 static void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
-	struct comp_toplevel *toplevel = deco->toplevel;
+	struct comp_xdg_toplevel *toplevel_xdg = deco->toplevel;
+	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
+
 	enum wlr_xdg_toplevel_decoration_v1_mode mode =
 		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 	enum wlr_xdg_toplevel_decoration_v1_mode client_mode =
@@ -25,7 +27,7 @@ static void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 		mode = client_mode;
 	}
 
-	if (toplevel->xdg_toplevel->base->initialized) {
+	if (toplevel_xdg->xdg_toplevel->base->initialized) {
 		wlr_xdg_toplevel_decoration_v1_set_mode(deco->wlr_xdg_decoration, mode);
 	}
 }
@@ -58,13 +60,17 @@ void handle_xdg_decoration(struct wl_listener *listener, void *data) {
 		return;
 	}
 	struct comp_toplevel *comp_toplevel = object->data;
+	if (comp_toplevel->type != COMP_TOPLEVEL_TYPE_XDG) {
+		return;
+	}
+	struct comp_xdg_toplevel *toplevel_xdg = comp_toplevel->toplevel_xdg;
 
 	struct comp_xdg_decoration *deco = calloc(1, sizeof(*deco));
 	if (deco == NULL) {
 		return;
 	}
 
-	deco->toplevel = comp_toplevel;
+	deco->toplevel = toplevel_xdg;
 	deco->toplevel->xdg_decoration = deco;
 	deco->wlr_xdg_decoration = wlr_deco;
 

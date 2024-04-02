@@ -1,10 +1,11 @@
 #ifndef FX_COMP_SERVER_H
 #define FX_COMP_SERVER_H
 
-#include "comp/animation_mgr.h"
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wlr/util/box.h>
+
+#include "comp/animation_mgr.h"
 
 /* For brevity's sake, struct members are annotated where they are used. */
 enum comp_cursor_mode {

@@ -157,10 +157,12 @@ static void seat_focus_previous_toplevel(struct wlr_surface *surface) {
 	}
 	struct comp_toplevel *toplevel =
 		wl_container_of(server.seat->focus_order.next, toplevel, focus_link);
-	if (toplevel && toplevel->xdg_toplevel &&
-		toplevel->xdg_toplevel->base->surface != surface) {
-		comp_seat_surface_focus(&toplevel->object,
-								toplevel->xdg_toplevel->base->surface);
+	if (toplevel) {
+		struct wlr_surface *toplevel_surface =
+			comp_toplevel_get_wlr_surface(toplevel);
+		if (toplevel_surface && toplevel_surface != surface) {
+			comp_seat_surface_focus(&toplevel->object, toplevel_surface);
+		}
 	}
 }
 
@@ -304,7 +306,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		seat->focused_toplevel = toplevel;
 		/* Activate the new surface */
-		wlr_xdg_toplevel_set_activated(toplevel->xdg_toplevel, true);
+		comp_toplevel_set_activated(toplevel, true);
 
 		/* Move the node to the front */
 		// Workspace
