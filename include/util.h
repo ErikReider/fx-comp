@@ -47,6 +47,10 @@ void cairo_draw_icon_from_name(cairo_t *cr, const char *icon_name,
 
 double lerp(double a, double b, double t);
 
+double ease_in_cubic(double t);
+
 double ease_out_cubic(double t);
+
+double ease_in_out_cubic(double t);
 
 #endif // !FX_COMP_UTIL_H

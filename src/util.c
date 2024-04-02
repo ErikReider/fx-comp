@@ -123,7 +123,23 @@ double lerp(double a, double b, double t) {
 	return a * (1.0 - t) + b * t;
 }
 
+double ease_in_cubic(double t) {
+	return t * t * t;
+}
+
 double ease_out_cubic(double t) {
 	double p = t - 1;
 	return pow(p, 3) + 1;
+}
+
+double ease_in_out_cubic(double t) {
+	double p = t * 2;
+
+	if (p < 1) {
+		return 0.5 * p * p * p;
+	}
+
+	p -= 2;
+
+	return 0.5 * (p * p * p + 2);
 }
