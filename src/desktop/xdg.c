@@ -27,6 +27,59 @@
 #include "seat/seat.h"
 #include "util.h"
 
+static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
+											 int sx, int sy, void *user_data) {
+	struct wlr_scene_surface *scene_surface =
+		wlr_scene_surface_try_from_buffer(buffer);
+	if (!scene_surface || !user_data) {
+		return;
+	}
+
+	struct wlr_xdg_surface *xdg_surface =
+		wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
+	if (!xdg_surface) {
+		return;
+	}
+
+	switch (xdg_surface->role) {
+	case WLR_XDG_SURFACE_ROLE_NONE:
+		return;
+	case WLR_XDG_SURFACE_ROLE_TOPLEVEL:;
+		struct comp_toplevel *toplevel = user_data;
+		bool has_effects = !toplevel->fullscreen;
+
+		// TODO: Be able to set whole decoration_data instead of calling
+		// each individually?
+
+		// Toplevel
+		wlr_scene_buffer_set_opacity(buffer,
+									 has_effects ? toplevel->opacity : 1);
+		wlr_scene_buffer_set_corner_radius(
+			buffer, has_effects ? toplevel->corner_radius : 0);
+
+		// Titlebar
+		struct comp_widget *titlebar_widget = &toplevel->titlebar->widget;
+		struct wlr_scene_buffer *titlebar_buffer =
+			titlebar_widget->scene_buffer;
+		wlr_scene_buffer_set_corner_radius(
+			titlebar_buffer, has_effects ? titlebar_widget->corner_radius : 0);
+		wlr_scene_buffer_set_shadow_data(titlebar_buffer,
+										 titlebar_widget->shadow_data);
+		break;
+	case WLR_XDG_SURFACE_ROLE_POPUP:;
+		struct comp_xdg_popup *popup = user_data;
+		wlr_scene_buffer_set_shadow_data(buffer, popup->shadow_data);
+		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius);
+		wlr_scene_buffer_set_opacity(buffer, popup->opacity);
+		break;
+	}
+}
+
+void xdg_apply_effects(struct wlr_scene_tree *tree, void *data) {
+	wlr_scene_node_for_each_buffer(&tree->node,
+								   iter_scene_buffers_apply_effects, data);
+}
+
 static void save_state(struct comp_toplevel *toplevel) {
 	// Position
 	int x, y;
@@ -167,52 +220,6 @@ void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
 		}
 	} else {
 		wlr_scene_node_set_position(&toplevel->object.scene_tree->node, 0, 0);
-	}
-}
-
-void xdg_iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
-										  int sx, int sy, void *user_data) {
-	struct wlr_scene_surface *scene_surface =
-		wlr_scene_surface_try_from_buffer(buffer);
-	if (!scene_surface || !user_data) {
-		return;
-	}
-
-	struct wlr_xdg_surface *xdg_surface =
-		wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
-	if (!xdg_surface) {
-		return;
-	}
-
-	switch (xdg_surface->role) {
-	case WLR_XDG_SURFACE_ROLE_NONE:
-		return;
-	case WLR_XDG_SURFACE_ROLE_TOPLEVEL:;
-		struct comp_toplevel *toplevel = user_data;
-		// TODO: Be able to set whole decoration_data instead of calling
-		// each individually?
-		wlr_scene_buffer_set_opacity(buffer, toplevel->opacity);
-		wlr_scene_buffer_set_corner_radius(buffer, toplevel->corner_radius);
-
-		// Only add shadows and clip to geometry for XDG toplevels
-		if (toplevel->titlebar) {
-			struct comp_widget *titlebar_widget = &toplevel->titlebar->widget;
-			struct wlr_scene_buffer *titlebar_buffer =
-				titlebar_widget->scene_buffer;
-			wlr_scene_buffer_set_corner_radius(titlebar_buffer,
-											   titlebar_widget->corner_radius);
-			wlr_scene_buffer_set_shadow_data(titlebar_buffer,
-											 titlebar_widget->shadow_data);
-		} else {
-			wlr_scene_buffer_set_shadow_data(buffer, toplevel->shadow_data);
-		}
-		break;
-	case WLR_XDG_SURFACE_ROLE_POPUP:;
-		struct comp_xdg_popup *popup = user_data;
-		wlr_scene_buffer_set_shadow_data(buffer, popup->shadow_data);
-		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius);
-		wlr_scene_buffer_set_opacity(buffer, popup->opacity);
-		break;
 	}
 }
 
@@ -399,10 +406,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	struct comp_toplevel *toplevel = wl_container_of(listener, toplevel, map);
 	wl_list_insert(&toplevel->workspace->toplevels, &toplevel->workspace_link);
 
-	// Set the effects for each scene_buffer
-	wlr_scene_node_for_each_buffer(&toplevel->xdg_scene_tree->node,
-								   xdg_iter_scene_buffers_apply_effects,
-								   toplevel);
+	xdg_apply_effects(toplevel->xdg_scene_tree, toplevel);
 
 	// Set geometry
 	struct wlr_box geometry;

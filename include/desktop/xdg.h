@@ -14,10 +14,10 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data);
 
 void xdg_new_decoration(struct wl_listener *listener, void *data);
 
-void xdg_iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
-										  int sx, int sy, void *user_data);
-
 void xdg_update(struct comp_toplevel *toplevel, int width, int height);
+
+/** Set the effects for each scene_buffer */
+void xdg_apply_effects(struct wlr_scene_tree *tree, void *data);
 
 /*
  * XDG Popup

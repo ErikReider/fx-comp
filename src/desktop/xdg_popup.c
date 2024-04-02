@@ -22,8 +22,7 @@
 static void xdg_popup_map(struct wl_listener *listener, void *data) {
 	struct comp_xdg_popup *popup = wl_container_of(listener, popup, map);
 
-	wlr_scene_node_for_each_buffer(&popup->xdg_scene_tree->node,
-								   xdg_iter_scene_buffers_apply_effects, popup);
+	xdg_apply_effects(popup->xdg_scene_tree, popup);
 }
 
 static void xdg_popup_destroy(struct wl_listener *listener, void *data) {
