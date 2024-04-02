@@ -1,25 +1,11 @@
 sources = files(
 	'main.c',
 	'util.c',
-	'comp/animation_mgr.c',
-	'comp/cairo_buffer.c',
-	'comp/object.c',
-	'comp/output.c',
-	'comp/toplevel.c',
-	'comp/server.c',
-	'comp/widget.c',
-	'comp/workspace.c',
-	'desktop/layer_shell.c',
-	'desktop/xdg.c',
-	'desktop/xdg_decoration.c',
-	'desktop/xdg_popup.c',
-	'desktop/widgets/resize_edge.c',
-	'desktop/widgets/titlebar.c',
-	'desktop/widgets/workspace_indicator.c',
-	'seat/cursor.c',
-	'seat/keyboard.c',
-	'seat/seat.c',
 )
+
+subdir('comp')
+subdir('desktop')
+subdir('seat')
 
 deps = [
 	cairo,
