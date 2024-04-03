@@ -19,10 +19,42 @@
  * XDG Popup
  */
 
+static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
+											 int sx, int sy, void *user_data) {
+	struct wlr_scene_surface *scene_surface =
+		wlr_scene_surface_try_from_buffer(buffer);
+	if (!scene_surface || !user_data) {
+		return;
+	}
+
+	struct comp_toplevel *toplevel = user_data;
+	switch (toplevel->type) {
+	case COMP_TOPLEVEL_TYPE_XDG:;
+		struct wlr_xdg_surface *xdg_surface;
+		if (!(xdg_surface = wlr_xdg_surface_try_from_wlr_surface(
+				  scene_surface->surface)) ||
+			xdg_surface->role != WLR_XDG_SURFACE_ROLE_POPUP) {
+			return;
+		}
+		struct comp_xdg_popup *popup = user_data;
+		wlr_scene_buffer_set_shadow_data(buffer, popup->shadow_data);
+		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius);
+		wlr_scene_buffer_set_opacity(buffer, popup->opacity);
+		break;
+	}
+}
+
+/** Set the effects for each scene_buffer */
+static void xdg_popup_apply_effects(struct wlr_scene_tree *tree,
+									struct comp_xdg_popup *popup) {
+	wlr_scene_node_for_each_buffer(&tree->node,
+								   iter_scene_buffers_apply_effects, popup);
+}
+
 static void xdg_popup_map(struct wl_listener *listener, void *data) {
 	struct comp_xdg_popup *popup = wl_container_of(listener, popup, map);
 
-	comp_toplevel_apply_effects(popup->xdg_scene_tree, popup);
+	xdg_popup_apply_effects(popup->xdg_scene_tree, popup);
 }
 
 static void xdg_popup_destroy(struct wl_listener *listener, void *data) {

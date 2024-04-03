@@ -17,7 +17,6 @@
 #include "desktop/toplevel.h"
 #include "desktop/widgets/resize_edge.h"
 #include "desktop/widgets/titlebar.h"
-#include "desktop/xdg.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"
 #include "util.h"
@@ -305,6 +304,7 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 }
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
+	assert(toplevel->workspace);
 	switch (toplevel->workspace->type) {
 	case COMP_WORKSPACE_TYPE_FULLSCREEN:
 		if (toplevel->fullscreen) {
@@ -333,17 +333,15 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 		return;
 	}
 
-	struct wlr_xdg_surface *xdg_surface =
-		wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
-	if (!xdg_surface) {
-		return;
-	}
-
-	switch (xdg_surface->role) {
-	case WLR_XDG_SURFACE_ROLE_NONE:
-		return;
-	case WLR_XDG_SURFACE_ROLE_TOPLEVEL:;
-		struct comp_toplevel *toplevel = user_data;
+	struct comp_toplevel *toplevel = user_data;
+	switch (toplevel->type) {
+	case COMP_TOPLEVEL_TYPE_XDG:;
+		struct wlr_xdg_surface *xdg_surface;
+		if (!(xdg_surface = wlr_xdg_surface_try_from_wlr_surface(
+				  scene_surface->surface)) ||
+			xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+			return;
+		}
 		bool has_effects = !toplevel->fullscreen;
 
 		// TODO: Be able to set whole decoration_data instead of calling
@@ -364,18 +362,13 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 		wlr_scene_buffer_set_shadow_data(titlebar_buffer,
 										 titlebar_widget->shadow_data);
 		break;
-	case WLR_XDG_SURFACE_ROLE_POPUP:;
-		struct comp_xdg_popup *popup = user_data;
-		wlr_scene_buffer_set_shadow_data(buffer, popup->shadow_data);
-		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius);
-		wlr_scene_buffer_set_opacity(buffer, popup->opacity);
-		break;
 	}
 }
 
-void comp_toplevel_apply_effects(struct wlr_scene_tree *tree, void *data) {
+void comp_toplevel_apply_effects(struct wlr_scene_tree *tree,
+								 struct comp_toplevel *toplevel) {
 	wlr_scene_node_for_each_buffer(&tree->node,
-								   iter_scene_buffers_apply_effects, data);
+								   iter_scene_buffers_apply_effects, toplevel);
 }
 
 char *comp_toplevel_get_title(struct comp_toplevel *toplevel) {
@@ -402,6 +395,15 @@ struct wlr_box comp_toplevel_get_geometry(struct comp_toplevel *toplevel) {
 	}
 
 	return box;
+}
+
+void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
+								   int *min_width, int *max_width,
+								   int *min_height, int *max_height) {
+	if (toplevel->impl && toplevel->impl->get_constraints) {
+		toplevel->impl->get_constraints(toplevel, min_width, max_width,
+										min_height, max_height);
+	}
 }
 
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state) {
@@ -464,11 +466,66 @@ void comp_toplevel_update(struct comp_toplevel *toplevel, int width,
 	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
 							   !toplevel->fullscreen);
 
+	struct comp_titlebar *titlebar = toplevel->titlebar;
+	comp_titlebar_calculate_bar_height(titlebar);
+
 	if (toplevel->impl && toplevel->impl->update) {
 		toplevel->impl->update(toplevel, width, height);
 	}
 
-	if (toplevel->fullscreen) {
+	if (!toplevel->fullscreen) {
+		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
+		int top_border_height = BORDER_WIDTH;
+		if (show_full_titlebar) {
+			top_border_height += toplevel->titlebar->bar_height;
+		}
+
+		// Limit to the toplevels constraints
+		int max_width, max_height, min_width, min_height;
+		comp_toplevel_get_constraints(toplevel, &min_width, &max_width,
+									  &min_height, &max_height);
+		toplevel->object.width =
+			fmax(min_width + (2 * BORDER_WIDTH), toplevel->object.width);
+		toplevel->object.height =
+			fmax(min_height + BORDER_WIDTH, toplevel->object.height);
+
+		if (max_width > 0 && !(2 * BORDER_WIDTH > INT_MAX - max_width)) {
+			toplevel->object.width =
+				fmin(max_width + (2 * BORDER_WIDTH), toplevel->object.width);
+		}
+		if (max_height > 0 &&
+			!(top_border_height + BORDER_WIDTH > INT_MAX - max_height)) {
+			toplevel->object.height =
+				fmin(max_height + top_border_height + BORDER_WIDTH,
+					 toplevel->object.height);
+		}
+
+		// Only redraw the titlebar if the size has changed
+		int decoration_height = top_border_height + toplevel->object.height;
+		if (toplevel->titlebar &&
+			(titlebar->widget.object.width != toplevel->object.width ||
+			 titlebar->widget.object.height != decoration_height)) {
+			comp_widget_draw_resize(&titlebar->widget, toplevel->object.width,
+									decoration_height);
+			// Position the titlebar above the window
+			wlr_scene_node_set_position(
+				&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
+				-top_border_height);
+
+			// Adjust edges
+			for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
+				struct comp_resize_edge *edge = toplevel->edges[i];
+				wlr_scene_node_set_enabled(
+					&edge->widget.object.scene_tree->node, show_full_titlebar);
+				int width, height, x, y;
+				comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
+
+				comp_widget_draw_resize(&edge->widget, width, height);
+				wlr_scene_node_set_position(
+					&edge->widget.object.scene_tree->node, x, y);
+			}
+		}
+	} else {
 		wlr_scene_node_set_position(&toplevel->object.scene_tree->node, 0, 0);
 	}
 }

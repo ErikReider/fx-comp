@@ -67,6 +67,8 @@ struct comp_toplevel {
 
 struct comp_toplevel_impl {
 	struct wlr_box (*get_geometry)(struct comp_toplevel *toplevel);
+	void (*get_constraints)(struct comp_toplevel *toplevel, int *min_width,
+							int *max_width, int *min_height, int *max_height);
 	struct wlr_surface *(*get_wlr_surface)(struct comp_toplevel *toplevel);
 	char *(*get_title)(struct comp_toplevel *toplevel);
 	void (*set_size)(struct comp_toplevel *toplevel, int width, int height);
@@ -101,16 +103,20 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
 
 /** Set the effects for each scene_buffer */
-void comp_toplevel_apply_effects(struct wlr_scene_tree *tree, void *data);
+void comp_toplevel_apply_effects(struct wlr_scene_tree *tree,
+								 struct comp_toplevel *toplevel);
 
 /*
  * Implementation functions
  */
 
+struct wlr_box comp_toplevel_get_geometry(struct comp_toplevel *toplevel);
+void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
+								   int *min_width, int *max_width,
+								   int *min_height, int *max_height);
 char *comp_toplevel_get_title(struct comp_toplevel *toplevel);
 struct wlr_surface *
 comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel);
-struct wlr_box comp_toplevel_get_geometry(struct comp_toplevel *toplevel);
 
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
