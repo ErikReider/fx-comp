@@ -261,6 +261,10 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 	case COMP_CURSOR_PASSTHROUGH:
 		break;
 	case COMP_CURSOR_MOVE:;
+		if (focused_surface) {
+			comp_seat_surface_focus(&toplevel->object, focused_surface);
+		}
+
 		// Adjust the toplevel coordinates to be root-relative
 		struct wlr_box output_box;
 		wlr_output_layout_get_box(server->output_layout,
@@ -277,6 +281,10 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 							 toplevel->object.height);
 		break;
 	case COMP_CURSOR_RESIZE:;
+		if (focused_surface) {
+			comp_seat_surface_focus(&toplevel->object, focused_surface);
+		}
+
 		struct wlr_box geo_box = comp_toplevel_get_geometry(toplevel);
 
 		double border_x = (toplevel->object.scene_tree->node.x + geo_box.x) +
