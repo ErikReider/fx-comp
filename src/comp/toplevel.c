@@ -569,6 +569,8 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->shadow_data.color =
 		wlr_render_color_from_color(&(const uint32_t){TOPLEVEL_SHADOW_COLOR});
 	toplevel->shadow_data.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA;
+	toplevel->shadow_data.offset_x = TOPLEVEL_SHADOW_X_OFFSET;
+	toplevel->shadow_data.offset_y = TOPLEVEL_SHADOW_Y_OFFSET;
 
 	toplevel->tiling_mode = tiling_mode;
 	toplevel->workspace = workspace;
