@@ -35,7 +35,7 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 	wlr_output_layout_output_coords(server.output_layout,
 									toplevel->workspace->output->wlr_output,
 									&lx, &ly);
-	wlr_scene_node_set_position(&toplevel->object.scene_tree->node, lx, ly);
+	comp_toplevel_set_position(toplevel, lx, ly);
 }
 
 struct comp_workspace *comp_workspace_new(struct comp_output *output,
@@ -70,6 +70,12 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 		return NULL;
 	}
 	ws->layers.floating->node.data = &ws->object;
+	// Create unmanaged
+	ws->layers.unmanaged = alloc_tree(ws->object.scene_tree);
+	if (!ws->layers.unmanaged) {
+		return NULL;
+	}
+	ws->layers.unmanaged->node.data = &ws->object;
 
 	wl_list_init(&ws->toplevels);
 

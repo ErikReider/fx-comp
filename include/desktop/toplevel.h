@@ -20,6 +20,7 @@ enum comp_tiling_mode {
 
 enum comp_toplevel_type {
 	COMP_TOPLEVEL_TYPE_XDG,
+	COMP_TOPLEVEL_TYPE_XWAYLAND,
 };
 
 // TODO: Make more generic for XWayland and others...
@@ -39,6 +40,7 @@ struct comp_toplevel {
 	enum comp_toplevel_type type;
 	union {
 		struct comp_xdg_toplevel *toplevel_xdg;
+		struct comp_xwayland_toplevel *toplevel_xway;
 	};
 	const struct comp_toplevel_impl *impl;
 
@@ -49,6 +51,7 @@ struct comp_toplevel {
 
 	enum comp_tiling_mode tiling_mode;
 	bool fullscreen;
+	pid_t pid;
 
 	// Used to restore the state when exiting fullscreen
 	struct {
@@ -71,12 +74,16 @@ struct comp_toplevel_impl {
 							int *max_width, int *min_height, int *max_height);
 	struct wlr_surface *(*get_wlr_surface)(struct comp_toplevel *toplevel);
 	char *(*get_title)(struct comp_toplevel *toplevel);
+	bool (*get_always_floating)(struct comp_toplevel *toplevel);
+	void (*configure)(struct comp_toplevel *toplevel, int width, int height,
+					  int x, int y);
 	void (*set_size)(struct comp_toplevel *toplevel, int width, int height);
 	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
-	void (*update)(struct comp_toplevel *toplevel, int width, int height);
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
+	void (*set_tiled)(struct comp_toplevel *toplevel, bool state);
+	void (*set_pid)(struct comp_toplevel *toplevel);
+	void (*update)(struct comp_toplevel *toplevel, int width, int height);
 	void (*close)(struct comp_toplevel *toplevel);
-	void (*unfocus)(struct comp_toplevel *toplevel);
 };
 
 struct comp_toplevel *comp_toplevel_init(struct comp_output *output,
@@ -115,17 +122,27 @@ void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
 								   int *min_width, int *max_width,
 								   int *min_height, int *max_height);
 char *comp_toplevel_get_title(struct comp_toplevel *toplevel);
+/**
+ * Checks if the toplevel always wants to be floating,
+ * i.e don't allow tiling
+ */
+bool comp_toplevel_get_always_floating(struct comp_toplevel *toplevel);
 struct wlr_surface *
 comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel);
-
+void comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
+							 int height, int x, int y);
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
+void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state);
+void comp_toplevel_set_pid(struct comp_toplevel *toplevel);
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height);
 
 void comp_toplevel_update(struct comp_toplevel *toplevel, int width,
 						  int height);
+
+void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 
 void comp_toplevel_close(struct comp_toplevel *toplevel);
 

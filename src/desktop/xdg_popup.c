@@ -41,6 +41,9 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius);
 		wlr_scene_buffer_set_opacity(buffer, popup->opacity);
 		break;
+	case COMP_TOPLEVEL_TYPE_XWAYLAND:
+		abort();
+		break;
 	}
 }
 

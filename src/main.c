@@ -39,6 +39,7 @@
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
+#include <wlr/xwayland.h>
 
 #include "comp/animation_mgr.h"
 #include "comp/output.h"
@@ -49,6 +50,7 @@
 #include "desktop/xdg_decoration.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"
+#include "util.h"
 
 struct comp_server server = {0};
 
@@ -184,7 +186,8 @@ int main(int argc, char *argv[]) {
 	 * to dig your fingers in and play with their behavior if you want. Note
 	 * that the clients cannot set the selection directly without compositor
 	 * approval, see the handling of the request_set_selection event below.*/
-	wlr_compositor_create(server.wl_display, 5, server.renderer);
+	server.compositor =
+		wlr_compositor_create(server.wl_display, 5, server.renderer);
 	wlr_subcompositor_create(server.wl_display);
 	wlr_data_device_manager_create(server.wl_display);
 
@@ -278,6 +281,27 @@ int main(int argc, char *argv[]) {
 	server.new_layer_surface.notify = layer_shell_new_surface;
 	wl_signal_add(&server.layer_shell->events.new_surface,
 				  &server.new_layer_surface);
+
+	/*
+	 * XWayland
+	 */
+
+	server.xwayland_mgr.wlr_xwayland =
+		wlr_xwayland_create(server.wl_display, server.compositor, false);
+	if (!server.xwayland_mgr.wlr_xwayland) {
+		wlr_log(WLR_ERROR, "Failed to start Xwayland");
+		unsetenv("DISPLAY");
+	} else {
+		listener_init(&server.new_xwayland_surface);
+		listener_connect(&server.xwayland_mgr.wlr_xwayland->events.new_surface,
+						 &server.new_xwayland_surface, xwayland_new_surface);
+
+		listener_init(&server.xwayland_ready);
+		listener_connect(&server.xwayland_mgr.wlr_xwayland->events.ready,
+						 &server.xwayland_ready, xwayland_ready_cb);
+
+		setenv("DISPLAY", server.xwayland_mgr.wlr_xwayland->display_name, true);
+	}
 
 	server.relative_pointer_manager =
 		wlr_relative_pointer_manager_v1_create(server.wl_display);
@@ -383,6 +407,7 @@ int main(int argc, char *argv[]) {
 			socket);
 	wl_display_run(server.wl_display);
 
+	wlr_xwayland_destroy(server.xwayland_mgr.wlr_xwayland);
 	/* Once wl_display_run returns, we destroy all clients then shut down the
 	 * server. */
 	wl_display_destroy_clients(server.wl_display);

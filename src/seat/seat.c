@@ -20,6 +20,7 @@
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
 #include "desktop/xdg.h"
+#include "desktop/xwayland.h"
 #include "seat/cursor.h"
 #include "seat/keyboard.h"
 #include "seat/seat.h"
@@ -43,6 +44,15 @@ bool comp_seat_object_is_focus(struct comp_seat *seat,
 			   toplevel == seat->focused_toplevel;
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 		return object->data == seat->focused_layer_surface;
+	case COMP_OBJECT_TYPE_UNMANAGED:;
+		struct comp_xwayland_unmanaged *unmanaged = object->data;
+		if (unmanaged && unmanaged->xwayland_surface &&
+			unmanaged->xwayland_surface->surface) {
+			struct wlr_surface *surface = unmanaged->xwayland_surface->surface;
+			return surface == seat->wlr_seat->keyboard_state.focused_surface ||
+				   surface == seat->wlr_seat->pointer_state.focused_surface;
+		}
+		break;
 	case COMP_OBJECT_TYPE_WIDGET:
 		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:;
@@ -201,6 +211,34 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 		return;
 	}
 
+	// XWayland Toplevel
+	struct wlr_xwayland_surface *xsurface;
+	if ((xsurface = wlr_xwayland_surface_try_from_wlr_surface(surface))) {
+		wlr_xwayland_surface_activate(xsurface, false);
+
+		struct wlr_scene_tree *scene_tree = xsurface->data;
+		struct comp_object *object = scene_tree->node.data;
+		struct comp_toplevel *toplevel;
+		if (object && object->type == COMP_OBJECT_TYPE_TOPLEVEL &&
+			(toplevel = object->data)) {
+			if (toplevel == server.seat->focused_toplevel) {
+				server.seat->focused_toplevel = NULL;
+			}
+
+			if (focus_previous) {
+				seat_focus_previous_toplevel(surface);
+			}
+
+			/*
+			 * Redraw
+			 */
+			if (toplevel->titlebar) {
+				comp_widget_draw_full(&toplevel->titlebar->widget);
+			}
+		}
+		return;
+	}
+
 	// Layer Shell
 	struct wlr_layer_surface_v1 *wlr_layer_surface;
 	if ((wlr_layer_surface =
@@ -252,6 +290,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	struct comp_layer_surface *focused_layer = seat->focused_layer_surface;
 
 	switch (object->type) {
+	case COMP_OBJECT_TYPE_UNMANAGED:;
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		if (seat->exclusive_layer && focused_layer) {
 			// Hacky... Some toplevels like kitty needs to be focused then
@@ -320,6 +359,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 		seat->focused_layer_surface = layer_surface;
 		break;
+	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_OUTPUT:
@@ -340,6 +380,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 		 */
 		comp_widget_draw_full(&toplevel->titlebar->widget);
 		break;
+	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_WIDGET:

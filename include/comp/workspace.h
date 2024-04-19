@@ -26,8 +26,12 @@ struct comp_workspace {
 
 	// struct wlr_scene_tree *workspace_tree;
 	struct {
-		struct wlr_scene_tree *lower; // Used for tiled / fullscreen
+		// Used for tiled / fullscreen
+		struct wlr_scene_tree *lower;
+		// Floating toplevels
 		struct wlr_scene_tree *floating;
+		// for unmanaged toplevels without a parent
+		struct wlr_scene_tree *unmanaged;
 	} layers;
 
 	// Toplevels and Popups. Also contains the focus order

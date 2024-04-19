@@ -25,7 +25,12 @@ Todo:
     - [ ] Delay
     - [ ] Animation
 - [ ] Minimize
-- [ ] XWayland
+- [X] XWayland
+    - [X] Regular surfaces
+    - [X] Popups
+    - [ ] Effects
+    - [X] Handling of CSD
+    - [X] Unmanaged
 - [ ] Tearing support
 - [ ] Adaptive sync support
 - [ ] WLR Portal support

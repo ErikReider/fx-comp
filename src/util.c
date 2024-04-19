@@ -1,5 +1,6 @@
 #define _XOPEN_SOURCE 600 // for M_PI
 
+#include <assert.h>
 #include <cairo.h>
 #include <math.h>
 #include <scenefx/types/wlr_scene.h>
@@ -15,6 +16,45 @@
 
 int wrap(int i, int max) {
 	return ((i % max) + max) % max;
+}
+
+/* Wayland Helpers */
+
+static bool listener_is_connected(struct wl_listener *listener) {
+	return !wl_list_empty(&listener->link);
+}
+
+void listener_init(struct wl_listener *listener) {
+	assert(listener);
+	wl_list_init(&listener->link);
+}
+
+void listener_connect(struct wl_signal *signal, struct wl_listener *listener,
+					  wl_notify_func_t notify) {
+	assert(listener);
+	if (listener_is_connected(listener)) {
+		wlr_log(WLR_INFO, "Cannot connect to a listener twice");
+		return;
+	}
+
+	listener->notify = notify;
+	wl_signal_add(signal, listener);
+}
+
+void listener_remove(struct wl_listener *listener) {
+	assert(listener);
+	if (listener_is_connected(listener)) {
+		wl_list_remove(&listener->link);
+		listener->notify = NULL;
+		// Restore state
+		listener_init(listener);
+	}
+}
+
+void listener_emit(struct wl_listener *listener, void *data) {
+	if (listener && listener->notify) {
+		listener->notify(listener, data);
+	}
 }
 
 /* wlroots */
