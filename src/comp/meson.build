@@ -7,4 +7,5 @@ sources += files(
 	'server.c',
 	'widget.c',
 	'workspace.c',
+	'xwayland_mgr.c',
 )

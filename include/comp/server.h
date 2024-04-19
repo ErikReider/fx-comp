@@ -6,6 +6,7 @@
 #include <wlr/util/box.h>
 
 #include "comp/animation_mgr.h"
+#include "comp/xwayland_mgr.h"
 
 /* For brevity's sake, struct members are annotated where they are used. */
 enum comp_cursor_mode {
@@ -21,17 +22,25 @@ struct comp_server {
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 	struct wl_event_loop *wl_event_loop;
+	struct wlr_compositor *compositor;
 
 	struct wlr_scene *root_scene;
 	struct wlr_scene_output_layout *scene_layout;
 
+	// XDG
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
 	struct wl_listener new_xdg_decoration;
 	struct wl_list xdg_decorations;
 
+	// Layer Shell
 	struct wlr_layer_shell_v1 *layer_shell;
 	struct wl_listener new_layer_surface;
+
+	// XWayland
+	struct comp_xwayland_mgr xwayland_mgr;
+	struct wl_listener new_xwayland_surface;
+	struct wl_listener xwayland_ready;
 
 	struct wlr_pointer_constraints_v1 *pointer_constraints;
 	struct wl_listener pointer_constraint;

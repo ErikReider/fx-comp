@@ -81,6 +81,7 @@ static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 		case COMP_OBJECT_TYPE_TOPLEVEL:
 		case COMP_OBJECT_TYPE_XDG_POPUP:
 		case COMP_OBJECT_TYPE_LAYER_SURFACE:
+		case COMP_OBJECT_TYPE_UNMANAGED:
 			if (surface) {
 				/*
 				 * Send pointer enter and motion events.
@@ -232,6 +233,7 @@ static bool try_resize_or_move_toplevel(struct comp_object *object,
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
+	case COMP_OBJECT_TYPE_UNMANAGED:
 		return false;
 	}
 
@@ -280,6 +282,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 				comp_widget_pointer_button(object->data, sx, sy, event);
 				break;
 			case COMP_OBJECT_TYPE_TOPLEVEL:
+			case COMP_OBJECT_TYPE_UNMANAGED:
 			case COMP_OBJECT_TYPE_XDG_POPUP:
 			case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 			case COMP_OBJECT_TYPE_OUTPUT:
@@ -312,6 +315,8 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			break;
 		case COMP_OBJECT_TYPE_OUTPUT:
 		case COMP_OBJECT_TYPE_WORKSPACE:
+		// Don't focus unmanaged. TODO: Check if popup?
+		case COMP_OBJECT_TYPE_UNMANAGED:
 			break;
 		}
 	}
