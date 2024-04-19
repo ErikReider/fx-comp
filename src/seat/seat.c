@@ -350,7 +350,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 		/* Move the node to the front */
 		// Workspace
 		wl_list_remove(&toplevel->workspace_link);
-		wl_list_insert(&toplevel->workspace->toplevels,
+		wl_list_insert(&toplevel->state.workspace->toplevels,
 					   &toplevel->workspace_link);
 		// Seat
 		wl_list_remove(&toplevel->focus_link);

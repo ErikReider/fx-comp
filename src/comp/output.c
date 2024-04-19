@@ -145,7 +145,7 @@ static void output_configure_scene(struct comp_output *output,
 			float opacity = 1;
 			// Change the opacity of the grabbed toplevel if it's not displayed
 			// on it's active monitor
-			if (output != toplevel->workspace->output) {
+			if (output != toplevel->state.workspace->output) {
 				opacity = TOPLEVEL_NON_MAIN_OUTPUT_OPACITY;
 			}
 			wlr_scene_buffer_set_opacity(buffer, opacity);
@@ -580,7 +580,8 @@ void comp_output_arrange_output(struct comp_output *output) {
 			if (!toplevel->fullscreen) {
 				continue;
 			}
-			struct wlr_box output_box = toplevel->workspace->output->geometry;
+			struct wlr_box output_box =
+				toplevel->state.workspace->output->geometry;
 			comp_toplevel_set_size(toplevel, output_box.width,
 								   output_box.height);
 			comp_toplevel_set_size(toplevel, output_box.width,

@@ -23,13 +23,20 @@ enum comp_toplevel_type {
 	COMP_TOPLEVEL_TYPE_XWAYLAND,
 };
 
+struct comp_toplevel_state {
+	int x;
+	int y;
+	int width;
+	int height;
+	struct comp_workspace *workspace;
+};
+
 // TODO: Make more generic for XWayland and others...
 struct comp_toplevel {
 	struct wl_list workspace_link;
 	struct wl_list focus_link;
 
 	struct comp_server *server;
-	struct comp_workspace *workspace;
 
 	struct comp_object object;
 
@@ -53,14 +60,10 @@ struct comp_toplevel {
 	bool fullscreen;
 	pid_t pid;
 
+	// The current state
+	struct comp_toplevel_state state;
 	// Used to restore the state when exiting fullscreen
-	struct {
-		int x;
-		int y;
-		int width;
-		int height;
-		struct comp_workspace *workspace;
-	} saved_state;
+	struct comp_toplevel_state saved_state;
 
 	// Effects
 	float opacity;
@@ -147,5 +150,13 @@ void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 void comp_toplevel_close(struct comp_toplevel *toplevel);
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel);
+
+/*
+ * Implementation generic functions
+ */
+
+void comp_toplevel_generic_map(struct comp_toplevel *toplevel);
+void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel);
+void comp_toplevel_generic_commit(struct comp_toplevel *toplevel);
 
 #endif // !FX_COMP_TOPLEVEL_H

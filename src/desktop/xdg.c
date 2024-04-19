@@ -14,12 +14,10 @@
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/workspace.h"
-#include "constants.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
 #include "desktop/xdg.h"
 #include "seat/cursor.h"
-#include "seat/seat.h"
 
 /*
  * Toplevel Implementation
@@ -56,10 +54,15 @@ static char *xdg_get_title(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
-static void xdg_set_size(struct comp_toplevel *toplevel, int width,
-						 int height) {
+static void xdg_configure(struct comp_toplevel *toplevel, int width, int height,
+						  int x, int y) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
 	wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
+}
+
+static void xdg_set_size(struct comp_toplevel *toplevel, int width,
+						 int height) {
+	xdg_configure(toplevel, width, height, 0, 0);
 }
 
 static void xdg_set_activated(struct comp_toplevel *toplevel, bool state) {
@@ -99,6 +102,7 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.get_constraints = xdg_get_constraints,
 	.get_wlr_surface = xdg_get_wlr_surface,
 	.get_title = xdg_get_title,
+	.configure = xdg_configure,
 	.set_size = xdg_set_size,
 	.set_activated = xdg_set_activated,
 	.set_fullscreen = xdg_set_fullscreen,
@@ -130,22 +134,7 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xdg, commit);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
-	// Set geometry
-	struct wlr_box geometry = xdg_get_geometry(toplevel);
-	toplevel->object.width = geometry.width;
-	toplevel->object.height = geometry.height;
-
-	if (!toplevel->fullscreen) {
-		// Compensate for borders
-		toplevel->object.width += 2 * BORDER_WIDTH;
-		toplevel->object.height += BORDER_WIDTH;
-		if (!comp_titlebar_should_be_shown(toplevel)) {
-			toplevel->object.height += BORDER_WIDTH;
-		}
-	}
-
-	comp_toplevel_update(toplevel, toplevel->object.width,
-						 toplevel->object.height);
+	comp_toplevel_generic_commit(toplevel);
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -227,44 +216,7 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xdg, map);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
-	// TODO: Replace with generic map function
-	wl_list_insert(&toplevel->workspace->toplevels, &toplevel->workspace_link);
-
-	// Set the PID
-	comp_toplevel_set_pid(toplevel);
-
-	comp_toplevel_apply_effects(toplevel->toplevel_scene_tree, toplevel);
-
-	// Set geometry
-	struct wlr_box geometry = xdg_get_geometry(toplevel);
-	toplevel->object.width = geometry.width + 2 * BORDER_WIDTH;
-	toplevel->object.height = geometry.height + BORDER_WIDTH;
-	if (!comp_titlebar_should_be_shown(toplevel)) {
-		toplevel->object.height += BORDER_WIDTH;
-	}
-
-	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-		// Open new floating toplevels in the center of the output
-		struct wlr_box output_box;
-		wlr_output_layout_get_box(toplevel->server->output_layout,
-								  toplevel->workspace->output->wlr_output,
-								  &output_box);
-		comp_toplevel_set_position(
-			toplevel, (output_box.width - toplevel->object.width) / 2,
-			(output_box.height - toplevel->object.height) / 2);
-
-		comp_toplevel_update(toplevel, toplevel->object.width,
-							 toplevel->object.height);
-	} else {
-		// Tile the new toplevel
-		// TODO: Tile
-	}
-
-	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
-
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
-	comp_seat_surface_focus(&toplevel->object,
-							toplevel_xdg->xdg_toplevel->base->surface);
+	comp_toplevel_generic_map(toplevel);
 
 	struct wlr_xdg_toplevel *xdg_toplevel = toplevel_xdg->xdg_toplevel;
 	toplevel_xdg->new_popup.notify = handle_new_popup;
@@ -292,18 +244,6 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xdg, unmap);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
-	if (toplevel->fullscreen) {
-		comp_toplevel_set_fullscreen(toplevel, false);
-	}
-
-	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
-	if (toplevel == toplevel->server->seat->grabbed_toplevel) {
-		comp_cursor_reset_cursor_mode(toplevel->server->seat);
-	}
-
-	wl_list_remove(&toplevel->workspace_link);
-	wl_list_remove(&toplevel->focus_link);
-
 	wl_list_remove(&toplevel_xdg->new_popup.link);
 	wl_list_remove(&toplevel_xdg->request_move.link);
 	wl_list_remove(&toplevel_xdg->request_resize.link);
@@ -311,9 +251,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel_xdg->request_fullscreen.link);
 	wl_list_remove(&toplevel_xdg->set_title.link);
 
-	comp_seat_surface_unfocus(comp_toplevel_get_wlr_surface(toplevel), true);
-
-	// TODO: Generic unmap function
+	comp_toplevel_generic_unmap(toplevel);
 }
 
 void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {

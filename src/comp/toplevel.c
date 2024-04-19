@@ -28,9 +28,9 @@ static void save_state(struct comp_toplevel *toplevel) {
 	// Adjust the node coordinates to be output-relative
 	double lx = x;
 	double ly = y;
-	wlr_output_layout_output_coords(server.output_layout,
-									toplevel->workspace->output->wlr_output,
-									&lx, &ly);
+	wlr_output_layout_output_coords(
+		server.output_layout, toplevel->state.workspace->output->wlr_output,
+		&lx, &ly);
 	toplevel->saved_state.x = lx;
 	toplevel->saved_state.y = ly;
 	// Size
@@ -38,12 +38,12 @@ static void save_state(struct comp_toplevel *toplevel) {
 	toplevel->saved_state.width = geometry.width;
 	toplevel->saved_state.height = geometry.height;
 
-	toplevel->saved_state.workspace = toplevel->workspace;
+	toplevel->saved_state.workspace = toplevel->state.workspace;
 }
 
 static void restore_state(struct comp_toplevel *toplevel) {
-	struct comp_output *output = toplevel->workspace->output;
-	struct comp_workspace *fs_ws = toplevel->workspace;
+	struct comp_output *output = toplevel->state.workspace->output;
+	struct comp_workspace *fs_ws = toplevel->state.workspace;
 	assert(fs_ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN);
 
 	// TODO: Move to the original workspace
@@ -126,9 +126,9 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 		// Adjust the toplevel coordinates to be root-relative
 		double lx = server->seat->cursor->wlr_cursor->x - server->seat->grab_x;
 		double ly = server->seat->cursor->wlr_cursor->y - server->seat->grab_y;
-		wlr_output_layout_output_coords(server->output_layout,
-										toplevel->workspace->output->wlr_output,
-										&lx, &ly);
+		wlr_output_layout_output_coords(
+			server->output_layout,
+			toplevel->state.workspace->output->wlr_output, &lx, &ly);
 		comp_toplevel_set_position(toplevel, lx, ly);
 
 		// Update floating toplevels current monitor and workspace.
@@ -206,7 +206,7 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 								  &max_height);
 
 	struct wlr_box geo_box = comp_toplevel_get_geometry(toplevel);
-	comp_toplevel_set_position(toplevel, new_left - geo_box.y,
+	comp_toplevel_set_position(toplevel, new_left - geo_box.x,
 							   new_top - geo_box.y);
 
 	// Respect minimum sizes
@@ -279,7 +279,7 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 		// Adjust the toplevel coordinates to be root-relative
 		struct wlr_box output_box;
 		wlr_output_layout_get_box(server->output_layout,
-								  toplevel->workspace->output->wlr_output,
+								  toplevel->state.workspace->output->wlr_output,
 								  &output_box);
 		server->seat->grab_x = server->seat->cursor->wlr_cursor->x -
 							   toplevel->object.scene_tree->node.x -
@@ -311,6 +311,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 		server->seat->resize_edges = edges;
 
+		toplevel->state.width = geo_box.width;
+		toplevel->state.height = geo_box.height;
 		toplevel->object.width = geo_box.width + 2 * BORDER_WIDTH;
 		toplevel->object.height = geo_box.height + BORDER_WIDTH;
 		if (!comp_titlebar_should_be_shown(toplevel)) {
@@ -323,20 +325,20 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 }
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
-	assert(toplevel->workspace);
-	switch (toplevel->workspace->type) {
+	assert(toplevel->state.workspace);
+	switch (toplevel->state.workspace->type) {
 	case COMP_WORKSPACE_TYPE_FULLSCREEN:
 		if (toplevel->fullscreen) {
-			return toplevel->workspace->layers.lower;
+			return toplevel->state.workspace->layers.lower;
 		}
 		// Always float sub toplevels
-		return toplevel->workspace->layers.floating;
+		return toplevel->state.workspace->layers.floating;
 	case COMP_WORKSPACE_TYPE_REGULAR:
 		switch (toplevel->tiling_mode) {
 		case COMP_TILING_MODE_FLOATING:
-			return toplevel->workspace->layers.floating;
+			return toplevel->state.workspace->layers.floating;
 		case COMP_TILING_MODE_TILED:
-			return toplevel->workspace->layers.lower;
+			return toplevel->state.workspace->layers.lower;
 		}
 		break;
 	}
@@ -457,14 +459,14 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 		// Create a new neighbouring fullscreen workspace
 		struct comp_workspace *fs_ws = comp_output_new_workspace(
-			toplevel->workspace->output, COMP_WORKSPACE_TYPE_FULLSCREEN);
+			toplevel->state.workspace->output, COMP_WORKSPACE_TYPE_FULLSCREEN);
 
 		fs_ws->fullscreen_toplevel = toplevel;
 
 		comp_workspace_move_toplevel_to(fs_ws, toplevel);
 	} else {
-		if (toplevel->workspace->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
-			toplevel->workspace->fullscreen_toplevel = NULL;
+		if (toplevel->state.workspace->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
+			toplevel->state.workspace->fullscreen_toplevel = NULL;
 
 			// Restore the floating state
 			restore_state(toplevel);
@@ -472,7 +474,7 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	}
 
 	// Update the output
-	comp_output_arrange_output(toplevel->workspace->output);
+	comp_output_arrange_output(toplevel->state.workspace->output);
 }
 
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel) {
@@ -534,6 +536,11 @@ void comp_toplevel_update(struct comp_toplevel *toplevel, int width,
 					 toplevel->object.height);
 		}
 
+		struct wlr_box geo_box = comp_toplevel_get_geometry(toplevel);
+		toplevel->state.width = fmax(fmin(geo_box.width, max_width), min_width);
+		toplevel->state.height =
+			fmax(fmin(geo_box.height, max_height), min_height);
+
 		// Only redraw the titlebar if the size has changed
 		int decoration_height = top_border_height + toplevel->object.height;
 		if (toplevel->titlebar &&
@@ -565,6 +572,8 @@ void comp_toplevel_update(struct comp_toplevel *toplevel, int width,
 }
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y) {
+	toplevel->state.x = x;
+	toplevel->state.y = y;
 	wlr_scene_node_set_position(&toplevel->object.scene_tree->node, x, y);
 	struct wlr_box geo = comp_toplevel_get_geometry(toplevel);
 	comp_toplevel_configure(toplevel, geo.width, geo.height, x, y);
@@ -605,7 +614,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->shadow_data.offset_y = TOPLEVEL_SHADOW_Y_OFFSET;
 
 	toplevel->tiling_mode = tiling_mode;
-	toplevel->workspace = workspace;
+	toplevel->state.workspace = workspace;
 	struct wlr_scene_tree *tree = comp_toplevel_get_layer(toplevel);
 	toplevel->object.scene_tree = alloc_tree(tree);
 
@@ -643,4 +652,93 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	}
 
 	return toplevel;
+}
+
+/*
+ * Implementation generic functions
+ */
+
+void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
+	wl_list_insert(&toplevel->state.workspace->toplevels,
+				   &toplevel->workspace_link);
+
+	comp_toplevel_set_pid(toplevel);
+
+	comp_toplevel_apply_effects(toplevel->toplevel_scene_tree, toplevel);
+
+	// Set geometry
+	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
+	toplevel->state.width = geometry.width;
+	toplevel->state.height = geometry.height;
+	toplevel->object.width = geometry.width + 2 * BORDER_WIDTH;
+	toplevel->object.height = geometry.height + BORDER_WIDTH;
+	if (!comp_titlebar_should_be_shown(toplevel)) {
+		toplevel->object.height += BORDER_WIDTH;
+	}
+
+	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+		// Open new floating toplevels in the center of the output
+		struct wlr_box output_box;
+		wlr_output_layout_get_box(toplevel->server->output_layout,
+								  toplevel->state.workspace->output->wlr_output,
+								  &output_box);
+		comp_toplevel_set_position(
+			toplevel, (output_box.width - toplevel->object.width) / 2,
+			(output_box.height - toplevel->object.height) / 2);
+
+		comp_toplevel_update(toplevel, toplevel->object.width,
+							 toplevel->object.height);
+	} else {
+		// Tile the new toplevel
+		// TODO: Tile
+	}
+
+	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
+
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
+	comp_seat_surface_focus(&toplevel->object,
+							comp_toplevel_get_wlr_surface(toplevel));
+}
+
+void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
+	if (toplevel->fullscreen) {
+		comp_toplevel_set_fullscreen(toplevel, false);
+	}
+
+	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
+	if (toplevel == toplevel->server->seat->grabbed_toplevel) {
+		comp_cursor_reset_cursor_mode(toplevel->server->seat);
+	}
+	comp_seat_surface_unfocus(comp_toplevel_get_wlr_surface(toplevel), true);
+
+	wl_list_remove(&toplevel->workspace_link);
+	wl_list_remove(&toplevel->focus_link);
+}
+
+void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
+	// Set geometry
+	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
+	bool new_size = geometry.width != toplevel->state.width ||
+					geometry.height != toplevel->state.height;
+	toplevel->state.width = geometry.width;
+	toplevel->state.height = geometry.height;
+	toplevel->object.width = geometry.width;
+	toplevel->object.height = geometry.height;
+
+	if (!toplevel->fullscreen) {
+		// Compensate for borders
+		toplevel->object.width += 2 * BORDER_WIDTH;
+		toplevel->object.height += BORDER_WIDTH;
+		if (!comp_titlebar_should_be_shown(toplevel)) {
+			toplevel->object.height += BORDER_WIDTH;
+		}
+	}
+
+	if (new_size) {
+		comp_toplevel_update(toplevel, toplevel->object.width,
+							 toplevel->object.height);
+		comp_toplevel_configure(toplevel, toplevel->state.width,
+								toplevel->state.height, toplevel->state.x,
+								toplevel->state.y);
+	}
 }

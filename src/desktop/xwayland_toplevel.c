@@ -8,7 +8,6 @@
 
 #include "comp/output.h"
 #include "comp/xwayland_mgr.h"
-#include "constants.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
 #include "desktop/xwayland.h"
@@ -181,6 +180,9 @@ static void xway_toplevel_request_activate(struct wl_listener *listener,
 	}
 
 	// TODO: XWayland activate
+
+	comp_toplevel_configure(toplevel_xway->toplevel, xsurface->width,
+							xsurface->height, xsurface->x, xsurface->y);
 }
 
 static void xway_toplevel_request_move(struct wl_listener *listener,
@@ -268,32 +270,8 @@ static void xway_toplevel_commit(struct wl_listener *listener, void *data) {
 	struct comp_xwayland_toplevel *toplevel_xway =
 		wl_container_of(listener, toplevel_xway, commit);
 	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
-	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 
-	// TODO: Replace with generic commit function
-
-	// Set geometry
-	struct wlr_box geometry = xway_get_geometry(toplevel);
-	bool new_size = geometry.width != toplevel->object.width ||
-					geometry.height != toplevel->object.height;
-	toplevel->object.width = geometry.width;
-	toplevel->object.height = geometry.height;
-
-	if (!toplevel->fullscreen) {
-		// Compensate for borders
-		toplevel->object.width += 2 * BORDER_WIDTH;
-		toplevel->object.height += BORDER_WIDTH;
-		if (!comp_titlebar_should_be_shown(toplevel)) {
-			toplevel->object.height += BORDER_WIDTH;
-		}
-	}
-
-	if (new_size) {
-		comp_toplevel_update(toplevel, toplevel->object.width,
-							 toplevel->object.height);
-		comp_toplevel_configure(toplevel, xsurface->width, xsurface->height,
-								xsurface->x, xsurface->y);
-	}
+	comp_toplevel_generic_commit(toplevel);
 }
 
 void xway_toplevel_unmap(struct wl_listener *listener, void *data);
@@ -378,42 +356,11 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 	listener_connect(&toplevel_xway->xwayland_surface->surface->events.commit,
 					 &toplevel_xway->commit, xway_toplevel_commit);
 
-	// TODO: Replace with generic map function
-	wl_list_insert(&toplevel->workspace->toplevels, &toplevel->workspace_link);
+	comp_toplevel_generic_map(toplevel);
 
-	comp_toplevel_set_pid(toplevel);
-
-	comp_toplevel_apply_effects(toplevel->toplevel_scene_tree, toplevel);
-
-	// Set geometry
-	struct wlr_box geometry = xway_get_geometry(toplevel);
-	toplevel->object.width = geometry.width + 2 * BORDER_WIDTH;
-	toplevel->object.height = geometry.height + BORDER_WIDTH;
-	if (!comp_titlebar_should_be_shown(toplevel)) {
-		toplevel->object.height += BORDER_WIDTH;
-	}
-
-	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-		// Open new floating toplevels in the center of the output
-		struct wlr_box output_box;
-		wlr_output_layout_get_box(toplevel->server->output_layout,
-								  toplevel->workspace->output->wlr_output,
-								  &output_box);
-		comp_toplevel_set_position(
-			toplevel, (output_box.width - toplevel->object.width) / 2,
-			(output_box.height - toplevel->object.height) / 2);
-
-		comp_toplevel_update(toplevel, toplevel->object.width,
-							 toplevel->object.height);
-	} else {
-		// Tile the new toplevel
-		// TODO: Tile
-	}
-
-	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
-
-	comp_seat_surface_focus(&toplevel->object,
-							toplevel_xway->xwayland_surface->surface);
+	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
+	comp_toplevel_configure(toplevel_xway->toplevel, xsurface->width,
+							xsurface->height, xsurface->x, xsurface->y);
 }
 
 void xway_toplevel_unmap(struct wl_listener *listener, void *data) {
@@ -427,24 +374,10 @@ void xway_toplevel_unmap(struct wl_listener *listener, void *data) {
 		toplevel->toplevel_scene_tree = NULL;
 	}
 
-	// TODO: Generic unmap function
-
-	if (toplevel->fullscreen) {
-		comp_toplevel_set_fullscreen(toplevel, false);
-	}
-
-	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
-	if (toplevel == toplevel->server->seat->grabbed_toplevel) {
-		comp_cursor_reset_cursor_mode(toplevel->server->seat);
-	}
-
-	wl_list_remove(&toplevel->workspace_link);
-	wl_list_remove(&toplevel->focus_link);
-
 	listener_remove(&toplevel_xway->commit);
 	listener_remove(&toplevel_xway->surface_tree_destroy);
 
-	comp_seat_surface_unfocus(comp_toplevel_get_wlr_surface(toplevel), true);
+	comp_toplevel_generic_unmap(toplevel);
 }
 
 static void xway_toplevel_associate(struct wl_listener *listener, void *data) {
