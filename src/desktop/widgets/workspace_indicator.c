@@ -265,6 +265,8 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 	indicator->widget.shadow_data.color =
 		wlr_render_color_from_color(&(const uint32_t){TOPLEVEL_SHADOW_COLOR});
 	indicator->widget.shadow_data.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA;
+	indicator->widget.shadow_data.offset_x = TOPLEVEL_SHADOW_X_OFFSET;
+	indicator->widget.shadow_data.offset_y = TOPLEVEL_SHADOW_Y_OFFSET;
 	wlr_scene_buffer_set_shadow_data(indicator->widget.scene_buffer,
 									 indicator->widget.shadow_data);
 
