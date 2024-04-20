@@ -271,8 +271,10 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 	struct wlr_surface *focused_surface =
 		server->seat->wlr_seat->pointer_state.focused_surface;
 	/* Deny move/resize requests from unfocused clients. */
-	if (focused_surface && comp_toplevel_get_wlr_surface(toplevel) !=
-							   wlr_surface_get_root_surface(focused_surface)) {
+	struct wlr_surface *toplevel_surface =
+		comp_toplevel_get_wlr_surface(toplevel);
+	if (focused_surface &&
+		toplevel_surface != wlr_surface_get_root_surface(focused_surface)) {
 		return;
 	}
 
@@ -283,8 +285,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 	case COMP_CURSOR_PASSTHROUGH:
 		break;
 	case COMP_CURSOR_MOVE:;
-		if (focused_surface) {
-			comp_seat_surface_focus(&toplevel->object, focused_surface);
+		if (toplevel_surface) {
+			comp_seat_surface_focus(&toplevel->object, toplevel_surface);
 		}
 
 		// Adjust the toplevel coordinates to be root-relative
@@ -302,8 +304,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 		comp_toplevel_mark_dirty(toplevel);
 		break;
 	case COMP_CURSOR_RESIZE:;
-		if (focused_surface) {
-			comp_seat_surface_focus(&toplevel->object, focused_surface);
+		if (toplevel_surface) {
+			comp_seat_surface_focus(&toplevel->object, toplevel_surface);
 		}
 
 		struct wlr_box geo_box = comp_toplevel_get_geometry(toplevel);
