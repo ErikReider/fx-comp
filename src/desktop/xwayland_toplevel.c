@@ -349,6 +349,8 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 	toplevel_xway->parent_tree =
 		get_parent_tree(toplevel_xway->xwayland_surface);
 
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
+
 	// Insert the surface into the scene
 	toplevel->toplevel_scene_tree = wlr_scene_subsurface_tree_create(
 		toplevel->object.scene_tree, toplevel_xway->xwayland_surface->surface);
@@ -379,6 +381,8 @@ void xway_toplevel_unmap(struct wl_listener *listener, void *data) {
 		wlr_scene_node_destroy(&toplevel->toplevel_scene_tree->node);
 		toplevel->toplevel_scene_tree = NULL;
 	}
+
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
 
 	listener_remove(&toplevel_xway->commit);
 	listener_remove(&toplevel_xway->surface_tree_destroy);
