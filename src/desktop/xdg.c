@@ -65,6 +65,11 @@ static void xdg_set_size(struct comp_toplevel *toplevel, int width,
 	xdg_configure(toplevel, width, height, 0, 0);
 }
 
+static void xdg_set_resizing(struct comp_toplevel *toplevel, bool state) {
+	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	wlr_xdg_toplevel_set_resizing(toplevel_xdg->xdg_toplevel, state);
+}
+
 static void xdg_set_activated(struct comp_toplevel *toplevel, bool state) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
 	wlr_xdg_toplevel_set_activated(toplevel_xdg->xdg_toplevel, state);
@@ -105,6 +110,7 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.get_title = xdg_get_title,
 	.configure = xdg_configure,
 	.set_size = xdg_set_size,
+	.set_resizing = xdg_set_resizing,
 	.set_activated = xdg_set_activated,
 	.set_fullscreen = xdg_set_fullscreen,
 	.set_pid = xdg_set_pid,

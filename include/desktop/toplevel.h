@@ -89,6 +89,7 @@ struct comp_toplevel_impl {
 	void (*configure)(struct comp_toplevel *toplevel, int width, int height,
 					  int x, int y);
 	void (*set_size)(struct comp_toplevel *toplevel, int width, int height);
+	void (*set_resizing)(struct comp_toplevel *toplevel, bool state);
 	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
 	void (*set_tiled)(struct comp_toplevel *toplevel, bool state);
@@ -149,6 +150,7 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel);
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height);
+void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state);
 
 void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel);
 

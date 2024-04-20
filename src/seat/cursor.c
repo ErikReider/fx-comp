@@ -34,6 +34,10 @@ static void set_active_output_from_cursor_pos(struct comp_cursor *cursor) {
 }
 
 void comp_cursor_reset_cursor_mode(struct comp_seat *seat) {
+	if (seat->cursor->cursor_mode == COMP_CURSOR_RESIZE) {
+		comp_toplevel_set_resizing(seat->grabbed_toplevel, false);
+	}
+
 	/* Reset the cursor mode to passthrough. */
 	seat->cursor->cursor_mode = COMP_CURSOR_PASSTHROUGH;
 	seat->grabbed_toplevel = NULL;

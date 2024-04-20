@@ -321,6 +321,7 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 		server->seat->resize_edges = edges;
 
+		comp_toplevel_set_resizing(toplevel, true);
 		comp_toplevel_set_size(toplevel, geo_box.width, geo_box.height);
 		comp_toplevel_mark_dirty(toplevel);
 		break;
@@ -510,6 +511,12 @@ void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 
 	if (toplevel->impl && toplevel->impl->set_size) {
 		toplevel->impl->set_size(toplevel, width, height);
+	}
+}
+
+void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state) {
+	if (toplevel && toplevel->impl && toplevel->impl->set_resizing) {
+		toplevel->impl->set_resizing(toplevel, state);
 	}
 }
 

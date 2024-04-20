@@ -94,6 +94,10 @@ static void xway_set_size(struct comp_toplevel *toplevel, int width,
 	xway_configure(toplevel, width, height, xsurface->x, xsurface->y);
 }
 
+static void xway_set_resizing(struct comp_toplevel *toplevel, bool state) {
+	// no-op
+}
+
 static void xway_set_activated(struct comp_toplevel *toplevel, bool state) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 
@@ -131,6 +135,7 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.get_title = xway_get_title,
 	.configure = xway_configure,
 	.set_size = xway_set_size,
+	.set_resizing = xway_set_resizing,
 	.set_activated = xway_set_activated,
 	.set_fullscreen = xway_set_fullscreen,
 	.set_pid = xway_set_pid,
