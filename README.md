@@ -28,7 +28,7 @@ Todo:
 - [X] XWayland
     - [X] Regular surfaces
     - [X] Popups
-    - [ ] Effects
+    - [X] Effects
     - [X] Handling of CSD
     - [X] Unmanaged
 - [ ] Tearing support
