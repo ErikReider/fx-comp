@@ -119,7 +119,7 @@ static void xway_close(struct comp_toplevel *toplevel) {
 	wlr_xwayland_surface_close(xsurface);
 }
 
-static void xway_update(struct comp_toplevel *toplevel, int width, int height) {
+static void xway_marked_dirty_cb(struct comp_toplevel *toplevel) {
 	// no-op
 }
 
@@ -134,7 +134,7 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.set_activated = xway_set_activated,
 	.set_fullscreen = xway_set_fullscreen,
 	.set_pid = xway_set_pid,
-	.update = xway_update,
+	.marked_dirty_cb = xway_marked_dirty_cb,
 	.close = xway_close,
 };
 
@@ -262,8 +262,7 @@ static void xway_toplevel_set_decorations(struct wl_listener *listener,
 	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
 
 	toplevel->using_csd = xway_get_using_csd(xsurface);
-	comp_toplevel_update(toplevel, toplevel->object.width,
-						 toplevel->object.height);
+	comp_toplevel_mark_dirty(toplevel);
 }
 
 static void xway_toplevel_commit(struct wl_listener *listener, void *data) {
@@ -324,7 +323,9 @@ static void xway_toplevel_request_configure(struct wl_listener *listener,
 
 	wlr_xwayland_surface_configure(xsurface, event->x, event->y, event->width,
 								   event->height);
-	comp_toplevel_update(toplevel_xway->toplevel, event->width, event->height);
+	comp_toplevel_set_size(toplevel_xway->toplevel, event->width,
+						   event->height);
+	comp_toplevel_mark_dirty(toplevel_xway->toplevel);
 }
 
 static void handle_surface_tree_destroy(struct wl_listener *listener,

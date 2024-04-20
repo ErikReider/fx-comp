@@ -126,10 +126,8 @@ void comp_resize_edge_get_geometry(struct comp_resize_edge *edge, int *width,
 	const int CORNER_SIZE = titlebar->widget.corner_radius / 4 + RESIZE_WIDTH;
 	const int CORNER_SIZE_DELTA = CORNER_SIZE - RESIZE_WIDTH;
 
-	const int FULL_WIDTH =
-		titlebar->widget.object.width + BORDER_RESIZE_WIDTH * 2;
-	const int FULL_HEIGHT =
-		titlebar->widget.object.height + BORDER_RESIZE_WIDTH * 2;
+	const int FULL_WIDTH = titlebar->widget.width + BORDER_RESIZE_WIDTH * 2;
+	const int FULL_HEIGHT = titlebar->widget.height + BORDER_RESIZE_WIDTH * 2;
 
 	const int ORIGIN_X = -RESIZE_WIDTH;
 	const int ORIGIN_Y = -edge->toplevel->titlebar->bar_height - BORDER_WIDTH -

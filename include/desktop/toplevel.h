@@ -60,6 +60,14 @@ struct comp_toplevel {
 	bool fullscreen;
 	pid_t pid;
 
+	// The decorated size of the toplevel, if no decorations are visible, the
+	// size will be the same as the state.
+	struct {
+		int width;
+		int height;
+
+		int top_border_height;
+	} decorated_size;
 	// The current state
 	struct comp_toplevel_state state;
 	// Used to restore the state when exiting fullscreen
@@ -85,7 +93,7 @@ struct comp_toplevel_impl {
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
 	void (*set_tiled)(struct comp_toplevel *toplevel, bool state);
 	void (*set_pid)(struct comp_toplevel *toplevel);
-	void (*update)(struct comp_toplevel *toplevel, int width, int height);
+	void (*marked_dirty_cb)(struct comp_toplevel *toplevel);
 	void (*close)(struct comp_toplevel *toplevel);
 };
 
@@ -142,8 +150,7 @@ void comp_toplevel_set_pid(struct comp_toplevel *toplevel);
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height);
 
-void comp_toplevel_update(struct comp_toplevel *toplevel, int width,
-						  int height);
+void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 

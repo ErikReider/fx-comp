@@ -86,14 +86,15 @@ static void xdg_close(struct comp_toplevel *toplevel) {
 	wlr_xdg_toplevel_send_close(toplevel_xdg->xdg_toplevel);
 }
 
-static void xdg_update(struct comp_toplevel *toplevel, int width, int height) {
+static void xdg_marked_dirty_cb(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
 	if (toplevel_xdg->xdg_toplevel->base->client->shell->version >=
 			XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION &&
-		toplevel->object.width >= 0 && toplevel->object.height >= 0) {
+		toplevel->decorated_size.width >= 0 &&
+		toplevel->decorated_size.height >= 0) {
 		wlr_xdg_toplevel_set_bounds(toplevel_xdg->xdg_toplevel,
-									toplevel->object.width,
-									toplevel->object.height);
+									toplevel->decorated_size.width,
+									toplevel->decorated_size.height);
 	}
 }
 
@@ -107,7 +108,7 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.set_activated = xdg_set_activated,
 	.set_fullscreen = xdg_set_fullscreen,
 	.set_pid = xdg_set_pid,
-	.update = xdg_update,
+	.marked_dirty_cb = xdg_marked_dirty_cb,
 	.close = xdg_close,
 };
 

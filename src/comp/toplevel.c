@@ -75,8 +75,7 @@ static void restore_state(struct comp_toplevel *toplevel) {
 							   toplevel->saved_state.y);
 	comp_toplevel_set_size(toplevel, toplevel->saved_state.width,
 						   toplevel->saved_state.height);
-	comp_toplevel_update(toplevel, toplevel->saved_state.width,
-						 toplevel->saved_state.height);
+	comp_toplevel_mark_dirty(toplevel);
 
 	toplevel->saved_state.x = 0;
 	toplevel->saved_state.y = 0;
@@ -92,8 +91,8 @@ static struct comp_output *find_output(struct comp_toplevel *toplevel) {
 	int x, y;
 	wlr_scene_node_coords(&toplevel->object.scene_tree->node, &x, &y);
 
-	double center_x = x + (double)toplevel->object.width / 2;
-	double center_y = y + (double)toplevel->object.height / 2;
+	double center_x = x + (double)toplevel->decorated_size.width / 2;
+	double center_y = y + (double)toplevel->decorated_size.height / 2;
 	struct comp_output *closest_output = NULL;
 	double closest_distance = DBL_MAX;
 
@@ -211,20 +210,32 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 
 	// Respect minimum sizes
 	if (max_width != min_width) {
-		new_width = MAX(min_width, MIN(max_width, new_width));
+		if (max_width) {
+			new_width = MIN(max_width, new_width);
+		}
+		if (min_width) {
+			new_width = MAX(min_width, new_width);
+		}
 	}
 	if (max_height != min_height) {
-		new_height = MAX(min_height, MIN(max_height, new_height));
+		if (max_height) {
+			new_height = MIN(max_height, new_height);
+		}
+		if (min_height) {
+			new_height = MAX(min_height, new_height);
+		}
 	}
 
 	comp_toplevel_set_size(toplevel, new_width, new_height);
+	comp_toplevel_mark_dirty(toplevel);
 }
 
 uint32_t
 comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
 										  struct comp_cursor *cursor) {
 	uint32_t edge = 0;
-	if (toplevel->object.width == 0 || toplevel->object.height == 0) {
+	if (toplevel->decorated_size.width == 0 ||
+		toplevel->decorated_size.height == 0) {
 		return edge;
 	}
 
@@ -232,7 +243,7 @@ comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
 	wlr_scene_node_coords(&toplevel->object.scene_tree->node, &lx, &ly);
 
 	const double y =
-		MAX(0, (cursor->wlr_cursor->y - ly) / toplevel->object.height);
+		MAX(0, (cursor->wlr_cursor->y - ly) / toplevel->decorated_size.height);
 	if (y > 0.5) {
 		edge |= WLR_EDGE_BOTTOM;
 	} else if (y < 0.5) {
@@ -240,7 +251,7 @@ comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
 	}
 
 	const double x =
-		MAX(0, (cursor->wlr_cursor->x - lx) / toplevel->object.width);
+		MAX(0, (cursor->wlr_cursor->x - lx) / toplevel->decorated_size.width);
 	if (x > 0.5) {
 		edge |= WLR_EDGE_RIGHT;
 	} else if (x < 0.5) {
@@ -288,8 +299,7 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 							   toplevel->object.scene_tree->node.y -
 							   output_box.y;
 
-		comp_toplevel_update(toplevel, toplevel->object.width,
-							 toplevel->object.height);
+		comp_toplevel_mark_dirty(toplevel);
 		break;
 	case COMP_CURSOR_RESIZE:;
 		if (focused_surface) {
@@ -311,15 +321,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 		server->seat->resize_edges = edges;
 
-		toplevel->state.width = geo_box.width;
-		toplevel->state.height = geo_box.height;
-		toplevel->object.width = geo_box.width + 2 * BORDER_WIDTH;
-		toplevel->object.height = geo_box.height + BORDER_WIDTH;
-		if (!comp_titlebar_should_be_shown(toplevel)) {
-			toplevel->object.height += BORDER_WIDTH;
-		}
-		comp_toplevel_update(toplevel, toplevel->object.width,
-							 toplevel->object.height);
+		comp_toplevel_set_size(toplevel, geo_box.width, geo_box.height);
+		comp_toplevel_mark_dirty(toplevel);
 		break;
 	}
 }
@@ -489,69 +492,51 @@ void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height) {
+	toplevel->state.width = width;
+	toplevel->state.height = height;
+
+	// Set decoration size
+	toplevel->decorated_size.width = width + 2 * BORDER_WIDTH;
+	toplevel->decorated_size.height = height + 2 * BORDER_WIDTH;
+
+	struct comp_titlebar *titlebar = toplevel->titlebar;
+	comp_titlebar_calculate_bar_height(titlebar);
+	int *top_border_height = &toplevel->decorated_size.top_border_height;
+	*top_border_height = BORDER_WIDTH;
+	if (comp_titlebar_should_be_shown(toplevel)) {
+		toplevel->decorated_size.height += toplevel->titlebar->bar_height;
+		*top_border_height += toplevel->titlebar->bar_height;
+	}
+
 	if (toplevel->impl && toplevel->impl->set_size) {
 		toplevel->impl->set_size(toplevel, width, height);
 	}
 }
 
-void comp_toplevel_update(struct comp_toplevel *toplevel, int width,
-						  int height) {
-	toplevel->object.width = width;
-	toplevel->object.height = height;
-
+void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel) {
 	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
 							   !toplevel->fullscreen);
 
 	struct comp_titlebar *titlebar = toplevel->titlebar;
-	comp_titlebar_calculate_bar_height(titlebar);
 
-	if (toplevel->impl && toplevel->impl->update) {
-		toplevel->impl->update(toplevel, width, height);
+	if (toplevel->impl && toplevel->impl->marked_dirty_cb) {
+		toplevel->impl->marked_dirty_cb(toplevel);
 	}
 
 	if (!toplevel->fullscreen) {
 		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
-		int top_border_height = BORDER_WIDTH;
-		if (show_full_titlebar) {
-			top_border_height += toplevel->titlebar->bar_height;
-		}
-
-		// Limit to the toplevels constraints
-		int max_width, max_height, min_width, min_height;
-		comp_toplevel_get_constraints(toplevel, &min_width, &max_width,
-									  &min_height, &max_height);
-		toplevel->object.width =
-			fmax(min_width + (2 * BORDER_WIDTH), toplevel->object.width);
-		toplevel->object.height =
-			fmax(min_height + BORDER_WIDTH, toplevel->object.height);
-
-		if (max_width > 0 && !(2 * BORDER_WIDTH > INT_MAX - max_width)) {
-			toplevel->object.width =
-				fmin(max_width + (2 * BORDER_WIDTH), toplevel->object.width);
-		}
-		if (max_height > 0 &&
-			!(top_border_height + BORDER_WIDTH > INT_MAX - max_height)) {
-			toplevel->object.height =
-				fmin(max_height + top_border_height + BORDER_WIDTH,
-					 toplevel->object.height);
-		}
-
-		struct wlr_box geo_box = comp_toplevel_get_geometry(toplevel);
-		toplevel->state.width = fmax(fmin(geo_box.width, max_width), min_width);
-		toplevel->state.height =
-			fmax(fmin(geo_box.height, max_height), min_height);
 
 		// Only redraw the titlebar if the size has changed
-		int decoration_height = top_border_height + toplevel->object.height;
 		if (toplevel->titlebar &&
-			(titlebar->widget.object.width != toplevel->object.width ||
-			 titlebar->widget.object.height != decoration_height)) {
-			comp_widget_draw_resize(&titlebar->widget, toplevel->object.width,
-									decoration_height);
+			(titlebar->widget.width != toplevel->decorated_size.width ||
+			 titlebar->widget.height != toplevel->decorated_size.height)) {
+			comp_widget_draw_resize(&titlebar->widget,
+									toplevel->decorated_size.width,
+									toplevel->decorated_size.height);
 			// Position the titlebar above the window
 			wlr_scene_node_set_position(
 				&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
-				-top_border_height);
+				-toplevel->decorated_size.top_border_height);
 
 			// Adjust edges
 			for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
@@ -668,13 +653,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 	// Set geometry
 	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
-	toplevel->state.width = geometry.width;
-	toplevel->state.height = geometry.height;
-	toplevel->object.width = geometry.width + 2 * BORDER_WIDTH;
-	toplevel->object.height = geometry.height + BORDER_WIDTH;
-	if (!comp_titlebar_should_be_shown(toplevel)) {
-		toplevel->object.height += BORDER_WIDTH;
-	}
+	comp_toplevel_set_size(toplevel, geometry.width, geometry.height);
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 		// Open new floating toplevels in the center of the output
@@ -683,11 +662,10 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 								  toplevel->state.workspace->output->wlr_output,
 								  &output_box);
 		comp_toplevel_set_position(
-			toplevel, (output_box.width - toplevel->object.width) / 2,
-			(output_box.height - toplevel->object.height) / 2);
+			toplevel, (output_box.width - toplevel->decorated_size.width) / 2,
+			(output_box.height - toplevel->decorated_size.height) / 2);
 
-		comp_toplevel_update(toplevel, toplevel->object.width,
-							 toplevel->object.height);
+		comp_toplevel_mark_dirty(toplevel);
 	} else {
 		// Tile the new toplevel
 		// TODO: Tile
@@ -716,29 +694,7 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 }
 
 void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
-	// Set geometry
-	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
-	bool new_size = geometry.width != toplevel->state.width ||
-					geometry.height != toplevel->state.height;
-	toplevel->state.width = geometry.width;
-	toplevel->state.height = geometry.height;
-	toplevel->object.width = geometry.width;
-	toplevel->object.height = geometry.height;
-
-	if (!toplevel->fullscreen) {
-		// Compensate for borders
-		toplevel->object.width += 2 * BORDER_WIDTH;
-		toplevel->object.height += BORDER_WIDTH;
-		if (!comp_titlebar_should_be_shown(toplevel)) {
-			toplevel->object.height += BORDER_WIDTH;
-		}
-	}
-
-	if (new_size) {
-		comp_toplevel_update(toplevel, toplevel->object.width,
-							 toplevel->object.height);
-		comp_toplevel_configure(toplevel, toplevel->state.width,
-								toplevel->state.height, toplevel->state.x,
-								toplevel->state.y);
-	}
+	comp_toplevel_configure(toplevel, toplevel->state.width,
+							toplevel->state.height, toplevel->state.x,
+							toplevel->state.y);
 }

@@ -103,8 +103,8 @@ void comp_widget_pointer_leave(struct comp_widget *widget) {
 
 void comp_widget_draw_resize(struct comp_widget *widget, int width,
 							 int height) {
-	widget->object.width = width;
-	widget->object.height = height;
+	widget->width = width;
+	widget->height = height;
 	wlr_scene_buffer_set_dest_size(widget->scene_buffer, width, height);
 
 	if (widget->impl->draw == NULL || width <= 0 || height <= 0) {
@@ -182,15 +182,13 @@ clear_damage:
 }
 
 void comp_widget_draw_damaged(struct comp_widget *widget) {
-	comp_widget_draw_resize(widget, widget->object.width,
-							widget->object.height);
+	comp_widget_draw_resize(widget, widget->width, widget->height);
 }
 
 void comp_widget_draw_full(struct comp_widget *widget) {
-	pixman_region32_init_rect(&widget->damage, 0, 0, widget->object.width,
-							  widget->object.height);
-	comp_widget_draw_resize(widget, widget->object.width,
-							widget->object.height);
+	pixman_region32_init_rect(&widget->damage, 0, 0, widget->width,
+							  widget->height);
+	comp_widget_draw_resize(widget, widget->width, widget->height);
 }
 
 void comp_widget_center_on_output(struct comp_widget *widget,
@@ -202,7 +200,7 @@ void comp_widget_center_on_output(struct comp_widget *widget,
 	}
 
 	struct wlr_scene_node *node = &widget->object.scene_tree->node;
-	int width = (output->geometry.width - widget->object.width) / 2;
-	int height = (output->geometry.height - widget->object.height) / 2;
+	int width = (output->geometry.width - widget->width) / 2;
+	int height = (output->geometry.height - widget->height) / 2;
 	wlr_scene_node_set_position(node, width, height);
 }

@@ -29,6 +29,9 @@ struct comp_widget {
 	struct comp_object object;
 	struct comp_object *parent_object;
 
+	int width;
+	int height;
+
 	bool sets_cursor; // If the widget sets it's own cursor or not
 
 	// Signals

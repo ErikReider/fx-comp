@@ -29,7 +29,7 @@ void comp_titlebar_change_title(struct comp_titlebar *titlebar) {
 	if (comp_titlebar_should_be_shown(titlebar->toplevel)) {
 		pixman_region32_union_rect(
 			&titlebar->widget.damage, &titlebar->widget.damage, 0, BORDER_WIDTH,
-			titlebar->widget.object.width, titlebar->bar_height);
+			titlebar->widget.width, titlebar->bar_height);
 		comp_widget_draw_damaged(&titlebar->widget);
 	}
 }
@@ -235,11 +235,11 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 
 	const int button_left_padding =
 		titlebar->buttons.on_right
-			? titlebar->widget.object.width - total_button_width - button_margin
+			? titlebar->widget.width - total_button_width - button_margin
 			: button_margin;
 
 	const int max_text_width =
-		MAX(0, titlebar->widget.object.width -
+		MAX(0, titlebar->widget.width -
 				   (total_button_width + button_margin * 2) * 2);
 
 	/*
