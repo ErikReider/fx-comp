@@ -313,15 +313,6 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 		return;
 	}
 
-	/*
-	 * Initialize GTK if not initialized
-	 */
-	if (!server->initialized_gtk && !gtk_init_check(NULL, NULL)) {
-		wlr_log(WLR_ERROR, "Failed to initialize GTK");
-		wl_display_terminate(server->wl_display);
-		return;
-	}
-
 	/* Configures the output created by the backend to use our allocator
 	 * and our renderer. Must be done once, before commiting the output */
 	wlr_output_init_render(wlr_output, server->allocator, server->renderer);

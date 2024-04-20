@@ -59,8 +59,6 @@ struct comp_server {
 	struct wl_listener new_output;
 	struct wl_listener layout_change;
 
-	bool initialized_gtk;
-
 	struct comp_animation_mgr *animation_mgr;
 };
 

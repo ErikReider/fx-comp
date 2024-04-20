@@ -1,6 +1,7 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <getopt.h>
+#include <pthread.h>
 #include <scenefx/render/fx_renderer/fx_renderer.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
@@ -82,6 +83,16 @@ static void create_output(struct wlr_backend *backend, void *data) {
 #endif
 }
 
+/** Initialize GTK */
+static void *init_gtk(void *attr) {
+	wlr_log(WLR_INFO, "Initializing GTK");
+	if (!gtk_init_check(NULL, NULL)) {
+		wlr_log(WLR_ERROR, "Failed to initialize GTK");
+	}
+
+	return NULL;
+}
+
 int main(int argc, char *argv[]) {
 	char *startup_cmd = NULL;
 	enum wlr_log_importance log_importance = WLR_ERROR;
@@ -124,8 +135,6 @@ int main(int argc, char *argv[]) {
 	}
 
 	wlr_log_init(log_importance, NULL);
-
-	server.initialized_gtk = false;
 
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
@@ -399,6 +408,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	pthread_t init_gtk_thread;
+	pthread_create(&init_gtk_thread, NULL, init_gtk, NULL);
+
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
 	 * loop configuration to listen to libinput events, DRM events, generate
@@ -406,10 +418,11 @@ int main(int argc, char *argv[]) {
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
 			socket);
 	wl_display_run(server.wl_display);
+	// Once wl_display_run returns, we destroy all clients then shut down the
+	// server.
 
+	pthread_cancel(init_gtk_thread);
 	wlr_xwayland_destroy(server.xwayland_mgr.wlr_xwayland);
-	/* Once wl_display_run returns, we destroy all clients then shut down the
-	 * server. */
 	wl_display_destroy_clients(server.wl_display);
 	comp_cursor_destroy(server.seat->cursor);
 	wlr_output_layout_destroy(server.output_layout);
