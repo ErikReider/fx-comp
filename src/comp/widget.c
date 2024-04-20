@@ -101,7 +101,7 @@ void comp_widget_pointer_leave(struct comp_widget *widget) {
 	}
 }
 
-void comp_widget_draw_resize(struct comp_widget *widget, int width,
+static void comp_widget_draw(struct comp_widget *widget, int width,
 							 int height) {
 	widget->width = width;
 	widget->height = height;
@@ -182,13 +182,23 @@ clear_damage:
 }
 
 void comp_widget_draw_damaged(struct comp_widget *widget) {
-	comp_widget_draw_resize(widget, widget->width, widget->height);
+	comp_widget_draw(widget, widget->width, widget->height);
 }
 
 void comp_widget_draw_full(struct comp_widget *widget) {
+	pixman_region32_fini(&widget->damage);
 	pixman_region32_init_rect(&widget->damage, 0, 0, widget->width,
 							  widget->height);
-	comp_widget_draw_resize(widget, widget->width, widget->height);
+	comp_widget_draw(widget, widget->width, widget->height);
+}
+
+void comp_widget_draw_resize(struct comp_widget *widget, int width,
+							 int height) {
+	if (widget->width != width || widget->height != height) {
+		pixman_region32_fini(&widget->damage);
+		pixman_region32_init_rect(&widget->damage, 0, 0, width, height);
+	}
+	comp_widget_draw(widget, width, height);
 }
 
 void comp_widget_center_on_output(struct comp_widget *widget,

@@ -3,8 +3,7 @@
 #include <wayland-util.h>
 
 #include "comp/object.h"
-#include "comp/widget.h"
-#include "desktop/widgets/titlebar.h"
+#include "desktop/toplevel.h"
 #include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
 
@@ -21,7 +20,9 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	toplevel->using_csd =
 		client_mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 
-	comp_widget_draw_full(&toplevel->titlebar->widget);
+	comp_toplevel_set_size(toplevel, toplevel->state.width,
+						   toplevel->state.height);
+	comp_toplevel_mark_dirty(toplevel);
 
 	if (floating && client_mode) {
 		mode = client_mode;
