@@ -8,7 +8,7 @@
 #include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
 
-static void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
+void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	struct comp_xdg_toplevel *toplevel_xdg = deco->toplevel;
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 

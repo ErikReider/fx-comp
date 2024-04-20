@@ -134,6 +134,19 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	struct comp_xdg_toplevel *toplevel_xdg =
 		wl_container_of(listener, toplevel_xdg, commit);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
+	struct wlr_xdg_surface *xdg_surface = toplevel_xdg->xdg_toplevel->base;
+
+	if (xdg_surface->initial_commit) {
+		if (toplevel_xdg->xdg_decoration != NULL) {
+			set_xdg_decoration_mode(toplevel_xdg->xdg_decoration);
+		}
+		wlr_xdg_surface_schedule_configure(xdg_surface);
+		return;
+	}
+
+	if (!xdg_surface->surface->mapped) {
+		return;
+	}
 
 	comp_toplevel_generic_commit(toplevel);
 }
