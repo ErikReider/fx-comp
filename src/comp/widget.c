@@ -201,6 +201,12 @@ void comp_widget_draw_resize(struct comp_widget *widget, int width,
 	comp_widget_draw(widget, width, height);
 }
 
+void comp_widget_damage_full(struct comp_widget *widget) {
+	pixman_region32_fini(&widget->damage);
+	pixman_region32_init_rect(&widget->damage, 0, 0, widget->width,
+							  widget->height);
+}
+
 void comp_widget_center_on_output(struct comp_widget *widget,
 								  struct comp_output *output) {
 	// Override the default centering logic if needed

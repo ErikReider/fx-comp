@@ -134,6 +134,7 @@ static void resize_and_draw(struct comp_ws_indicator *indicator) {
 					  OVERLAY_PADDING * 2 +
 					  OVERLAY_PADDING * (num_workspaces - 1);
 	const int height = indicator->item_height + OVERLAY_PADDING * 2;
+	comp_widget_damage_full(&indicator->widget);
 	comp_widget_draw_resize(&indicator->widget, width, height);
 }
 

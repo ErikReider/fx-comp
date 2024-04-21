@@ -75,6 +75,7 @@ void comp_widget_pointer_leave(struct comp_widget *widget);
 void comp_widget_draw_resize(struct comp_widget *widget, int width, int height);
 /** Only draws the damaged areas */
 void comp_widget_draw_damaged(struct comp_widget *widget);
+void comp_widget_damage_full(struct comp_widget *widget);
 /** Redraws the full widget (fully damaged) */
 void comp_widget_draw_full(struct comp_widget *widget);
 
