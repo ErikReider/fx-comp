@@ -200,30 +200,31 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	int new_width = new_right - new_left;
 	int new_height = new_bottom - new_top;
 
-	int max_width, max_height, min_width, min_height;
-	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
-								  &max_height);
-
 	struct wlr_box geo_box = comp_toplevel_get_geometry(toplevel);
 	comp_toplevel_set_position(toplevel, new_left - geo_box.x,
 							   new_top - geo_box.y);
 
-	// Respect minimum sizes
-	if (max_width != min_width) {
-		if (max_width) {
-			new_width = MIN(max_width, new_width);
-		}
-		if (min_width) {
-			new_width = MAX(min_width, new_width);
-		}
+	// Don't allow resizing fixed sized toplevels
+	int max_width, max_height, min_width, min_height;
+	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
+								  &max_height);
+	if (min_width != 0 && min_height != 0 &&
+		(min_width == max_width || min_height == max_height)) {
+		return;
 	}
-	if (max_height != min_height) {
-		if (max_height) {
-			new_height = MIN(max_height, new_height);
-		}
-		if (min_height) {
-			new_height = MAX(min_height, new_height);
-		}
+
+	// Respect minimum and maximum sizes
+	if (max_width) {
+		new_width = MIN(max_width, new_width);
+	}
+	if (min_width) {
+		new_width = MAX(min_width, new_width);
+	}
+	if (max_height) {
+		new_height = MIN(max_height, new_height);
+	}
+	if (min_height) {
+		new_height = MAX(min_height, new_height);
 	}
 
 	comp_toplevel_set_size(toplevel, new_width, new_height);
