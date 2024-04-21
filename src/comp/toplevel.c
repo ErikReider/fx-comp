@@ -482,7 +482,8 @@ void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state) {
 }
 
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
-	if (toplevel->fullscreen == state) {
+	if (toplevel->fullscreen == state ||
+		!comp_toplevel_can_fullscreen(toplevel)) {
 		return;
 	}
 	toplevel->fullscreen = state;
@@ -518,6 +519,19 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel) {
 	comp_toplevel_set_fullscreen(toplevel, !toplevel->fullscreen);
+}
+
+bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel) {
+	// Don't allow resizing fixed sized toplevels
+	int max_width, max_height, min_width, min_height;
+	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
+								  &max_height);
+	if (min_width != 0 && min_height != 0 &&
+		(min_width == max_width || min_height == max_height)) {
+		return false;
+	}
+
+	return true;
 }
 
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
