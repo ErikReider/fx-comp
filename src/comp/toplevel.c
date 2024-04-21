@@ -400,9 +400,32 @@ void comp_toplevel_apply_effects(struct wlr_scene_tree *tree,
 								   iter_scene_buffers_apply_effects, toplevel);
 }
 
+void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
+										 struct wlr_scene_tree *parent) {
+	if (!parent) {
+		// Move back out of the parent tree
+		struct wlr_scene_tree *layer = comp_toplevel_get_layer(toplevel);
+		if (toplevel->object.scene_tree->node.parent != layer) {
+			wlr_scene_node_reparent(&toplevel->object.scene_tree->node, layer);
+		}
+		return;
+	}
+
+	wlr_scene_node_reparent(&toplevel->object.scene_tree->node, parent);
+}
+
 char *comp_toplevel_get_title(struct comp_toplevel *toplevel) {
 	if (toplevel->impl && toplevel->impl->get_title) {
 		return toplevel->impl->get_title(toplevel);
+	}
+
+	return NULL;
+}
+
+struct wlr_scene_tree *
+comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel) {
+	if (toplevel->impl && toplevel->impl->get_parent_tree) {
+		return toplevel->impl->get_parent_tree(toplevel);
 	}
 
 	return NULL;
@@ -437,6 +460,15 @@ void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
 
 void comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
 							 int height, int x, int y) {
+	// Offset the configure events coordinates to be relative to the workspace,
+	// not the parent
+	if (toplevel->parent_tree) {
+		int lx, ly;
+		wlr_scene_node_coords(&toplevel->parent_tree->node, &lx, &ly);
+		x += lx;
+		y += ly;
+	}
+
 	if (toplevel->impl && toplevel->impl->configure) {
 		toplevel->impl->configure(toplevel, width, height, x, y);
 	}
@@ -569,6 +601,7 @@ void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y) {
 	toplevel->state.x = x;
 	toplevel->state.y = y;
 	wlr_scene_node_set_position(&toplevel->object.scene_tree->node, x, y);
+
 	struct wlr_box geo = comp_toplevel_get_geometry(toplevel);
 	comp_toplevel_configure(toplevel, geo.width, geo.height, x, y);
 }
@@ -580,7 +613,11 @@ void comp_toplevel_close(struct comp_toplevel *toplevel) {
 }
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
-	wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
+	// Only destroy if no parent or if the parent hasn't been destroyed yet
+	if (!toplevel->parent_tree ||
+		(toplevel->parent_tree && !toplevel->parent_tree->node.data)) {
+		wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
+	}
 
 	free(toplevel);
 }
@@ -658,6 +695,12 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 	comp_toplevel_set_pid(toplevel);
 
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
+
+	// Move into parent tree if there's a parent
+	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
+	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
+
 	comp_toplevel_apply_effects(toplevel->toplevel_scene_tree, toplevel);
 
 	// Set geometry
@@ -665,14 +708,21 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	comp_toplevel_set_size(toplevel, geometry.width, geometry.height);
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-		// Open new floating toplevels in the center of the output
-		struct wlr_box output_box;
-		wlr_output_layout_get_box(toplevel->server->output_layout,
-								  toplevel->state.workspace->output->wlr_output,
-								  &output_box);
+		// Open new floating toplevels in the center of the output/parent
+		struct comp_object *parent_object = NULL;
+		struct wlr_box relative_box = {0};
+		if (toplevel->parent_tree &&
+			(parent_object = toplevel->parent_tree->node.data) &&
+			parent_object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
+			relative_box = comp_toplevel_get_geometry(parent_object->data);
+		} else {
+			wlr_output_layout_get_box(
+				toplevel->server->output_layout,
+				toplevel->state.workspace->output->wlr_output, &relative_box);
+		}
 		comp_toplevel_set_position(
-			toplevel, (output_box.width - toplevel->decorated_size.width) / 2,
-			(output_box.height - toplevel->decorated_size.height) / 2);
+			toplevel, (relative_box.width - toplevel->decorated_size.width) / 2,
+			(relative_box.height - toplevel->decorated_size.height) / 2);
 
 		comp_toplevel_mark_dirty(toplevel);
 	} else {
@@ -691,6 +741,8 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 	if (toplevel->fullscreen) {
 		comp_toplevel_set_fullscreen(toplevel, false);
 	}
+
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
 
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
 	if (toplevel == toplevel->server->seat->grabbed_toplevel) {

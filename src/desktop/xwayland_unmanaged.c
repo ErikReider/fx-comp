@@ -73,7 +73,7 @@ static void unmanaged_map(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, unmanaged, map);
 	struct wlr_xwayland_surface *xsurface = unmanaged->xwayland_surface;
 
-	unmanaged->parent_tree = get_parent_tree(xsurface);
+	unmanaged->parent_tree = xsurface_get_parent_tree(xsurface);
 
 	// Tries to attach to the parent
 	if (!unmanaged->parent_tree) {
@@ -204,7 +204,7 @@ struct comp_xwayland_unmanaged *
 xway_create_unmanaged(struct wlr_xwayland_surface *xsurface) {
 	struct comp_xwayland_unmanaged *unmanaged = calloc(1, sizeof(*unmanaged));
 	unmanaged->xwayland_surface = xsurface;
-	unmanaged->parent_tree = get_parent_tree(xsurface);
+	unmanaged->parent_tree = xsurface_get_parent_tree(xsurface);
 
 	unmanaged->object.scene_tree = NULL;
 	unmanaged->object.data = unmanaged;

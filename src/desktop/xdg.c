@@ -54,6 +54,17 @@ static char *xdg_get_title(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
+static struct wlr_scene_tree *
+xdg_get_parent_tree(struct comp_toplevel *toplevel) {
+	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	struct wlr_xdg_toplevel *xdg_toplevel = toplevel_xdg->xdg_toplevel;
+	if (xdg_toplevel && xdg_toplevel->parent) {
+		return xdg_toplevel->parent->base->data;
+	}
+
+	return NULL;
+}
+
 static void xdg_configure(struct comp_toplevel *toplevel, int width, int height,
 						  int x, int y) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
@@ -108,6 +119,7 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.get_constraints = xdg_get_constraints,
 	.get_wlr_surface = xdg_get_wlr_surface,
 	.get_title = xdg_get_title,
+	.get_parent_tree = xdg_get_parent_tree,
 	.configure = xdg_configure,
 	.set_size = xdg_set_size,
 	.set_resizing = xdg_set_resizing,
@@ -163,6 +175,8 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xdg, destroy);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
+	comp_toplevel_destroy(toplevel);
+
 	toplevel->toplevel_xdg = NULL;
 
 	wl_list_remove(&toplevel_xdg->map.link);
@@ -171,8 +185,6 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel_xdg->destroy.link);
 
 	free(toplevel_xdg);
-
-	comp_toplevel_destroy(toplevel);
 }
 
 static void xdg_toplevel_request_move(struct wl_listener *listener,
@@ -318,6 +330,10 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	toplevel->fullscreen = is_fullscreen;
 	toplevel->toplevel_xdg = toplevel_xdg;
 	toplevel_xdg->toplevel = toplevel;
+
+	// Move into parent tree if there's a parent
+	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
+	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
 
 	/*
 	 * Scene

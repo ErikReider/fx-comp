@@ -40,6 +40,7 @@ struct comp_toplevel {
 
 	struct comp_object object;
 
+	struct wlr_scene_tree *parent_tree;
 	struct wlr_scene_tree *decoration_scene_tree;
 	struct wlr_scene_tree *toplevel_scene_tree;
 
@@ -86,6 +87,7 @@ struct comp_toplevel_impl {
 	struct wlr_surface *(*get_wlr_surface)(struct comp_toplevel *toplevel);
 	char *(*get_title)(struct comp_toplevel *toplevel);
 	bool (*get_always_floating)(struct comp_toplevel *toplevel);
+	struct wlr_scene_tree *(*get_parent_tree)(struct comp_toplevel *toplevel);
 	void (*configure)(struct comp_toplevel *toplevel, int width, int height,
 					  int x, int y);
 	void (*set_size)(struct comp_toplevel *toplevel, int width, int height);
@@ -124,6 +126,12 @@ struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
 /** Set the effects for each scene_buffer */
 void comp_toplevel_apply_effects(struct wlr_scene_tree *tree,
 								 struct comp_toplevel *toplevel);
+/**
+ * Moves the toplevel into it's parent tree if it exists. Otherwise, move it
+ * into the correct layer.
+ */
+void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
+										 struct wlr_scene_tree *parent);
 
 /*
  * Implementation functions
@@ -139,6 +147,8 @@ char *comp_toplevel_get_title(struct comp_toplevel *toplevel);
  * i.e don't allow tiling
  */
 bool comp_toplevel_get_always_floating(struct comp_toplevel *toplevel);
+struct wlr_scene_tree *
+comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel);
 struct wlr_surface *
 comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel);
 void comp_toplevel_configure(struct comp_toplevel *toplevel, int width,

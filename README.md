@@ -31,6 +31,8 @@ Todo:
     - [X] Effects
     - [X] Handling of CSD
     - [X] Unmanaged
+    - [X] Transient checks
+    - [ ] XCursor theme support
 - [ ] Tearing support
 - [ ] Adaptive sync support
 - [ ] WLR Portal support

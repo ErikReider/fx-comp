@@ -10,10 +10,8 @@
  * XWayland
  */
 
-struct wlr_scene_tree *get_parent_tree(struct wlr_xwayland_surface *xsurface);
-
-void move_into_parent_tree(struct comp_toplevel *toplevel,
-						   struct wlr_scene_tree *parent);
+struct wlr_scene_tree *
+xsurface_get_parent_tree(struct wlr_xwayland_surface *xsurface);
 
 /*
  * XWayland Toplevel
@@ -21,7 +19,6 @@ void move_into_parent_tree(struct comp_toplevel *toplevel,
 
 struct comp_xwayland_toplevel {
 	struct comp_toplevel *toplevel;
-	struct wlr_scene_tree *parent_tree;
 
 	struct wlr_xwayland_surface *xwayland_surface;
 

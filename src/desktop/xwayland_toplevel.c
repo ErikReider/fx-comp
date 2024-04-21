@@ -82,6 +82,12 @@ static char *xway_get_title(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
+static struct wlr_scene_tree *
+xway_get_parent_tree(struct comp_toplevel *toplevel) {
+	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
+	return xsurface_get_parent_tree(xsurface);
+}
+
 static void xway_configure(struct comp_toplevel *toplevel, int width,
 						   int height, int x, int y) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
@@ -133,6 +139,7 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.get_constraints = xway_get_constraints,
 	.get_wlr_surface = xway_get_wlr_surface,
 	.get_title = xway_get_title,
+	.get_parent_tree = xway_get_parent_tree,
 	.configure = xway_configure,
 	.set_size = xway_set_size,
 	.set_resizing = xway_set_resizing,
@@ -278,8 +285,6 @@ static void xway_toplevel_commit(struct wl_listener *listener, void *data) {
 	comp_toplevel_generic_commit(toplevel);
 }
 
-void xway_toplevel_unmap(struct wl_listener *listener, void *data);
-
 static void xway_toplevel_destroy(struct wl_listener *listener, void *data) {
 	struct comp_xwayland_toplevel *toplevel_xway =
 		wl_container_of(listener, toplevel_xway, destroy);
@@ -289,6 +294,8 @@ static void xway_toplevel_destroy(struct wl_listener *listener, void *data) {
 		listener_emit(&toplevel_xway->unmap, NULL);
 		listener_remove(&toplevel_xway->commit);
 	}
+
+	comp_toplevel_destroy(toplevel);
 
 	toplevel_xway->xwayland_surface = NULL;
 	toplevel->toplevel_xway = NULL;
@@ -307,8 +314,6 @@ static void xway_toplevel_destroy(struct wl_listener *listener, void *data) {
 	listener_remove(&toplevel_xway->associate);
 	listener_remove(&toplevel_xway->dissociate);
 	listener_remove(&toplevel_xway->override_redirect);
-
-	comp_toplevel_destroy(toplevel);
 
 	free(toplevel_xway);
 }
@@ -345,12 +350,6 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xway, map);
 	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
 
-	// TODO: Generic transient function instead
-	toplevel_xway->parent_tree =
-		get_parent_tree(toplevel_xway->xwayland_surface);
-
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
-
 	// Insert the surface into the scene
 	toplevel->toplevel_scene_tree = wlr_scene_subsurface_tree_create(
 		toplevel->object.scene_tree, toplevel_xway->xwayland_surface->surface);
@@ -371,7 +370,7 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 							xsurface->height, xsurface->x, xsurface->y);
 }
 
-void xway_toplevel_unmap(struct wl_listener *listener, void *data) {
+static void xway_toplevel_unmap(struct wl_listener *listener, void *data) {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	struct comp_xwayland_toplevel *toplevel_xway =
 		wl_container_of(listener, toplevel_xway, unmap);
@@ -381,8 +380,6 @@ void xway_toplevel_unmap(struct wl_listener *listener, void *data) {
 		wlr_scene_node_destroy(&toplevel->toplevel_scene_tree->node);
 		toplevel->toplevel_scene_tree = NULL;
 	}
-
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
 
 	listener_remove(&toplevel_xway->commit);
 	listener_remove(&toplevel_xway->surface_tree_destroy);
@@ -440,7 +437,6 @@ xway_create_toplevel(struct wlr_xwayland_surface *xsurface) {
 	struct comp_xwayland_toplevel *toplevel_xway =
 		calloc(1, sizeof(*toplevel_xway));
 	toplevel_xway->xwayland_surface = xsurface;
-	toplevel_xway->parent_tree = get_parent_tree(xsurface);
 
 	bool is_fullscreen = xsurface->fullscreen;
 	// Add the toplevel to the tiled/floating layer
@@ -464,7 +460,9 @@ xway_create_toplevel(struct wlr_xwayland_surface *xsurface) {
 	toplevel_xway->toplevel = toplevel;
 	toplevel_xway->xwayland_surface->data = toplevel->object.scene_tree;
 
-	move_into_parent_tree(toplevel, toplevel_xway->parent_tree);
+	// Move into parent tree if there's a parent
+	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
+	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
 
 	/*
 	 * Initialize listeners
