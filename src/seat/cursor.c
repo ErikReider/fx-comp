@@ -8,6 +8,7 @@
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/edges.h>
+#include <wlr/util/log.h>
 #include <wlr/util/region.h>
 
 #include "comp/object.h"
@@ -18,7 +19,6 @@
 #include "desktop/toplevel.h"
 #include "seat/cursor.h"
 #include "seat/seat.h"
-#include "wlr/util/log.h"
 
 static void set_active_output_from_cursor_pos(struct comp_cursor *cursor) {
 	// Use cursor position by default

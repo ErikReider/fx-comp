@@ -7,6 +7,7 @@
 #include <wayland-util.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/util/log.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 
@@ -644,6 +645,10 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 				   enum comp_tiling_mode tiling_mode, bool fullscreen,
 				   const struct comp_toplevel_impl *impl) {
 	struct comp_toplevel *toplevel = calloc(1, sizeof(*toplevel));
+	if (!toplevel) {
+		wlr_log(WLR_ERROR, "Could not allocate comp_toplevel");
+		return NULL;
+	}
 	toplevel->server = &server;
 	toplevel->type = type;
 	toplevel->using_csd = false;

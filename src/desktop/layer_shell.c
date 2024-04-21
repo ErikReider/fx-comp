@@ -183,6 +183,10 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 
 	struct comp_layer_surface *layer_surface =
 		calloc(1, sizeof(*layer_surface));
+	if (!layer_surface) {
+		wlr_log(WLR_ERROR, "Could not allocate comp_layer_surface");
+		return;
+	}
 	layer_surface->server = server;
 	/* Set the scene_nodes decoration data */
 	layer_surface->opacity = 1;

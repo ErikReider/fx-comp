@@ -436,6 +436,10 @@ struct comp_xwayland_toplevel *
 xway_create_toplevel(struct wlr_xwayland_surface *xsurface) {
 	struct comp_xwayland_toplevel *toplevel_xway =
 		calloc(1, sizeof(*toplevel_xway));
+	if (!toplevel_xway) {
+		wlr_log(WLR_ERROR, "Could not allocate comp_xwayland_toplevel");
+		return NULL;
+	}
 	toplevel_xway->xwayland_surface = xsurface;
 
 	bool is_fullscreen = xsurface->fullscreen;

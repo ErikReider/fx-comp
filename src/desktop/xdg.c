@@ -307,6 +307,10 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	}
 
 	struct comp_xdg_toplevel *toplevel_xdg = calloc(1, sizeof(*toplevel_xdg));
+	if (!toplevel_xdg) {
+		wlr_log(WLR_ERROR, "Could not allocate comp XDG toplevel");
+		return;
+	}
 	toplevel_xdg->xdg_toplevel = xdg_surface->toplevel;
 	bool is_fullscreen = toplevel_xdg->xdg_toplevel->requested.fullscreen;
 

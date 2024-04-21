@@ -1,5 +1,6 @@
 #include <stdlib.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
@@ -199,6 +200,10 @@ void comp_keyboard_create(struct comp_seat *seat,
 	struct wlr_keyboard *wlr_keyboard = wlr_keyboard_from_input_device(device);
 
 	struct comp_keyboard *keyboard = calloc(1, sizeof(*keyboard));
+	if (!keyboard) {
+		wlr_log(WLR_ERROR, "Could not allocate comp_keyboard");
+		return;
+	}
 	keyboard->server = seat->server;
 	keyboard->seat = seat;
 	keyboard->wlr_keyboard = wlr_keyboard;

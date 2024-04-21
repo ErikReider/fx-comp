@@ -461,7 +461,7 @@ static void handle_minimize_click(struct comp_widget *widget,
 struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 										 struct comp_toplevel *toplevel) {
 	struct comp_titlebar *titlebar = calloc(1, sizeof(struct comp_titlebar));
-	if (titlebar == NULL) {
+	if (!titlebar) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar");
 		return NULL;
 	}
@@ -518,14 +518,35 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 
 	// Close
 	titlebar->buttons.close.data = malloc(sizeof(int));
+	if (!titlebar->buttons.close.data) {
+		wlr_log(WLR_ERROR, "Could not allocate titlebar close button data");
+		goto malloc_close_button_err;
+	}
 	*((int *)titlebar->buttons.close.data) = COMP_TITLEBAR_BUTTON_CLOSE;
 	// Fullscreen
 	titlebar->buttons.fullscreen.data = malloc(sizeof(int));
+	if (!titlebar->buttons.fullscreen.data) {
+		wlr_log(WLR_ERROR,
+				"Could not allocate titlebar fullscreen button data");
+		goto malloc_fullscreen_button_err;
+	}
 	*((int *)titlebar->buttons.fullscreen.data) =
 		COMP_TITLEBAR_BUTTON_FULLSCREEN;
 	// Minimize
 	titlebar->buttons.minimize.data = malloc(sizeof(int));
+	if (!titlebar->buttons.minimize.data) {
+		wlr_log(WLR_ERROR, "Could not allocate titlebar minimize button data");
+		goto malloc_minimize_button_err;
+	}
 	*((int *)titlebar->buttons.minimize.data) = COMP_TITLEBAR_BUTTON_MINIMIZE;
 
 	return titlebar;
+
+malloc_minimize_button_err:
+	free(titlebar->buttons.fullscreen.data);
+malloc_fullscreen_button_err:
+	free(titlebar->buttons.close.data);
+malloc_close_button_err:
+	free(titlebar);
+	return NULL;
 }

@@ -392,6 +392,10 @@ void comp_seat_surface_focus(struct comp_object *object,
 
 struct comp_seat *comp_seat_create(struct comp_server *server) {
 	struct comp_seat *seat = calloc(1, sizeof(*seat));
+	if (!seat) {
+		wlr_log(WLR_ERROR, "Could not allocate comp_seat");
+		return NULL;
+	}
 	seat->server = server;
 
 	wl_list_init(&seat->focus_order);

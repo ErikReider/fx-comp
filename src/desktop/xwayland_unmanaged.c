@@ -203,6 +203,10 @@ static void unmanaged_override_redirect(struct wl_listener *listener,
 struct comp_xwayland_unmanaged *
 xway_create_unmanaged(struct wlr_xwayland_surface *xsurface) {
 	struct comp_xwayland_unmanaged *unmanaged = calloc(1, sizeof(*unmanaged));
+	if (!unmanaged) {
+		wlr_log(WLR_ERROR, "Could not allocate comp_xwayland_unmanaged");
+		return NULL;
+	}
 	unmanaged->xwayland_surface = xsurface;
 	unmanaged->parent_tree = xsurface_get_parent_tree(xsurface);
 

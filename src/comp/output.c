@@ -276,6 +276,10 @@ static void output_destroy(struct wl_listener *listener, void *data) {
 struct comp_output *comp_output_create(struct comp_server *server,
 									   struct wlr_output *wlr_output) {
 	struct comp_output *output = calloc(1, sizeof(*output));
+	if (!output) {
+		wlr_log(WLR_ERROR, "Could not allocate comp_output");
+		return NULL;
+	}
 	output->wlr_output = wlr_output;
 	wlr_output->data = output;
 	output->server = server;
@@ -338,6 +342,10 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 
 	/* Allocates and configures our state for this output */
 	struct comp_output *output = comp_output_create(server, wlr_output);
+	if (!output) {
+		wlr_output_destroy(wlr_output);
+		return;
+	}
 
 	if (server->active_output == NULL) {
 		server->active_output = output;
@@ -446,7 +454,7 @@ void comp_output_update_sizes(struct comp_output *output) {
 
 void comp_output_move_workspace_to(struct comp_output *dest_output,
 								   struct comp_workspace *ws) {
-	if (ws->output == dest_output || !ws) {
+	if (!ws || ws->output == dest_output) {
 		return;
 	}
 
