@@ -10,6 +10,7 @@
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 
+#include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/workspace.h"
@@ -763,7 +764,23 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 	if (toplevel == toplevel->server->seat->grabbed_toplevel) {
 		comp_cursor_reset_cursor_mode(toplevel->server->seat);
 	}
-	comp_seat_surface_unfocus(comp_toplevel_get_wlr_surface(toplevel), true);
+
+	// Focus parent toplevel if applicable
+	struct comp_toplevel *parent_toplevel = NULL;
+	if (toplevel->parent_tree) {
+		struct comp_object *parent = toplevel->parent_tree->node.data;
+		if (parent && parent->type == COMP_OBJECT_TYPE_TOPLEVEL) {
+			parent_toplevel = parent->data;
+		}
+	}
+	// Only focus the previous toplevel if the unmapped toplevel doesn't have a
+	// parent
+	comp_seat_surface_unfocus(comp_toplevel_get_wlr_surface(toplevel),
+							  parent_toplevel == NULL);
+	if (parent_toplevel) {
+		comp_seat_surface_focus(&parent_toplevel->object,
+								comp_toplevel_get_wlr_surface(parent_toplevel));
+	}
 
 	wl_list_remove(&toplevel->workspace_link);
 	wl_list_remove(&toplevel->focus_link);
