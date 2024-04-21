@@ -20,6 +20,7 @@ Todo:
 - [ ] ext_workspace_unstable_v1
 - [ ] foreign toplevel for ironbar support
 - [ ] Tiling
+- [ ] Lock support
 - [x] Fullscreen
 - [ ] Fullscreen titlebar on top hover
     - [ ] Delay
@@ -41,3 +42,9 @@ Todo:
     - [ ] Hotkeys
     - [ ] programs on workspaces
     - [ ] start tiled
+    - [ ] Exec applications
+- [ ] Misc
+    - [ ] Re creating the renderer after it's lost
+    - [ ] VR support?
+    - [ ] Hypr protocols support
+    - [ ] Hyprcursor support
