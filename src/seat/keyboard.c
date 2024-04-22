@@ -42,6 +42,7 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 	struct comp_output *output = get_active_output(server);
 	struct comp_workspace *workspace = output->active_workspace;
 
+	struct comp_toplevel *focused_toplevel = server->seat->focused_toplevel;
 	switch (modifier) {
 	case WLR_MODIFIER_ALT:
 		switch (sym) {
@@ -60,12 +61,17 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 				comp_toplevel_get_wlr_surface(next_toplevel));
 			break;
 
+		case XKB_KEY_Q:;
+			if (focused_toplevel) {
+				comp_toplevel_close(focused_toplevel);
+			}
+			return true;
+
 		case XKB_KEY_f:
 		case XKB_KEY_F:;
 			// Toggle fullscreen
-			struct comp_toplevel *toplevel = server->seat->focused_toplevel;
-			if (toplevel) {
-				comp_toplevel_toggle_fullscreen(toplevel);
+			if (focused_toplevel) {
+				comp_toplevel_toggle_fullscreen(focused_toplevel);
 			}
 			return true;
 
