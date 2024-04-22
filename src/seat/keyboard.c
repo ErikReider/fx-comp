@@ -7,10 +7,12 @@
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/workspace.h"
+#include "constants.h"
 #include "desktop/toplevel.h"
 #include "seat/cursor.h"
 #include "seat/keyboard.h"
 #include "seat/seat.h"
+#include "util.h"
 
 static void keyboard_handle_modifiers(struct wl_listener *listener,
 									  void *data) {
@@ -65,6 +67,10 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			if (focused_toplevel) {
 				comp_toplevel_close(focused_toplevel);
 			}
+			return true;
+
+		case XKB_KEY_Return:
+			exec(TERM);
 			return true;
 
 		case XKB_KEY_f:

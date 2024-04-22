@@ -5,6 +5,9 @@
 #include <math.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdlib.h>
+#include <sys/resource.h>
+#include <sys/wait.h>
+#include <unistd.h>
 #include <wayland-util.h>
 #include <wlr/util/log.h>
 
@@ -16,6 +19,50 @@
 
 int wrap(int i, int max) {
 	return ((i % max) + max) % max;
+}
+
+void exec(char *cmd) {
+	int fd[2];
+	if (pipe(fd) != 0) {
+		wlr_log(WLR_ERROR, "Unable to create pipe for fork");
+	}
+
+	pid_t child = fork(), grand_child;
+	if (child < 0) {
+		close(fd[0]);
+		close(fd[1]);
+		wlr_log(WLR_ERROR, "fork() failed");
+		return;
+	} else if (child == 0) {
+		// Fork child process again
+		setsid();
+
+		sigset_t set;
+		sigemptyset(&set);
+		sigprocmask(SIG_SETMASK, &set, NULL);
+
+		signal(SIGPIPE, SIG_DFL);
+		close(fd[0]);
+
+		grand_child = fork();
+		if (grand_child == 0) {
+			close(fd[1]);
+			execlp("sh", "sh", "-c", cmd, NULL);
+			wlr_log(WLR_ERROR, "execlp failed");
+			_exit(1);
+		}
+
+		write(fd[1], &grand_child, sizeof(grand_child));
+		close(fd[1]);
+		// Exit the child process
+		_exit(0);
+	}
+
+	close(fd[1]); // close write
+	read(fd[0], &grand_child, sizeof(grand_child));
+	close(fd[0]);
+	// cleanup child process
+	waitpid(child, NULL, 0);
 }
 
 /* Wayland Helpers */

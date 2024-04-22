@@ -11,13 +11,15 @@
 
 int wrap(int i, int max);
 
+void exec(char *cmd);
+
 /* Wayland Helpers */
 
 void listener_init(struct wl_listener *listener);
 void listener_connect(struct wl_signal *signal, struct wl_listener *listener,
 					  wl_notify_func_t notify);
 void listener_remove(struct wl_listener *listener);
-void listener_emit(struct wl_listener *listener, void * data);
+void listener_emit(struct wl_listener *listener, void *data);
 
 /* wlroots */
 

@@ -8,6 +8,8 @@
 
 #define EFFECTS_CORNER_RADII 14
 
+#define TERM "kitty"
+
 /*
  * Overlays
  */
