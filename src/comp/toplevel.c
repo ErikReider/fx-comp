@@ -391,6 +391,7 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	switch (toplevel->tiling_mode) {
 	case COMP_TILING_MODE_FLOATING:
 		wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
+		break;
 	case COMP_TILING_MODE_TILED:
 		wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
 		break;
