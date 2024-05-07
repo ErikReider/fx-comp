@@ -1,8 +1,8 @@
 #define _POSIX_C_SOURCE 200809L
 
 #include <getopt.h>
-#include <scenefx/fx_renderer/fx_renderer.h>
-#include <scenefx/types/fx/blur_data.h>
+#include <pthread.h>
+#include <scenefx/render/fx_renderer/fx_renderer.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -23,6 +23,7 @@
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
+#include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
@@ -39,14 +40,18 @@
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
+#include <wlr/xwayland.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/output.h"
-#include "comp/seat.h"
 #include "comp/server.h"
 #include "constants.h"
+#include "desktop/layer_shell.h"
 #include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
 #include "seat/cursor.h"
+#include "seat/seat.h"
+#include "util.h"
 
 struct comp_server server = {0};
 
@@ -76,6 +81,16 @@ static void create_output(struct wlr_backend *backend, void *data) {
 		*done = true;
 	}
 #endif
+}
+
+/** Initialize GTK */
+static void *init_gtk(void *attr) {
+	wlr_log(WLR_INFO, "Initializing GTK");
+	if (!gtk_init_check(NULL, NULL)) {
+		wlr_log(WLR_ERROR, "Failed to initialize GTK");
+	}
+
+	return NULL;
 }
 
 int main(int argc, char *argv[]) {
@@ -124,6 +139,11 @@ int main(int argc, char *argv[]) {
 	/* The Wayland display is managed by libwayland. It handles accepting
 	 * clients from the Unix socket, manging Wayland globals, and so on. */
 	server.wl_display = wl_display_create();
+
+	server.wl_event_loop = wl_display_get_event_loop(server.wl_display);
+	// Initialize animation manager
+	server.animation_mgr = comp_animation_mgr_init();
+
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
 	 * backend based on the current environment, such as opening an X11 window
@@ -175,7 +195,8 @@ int main(int argc, char *argv[]) {
 	 * to dig your fingers in and play with their behavior if you want. Note
 	 * that the clients cannot set the selection directly without compositor
 	 * approval, see the handling of the request_set_selection event below.*/
-	wlr_compositor_create(server.wl_display, 5, server.renderer);
+	server.compositor =
+		wlr_compositor_create(server.wl_display, 5, server.renderer);
 	wlr_subcompositor_create(server.wl_display);
 	wlr_data_device_manager_create(server.wl_display);
 
@@ -268,14 +289,34 @@ int main(int argc, char *argv[]) {
 				  &server.new_xdg_surface);
 
 	/*
-	 * Cursor
+	 * Layer shell
 	 */
 
+	server.layer_shell = wlr_layer_shell_v1_create(server.wl_display, 4);
+	server.new_layer_surface.notify = layer_shell_new_surface;
+	wl_signal_add(&server.layer_shell->events.new_surface,
+				  &server.new_layer_surface);
+
 	/*
-	 * Creates a cursor, which is a wlroots utility for tracking the cursor
-	 * image shown on screen.
+	 * XWayland
 	 */
-	server.cursor = comp_cursor_create(&server);
+
+	server.xwayland_mgr.wlr_xwayland =
+		wlr_xwayland_create(server.wl_display, server.compositor, false);
+	if (!server.xwayland_mgr.wlr_xwayland) {
+		wlr_log(WLR_ERROR, "Failed to start Xwayland");
+		unsetenv("DISPLAY");
+	} else {
+		listener_init(&server.new_xwayland_surface);
+		listener_connect(&server.xwayland_mgr.wlr_xwayland->events.new_surface,
+						 &server.new_xwayland_surface, xwayland_new_surface);
+
+		listener_init(&server.xwayland_ready);
+		listener_connect(&server.xwayland_mgr.wlr_xwayland->events.ready,
+						 &server.xwayland_ready, xwayland_ready_cb);
+
+		setenv("DISPLAY", server.xwayland_mgr.wlr_xwayland->display_name, true);
+	}
 
 	server.relative_pointer_manager =
 		wlr_relative_pointer_manager_v1_create(server.wl_display);
@@ -288,25 +329,10 @@ int main(int argc, char *argv[]) {
 	// 			  &server.pointer_constraint);
 
 	/*
-	 * Keyboard
+	 * Seat
 	 */
 
-	/*
-	 * Configures a seat, which is a single "seat" at which a user sits and
-	 * operates the computer. This conceptually includes up to one keyboard,
-	 * pointer, touch, and drawing tablet device. We also rig up a listener to
-	 * let us know when new input devices are available on the backend.
-	 */
-	wl_list_init(&server.keyboards);
-	server.new_input.notify = comp_seat_new_input;
-	wl_signal_add(&server.backend->events.new_input, &server.new_input);
-	server.seat = wlr_seat_create(server.wl_display, "seat0");
-	server.request_cursor.notify = comp_seat_request_cursor;
-	wl_signal_add(&server.seat->events.request_set_cursor,
-				  &server.request_cursor);
-	server.request_set_selection.notify = comp_seat_request_set_selection;
-	wl_signal_add(&server.seat->events.request_set_selection,
-				  &server.request_set_selection);
+	server.seat = comp_seat_create(&server);
 
 	/*
 	 * Init protocols
@@ -388,6 +414,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	pthread_t init_gtk_thread;
+	pthread_create(&init_gtk_thread, NULL, init_gtk, NULL);
+
 	/* Run the Wayland event loop. This does not return until you exit the
 	 * compositor. Starting the backend rigged up all of the necessary event
 	 * loop configuration to listen to libinput events, DRM events, generate
@@ -395,12 +424,15 @@ int main(int argc, char *argv[]) {
 	wlr_log(WLR_INFO, "Running Wayland compositor on WAYLAND_DISPLAY=%s",
 			socket);
 	wl_display_run(server.wl_display);
+	// Once wl_display_run returns, we destroy all clients then shut down the
+	// server.
 
-	/* Once wl_display_run returns, we destroy all clients then shut down the
-	 * server. */
+	pthread_cancel(init_gtk_thread);
+	wlr_xwayland_destroy(server.xwayland_mgr.wlr_xwayland);
 	wl_display_destroy_clients(server.wl_display);
-	comp_cursor_destroy(server.cursor);
+	comp_cursor_destroy(server.seat->cursor);
 	wlr_output_layout_destroy(server.output_layout);
+	comp_animation_mgr_destroy(server.animation_mgr);
 	wl_display_destroy(server.wl_display);
 	wlr_scene_node_destroy(&server.root_scene->tree.node);
 

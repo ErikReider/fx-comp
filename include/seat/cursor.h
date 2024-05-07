@@ -10,6 +10,7 @@
 
 struct comp_cursor {
 	struct comp_server *server;
+	struct comp_seat *seat;
 	struct wlr_cursor *wlr_cursor;
 	struct {
 		double x, y;
@@ -45,10 +46,10 @@ struct comp_cursor {
 	size_t pressed_button_count;
 };
 
-void comp_cursor_reset_cursor_mode(struct comp_server *server);
+void comp_cursor_reset_cursor_mode(struct comp_seat *seat);
 
 void comp_cursor_destroy(struct comp_cursor *cursor);
 
-struct comp_cursor *comp_cursor_create(struct comp_server *server);
+struct comp_cursor *comp_cursor_create(struct comp_seat *seat);
 
 #endif // !FX_COMP_SEAT_CURSOR_H

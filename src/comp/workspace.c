@@ -10,28 +10,16 @@
 #include "desktop/toplevel.h"
 #include "util.h"
 
-int comp_workspace_find_index(struct wl_list *list, struct comp_workspace *ws) {
-	int pos = 0;
-	struct comp_workspace *pos_ws;
-	wl_list_for_each_reverse(pos_ws, list, output_link) {
-		if (pos_ws == ws) {
-			return pos;
-		}
-		pos++;
-	}
-	return -1;
-}
-
 void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 									 struct comp_toplevel *toplevel) {
-	if (toplevel->workspace == dest_workspace) {
+	if (toplevel->state.workspace == dest_workspace) {
 		return;
 	}
 	wlr_log(WLR_DEBUG, "Changing toplevel output from: '%s' to '%s'\n",
-			toplevel->workspace->output->wlr_output->name,
+			toplevel->state.workspace->output->wlr_output->name,
 			dest_workspace->output->wlr_output->name);
 	wl_list_remove(&toplevel->workspace_link);
-	toplevel->workspace = dest_workspace;
+	toplevel->state.workspace = dest_workspace;
 	wl_list_insert(&dest_workspace->toplevels, &toplevel->workspace_link);
 
 	int x, y;
@@ -44,10 +32,10 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 	// Adjust the node coordinates to be output-relative
 	double lx = x;
 	double ly = y;
-	wlr_output_layout_output_coords(server.output_layout,
-									toplevel->workspace->output->wlr_output,
-									&lx, &ly);
-	wlr_scene_node_set_position(&toplevel->object.scene_tree->node, lx, ly);
+	wlr_output_layout_output_coords(
+		server.output_layout, toplevel->state.workspace->output->wlr_output,
+		&lx, &ly);
+	comp_toplevel_set_position(toplevel, lx, ly);
 }
 
 struct comp_workspace *comp_workspace_new(struct comp_output *output,
@@ -62,26 +50,40 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 	ws->output = output;
 
 	// Create workspace tree
-	ws->workspace_tree = alloc_tree(output->layers.workspaces);
-	if (!ws->workspace_tree) {
+	ws->object.scene_tree = alloc_tree(output->layers.workspaces);
+	if (!ws->object.scene_tree) {
 		return NULL;
 	}
+	ws->object.scene_tree->node.data = &ws->object;
+	ws->object.data = ws;
+	ws->object.type = COMP_OBJECT_TYPE_WORKSPACE;
+
 	// Create tiled/fullscreen
-	ws->layers.lower = alloc_tree(ws->workspace_tree);
+	ws->layers.lower = alloc_tree(ws->object.scene_tree);
 	if (!ws->layers.lower) {
 		return NULL;
 	}
-	ws->layers.lower->node.data = ws;
+	ws->layers.lower->node.data = &ws->object;
 	// Create floating
-	ws->layers.floating = alloc_tree(ws->workspace_tree);
+	ws->layers.floating = alloc_tree(ws->object.scene_tree);
 	if (!ws->layers.floating) {
 		return NULL;
 	}
-	ws->layers.floating->node.data = ws;
+	ws->layers.floating->node.data = &ws->object;
+	// Create unmanaged
+	ws->layers.unmanaged = alloc_tree(ws->object.scene_tree);
+	if (!ws->layers.unmanaged) {
+		return NULL;
+	}
+	ws->layers.unmanaged->node.data = &ws->object;
 
 	wl_list_init(&ws->toplevels);
 
-	wl_list_insert(&output->workspaces, &ws->output_link);
+	// Insert next to active workspace
+	struct wl_list *pos = output->active_workspace
+							  ? output->active_workspace->output_link.prev
+							  : &output->workspaces;
+	wl_list_insert(pos, &ws->output_link);
 
 	comp_output_focus_workspace(output, ws);
 
@@ -91,7 +93,7 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 void comp_workspace_destroy(struct comp_workspace *ws) {
 	wl_list_remove(&ws->output_link);
 
-	wlr_scene_node_destroy(&ws->workspace_tree->node);
+	wlr_scene_node_destroy(&ws->object.scene_tree->node);
 
 	free(ws);
 }

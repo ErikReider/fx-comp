@@ -1,8 +1,12 @@
 #ifndef FX_COMP_SERVER_H
 #define FX_COMP_SERVER_H
 
+#include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wlr/util/box.h>
+
+#include "comp/animation_mgr.h"
+#include "comp/xwayland_mgr.h"
 
 /* For brevity's sake, struct members are annotated where they are used. */
 enum comp_cursor_mode {
@@ -17,31 +21,32 @@ struct comp_server {
 	struct wlr_backend *backend;
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
+	struct wl_event_loop *wl_event_loop;
+	struct wlr_compositor *compositor;
 
 	struct wlr_scene *root_scene;
 	struct wlr_scene_output_layout *scene_layout;
 
+	// XDG
 	struct wlr_xdg_shell *xdg_shell;
 	struct wl_listener new_xdg_surface;
 	struct wl_listener new_xdg_decoration;
 	struct wl_list xdg_decorations;
 
-	struct comp_cursor *cursor;
+	// Layer Shell
+	struct wlr_layer_shell_v1 *layer_shell;
+	struct wl_listener new_layer_surface;
+
+	// XWayland
+	struct comp_xwayland_mgr xwayland_mgr;
+	struct wl_listener new_xwayland_surface;
+	struct wl_listener xwayland_ready;
 
 	struct wlr_pointer_constraints_v1 *pointer_constraints;
 	struct wl_listener pointer_constraint;
 	struct wlr_relative_pointer_manager_v1 *relative_pointer_manager;
 
-	struct wlr_seat *seat;
-	struct wl_listener new_input;
-	struct wl_listener request_cursor;
-	struct wl_listener request_set_selection;
-	struct wl_list keyboards;
-	struct comp_widget *hovered_widget;
-	struct comp_toplevel *grabbed_toplevel;
-	double grab_x, grab_y;
-	struct wlr_box grab_geobox;
-	uint32_t resize_edges;
+	struct comp_seat *seat;
 
 	struct wlr_output_manager_v1 *output_manager;
 	struct wl_listener output_manager_apply;
@@ -53,10 +58,11 @@ struct comp_server {
 	struct comp_output *fallback_output;
 	struct wl_listener new_output;
 	struct wl_listener layout_change;
+
+	struct comp_animation_mgr *animation_mgr;
 };
 
 extern struct comp_server server;
-
 
 void comp_server_layout_change(struct wl_listener *listener, void *data);
 void comp_server_output_manager_apply(struct wl_listener *listener, void *data);

@@ -5,6 +5,8 @@
 #include <wayland-server-core.h>
 #include <wayland-util.h>
 
+#include "comp/object.h"
+#include "desktop/toplevel.h"
 #include "server.h"
 
 enum comp_workspace_type {
@@ -19,24 +21,31 @@ struct comp_workspace {
 
 	struct comp_output *output;
 
-	struct wlr_scene_tree *workspace_tree;
+	// Geometry never set
+	struct comp_object object;
+
+	// struct wlr_scene_tree *workspace_tree;
 	struct {
-		struct wlr_scene_tree *lower; // Used for tiled / fullscreen
+		// Used for tiled / fullscreen
+		struct wlr_scene_tree *lower;
+		// Floating toplevels
 		struct wlr_scene_tree *floating;
+		// for unmanaged toplevels without a parent
+		struct wlr_scene_tree *unmanaged;
 	} layers;
 
 	// Toplevels and Popups. Also contains the focus order
 	struct wl_list toplevels;
+
+	struct comp_toplevel *fullscreen_toplevel;
 };
 
 /*
  * Util
  */
 
-int comp_workspace_find_index(struct wl_list *list, struct comp_workspace *ws);
-
 void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
-									  struct comp_toplevel *toplevel);
+									 struct comp_toplevel *toplevel);
 
 /*
  * Main
