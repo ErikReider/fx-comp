@@ -37,15 +37,6 @@ add_project_arguments(
 	language: 'c',
 )
 
-# Execute the scenefx subproject, if any
-scenefx_version = '0.1'
-subproject(
-	'scenefx',
-	required: false,
-	version: scenefx_version,
-)
-scenefx = dependency('scenefx', version: scenefx_version)
-
 # Execute the wlroots subproject, if any
 wlroots_options = [ 'examples=false' ]
 wlroots_version = ['>=0.17.0', '<0.18.0']
@@ -59,6 +50,15 @@ wlroots = dependency('wlroots',
 	version: wlroots_version,
 	default_options: wlroots_options,
 )
+
+# Execute the scenefx subproject, if any
+scenefx_version = '0.1'
+subproject(
+	'scenefx',
+	required: false,
+	version: scenefx_version,
+)
+scenefx = dependency('scenefx', version: scenefx_version)
 
 cc = meson.get_compiler('c')
 
