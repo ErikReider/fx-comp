@@ -584,6 +584,8 @@ void comp_output_arrange_output(struct comp_output *output) {
 							   !is_fullscreen);
 	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
 							   !is_fullscreen);
+	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node,
+							   !is_fullscreen);
 	wlr_scene_node_set_enabled(&output->layers.shell_top->node, !is_fullscreen);
 
 	if (is_fullscreen) {
