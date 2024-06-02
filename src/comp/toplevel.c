@@ -7,9 +7,9 @@
 #include <wayland-util.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
-#include <wlr/util/log.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
+#include <wlr/util/log.h>
 
 #include "comp/object.h"
 #include "comp/output.h"
@@ -425,6 +425,14 @@ char *comp_toplevel_get_title(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
+bool comp_toplevel_get_always_floating(struct comp_toplevel *toplevel) {
+	if (toplevel->impl && toplevel->impl->get_always_floating) {
+		return toplevel->impl->get_always_floating(toplevel);
+	}
+
+	return false;
+}
+
 struct wlr_scene_tree *
 comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel) {
 	if (toplevel->impl && toplevel->impl->get_parent_tree) {
@@ -534,6 +542,27 @@ bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel) {
 	}
 
 	return true;
+}
+
+void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
+	if (comp_toplevel_get_always_floating(toplevel)) {
+		state = false;
+	}
+
+	// Switch layer tree
+	toplevel->tiling_mode =
+		state ? COMP_TILING_MODE_TILED : COMP_TILING_MODE_FLOATING;
+	comp_toplevel_move_into_parent_tree(toplevel,
+										comp_toplevel_get_layer(toplevel));
+
+	if (toplevel->impl && toplevel->impl->set_tiled) {
+		toplevel->impl->set_tiled(toplevel, state);
+	}
+}
+
+void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel) {
+	comp_toplevel_set_tiled(toplevel,
+							toplevel->tiling_mode == COMP_TILING_MODE_FLOATING);
 }
 
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
@@ -744,12 +773,12 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 		comp_toplevel_set_position(
 			toplevel, (relative_box.width - toplevel->decorated_size.width) / 2,
 			(relative_box.height - toplevel->decorated_size.height) / 2);
-
-		comp_toplevel_mark_dirty(toplevel);
 	} else {
 		// Tile the new toplevel
 		// TODO: Tile
+		comp_toplevel_set_position(toplevel, 0, 0);
 	}
+	comp_toplevel_mark_dirty(toplevel);
 
 	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
 

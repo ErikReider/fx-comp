@@ -74,6 +74,12 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			return true;
 
 		case XKB_KEY_f:
+			// Toggle between tiling and floating
+			if (focused_toplevel) {
+				comp_toplevel_toggle_tiled(focused_toplevel);
+			}
+			return true;
+
 		case XKB_KEY_F:;
 			// Toggle fullscreen
 			if (focused_toplevel) {

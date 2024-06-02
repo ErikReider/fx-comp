@@ -82,6 +82,35 @@ static char *xway_get_title(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
+static bool xway_get_always_floating(struct comp_toplevel *toplevel) {
+	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
+	struct comp_xwayland_mgr *xwayland = &server.xwayland_mgr;
+
+	if (xsurface->modal) {
+		return true;
+	}
+
+	for (size_t i = 0; i < xsurface->window_type_len; ++i) {
+		xcb_atom_t type = xsurface->window_type[i];
+		if (type == xwayland->atoms[NET_WM_WINDOW_TYPE_DIALOG] ||
+			type == xwayland->atoms[NET_WM_WINDOW_TYPE_UTILITY] ||
+			type == xwayland->atoms[NET_WM_WINDOW_TYPE_TOOLBAR] ||
+			type == xwayland->atoms[NET_WM_WINDOW_TYPE_SPLASH]) {
+			return true;
+		}
+	}
+
+	xcb_size_hints_t *size_hints = xsurface->size_hints;
+	if (size_hints != NULL && size_hints->min_width > 0 &&
+		size_hints->min_height > 0 &&
+		(size_hints->max_width == size_hints->min_width ||
+		 size_hints->max_height == size_hints->min_height)) {
+		return true;
+	}
+
+	return false;
+}
+
 static struct wlr_scene_tree *
 xway_get_parent_tree(struct comp_toplevel *toplevel) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
@@ -120,6 +149,11 @@ static void xway_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	wlr_xwayland_surface_set_fullscreen(xsurface, state);
 }
 
+static void xway_set_tiled(struct comp_toplevel *toplevel, bool state) {
+	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
+	wlr_xwayland_surface_set_maximized(xsurface, state);
+}
+
 static void xway_set_pid(struct comp_toplevel *toplevel) {
 	toplevel->pid = get_xsurface(toplevel)->pid;
 }
@@ -139,12 +173,14 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.get_constraints = xway_get_constraints,
 	.get_wlr_surface = xway_get_wlr_surface,
 	.get_title = xway_get_title,
+	.get_always_floating = xway_get_always_floating,
 	.get_parent_tree = xway_get_parent_tree,
 	.configure = xway_configure,
 	.set_size = xway_set_size,
 	.set_resizing = xway_set_resizing,
 	.set_activated = xway_set_activated,
 	.set_fullscreen = xway_set_fullscreen,
+	.set_tiled = xway_set_tiled,
 	.set_pid = xway_set_pid,
 	.marked_dirty_cb = xway_marked_dirty_cb,
 	.close = xway_close,

@@ -289,6 +289,9 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->object.data = output;
 	output->object.type = COMP_OBJECT_TYPE_OUTPUT;
 
+	// Tiling layout
+	output->tiling_layout.output = output;
+
 	// Initialize layers
 	output->layers.shell_background = alloc_tree(output->object.scene_tree);
 	output->layers.shell_bottom = alloc_tree(output->object.scene_tree);
