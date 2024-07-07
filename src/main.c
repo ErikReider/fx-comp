@@ -246,6 +246,12 @@ int main(int argc, char *argv[]) {
 	 */
 	server.root_scene = wlr_scene_create();
 
+	// Set the wlr_scene blur_data
+	struct blur_data blur_data = blur_data_get_default();
+	blur_data.radius = 5;
+	blur_data.num_passes = 3;
+	wlr_scene_set_blur_data(server.root_scene, blur_data);
+
 	server.scene_layout =
 		wlr_scene_attach_output_layout(server.root_scene, server.output_layout);
 	if (server.scene_layout == NULL) {

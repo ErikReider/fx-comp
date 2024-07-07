@@ -292,11 +292,17 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	// Initialize layers
 	output->layers.shell_background = alloc_tree(output->object.scene_tree);
 	output->layers.shell_bottom = alloc_tree(output->object.scene_tree);
+	output->layers.optimized_blur_node = wlr_scene_blur_create(
+		output->object.scene_tree, wlr_output->width, wlr_output->height);
 	output->layers.workspaces = alloc_tree(output->object.scene_tree);
 	output->layers.shell_top = alloc_tree(output->object.scene_tree);
 	output->layers.shell_overlay = alloc_tree(output->object.scene_tree);
 	output->layers.seat = alloc_tree(output->object.scene_tree);
 	output->layers.session_lock = alloc_tree(output->object.scene_tree);
+
+	// Initially disable due to this potentially being a fallback wlr_output
+	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node,
+							   false);
 
 	wl_list_init(&output->workspaces);
 
@@ -448,6 +454,14 @@ void comp_output_update_sizes(struct comp_output *output) {
 	wlr_scene_node_set_position(&output->object.scene_tree->node, output_x,
 								output_y);
 
+	// Update optimized blur node position and size
+	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node, true);
+	wlr_scene_node_set_position(&output->layers.optimized_blur_node->node,
+								output->geometry.x, output->geometry.y);
+	// Also marks the blur as dirty
+	wlr_scene_blur_set_size(output->layers.optimized_blur_node,
+							output->geometry.width, output->geometry.height);
+
 	comp_output_arrange_layers(output);
 	comp_output_arrange_output(output);
 }
@@ -569,6 +583,8 @@ void comp_output_arrange_output(struct comp_output *output) {
 	wlr_scene_node_set_enabled(&output->layers.shell_background->node,
 							   !is_fullscreen);
 	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
+							   !is_fullscreen);
+	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node,
 							   !is_fullscreen);
 	wlr_scene_node_set_enabled(&output->layers.shell_top->node, !is_fullscreen);
 

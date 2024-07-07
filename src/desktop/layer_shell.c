@@ -87,6 +87,13 @@ static void layer_surface_commit(struct wl_listener *listener, void *data) {
 		return;
 	}
 
+	if (wlr_layer_surface->current.layer ==
+			ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND ||
+		wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
+		wlr_scene_optimized_blur_mark_dirty(server.root_scene,
+											layer_surface->output->wlr_output);
+	}
+
 	uint32_t committed = wlr_layer_surface->current.committed;
 	// Layer change, switch scene_tree
 	if (committed & WLR_LAYER_SURFACE_V1_STATE_LAYER) {
@@ -141,6 +148,15 @@ static void layer_surface_node_destroy(struct wl_listener *listener,
 		wl_container_of(listener, layer_surface, node_destroy);
 
 	// TODO: Session lock handling
+
+	struct wlr_layer_surface_v1 *wlr_layer_surface =
+		layer_surface->wlr_layer_surface;
+	if (wlr_layer_surface->current.layer ==
+			ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND ||
+		wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
+		wlr_scene_optimized_blur_mark_dirty(server.root_scene,
+											layer_surface->output->wlr_output);
+	}
 
 	// Don't iterate through this tree
 	layer_surface->object.scene_tree->node.data = NULL;

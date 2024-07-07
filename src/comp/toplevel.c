@@ -7,9 +7,9 @@
 #include <wayland-util.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
-#include <wlr/util/log.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
+#include <wlr/util/log.h>
 
 #include "comp/object.h"
 #include "comp/output.h"
@@ -387,6 +387,16 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	wlr_scene_buffer_set_opacity(buffer, has_effects ? toplevel->opacity : 1);
 	wlr_scene_buffer_set_corner_radius(
 		buffer, has_effects ? toplevel->corner_radius : 0);
+	wlr_scene_buffer_set_backdrop_blur(buffer, has_effects);
+	switch (toplevel->tiling_mode) {
+	case COMP_TILING_MODE_FLOATING:
+		wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
+		break;
+	case COMP_TILING_MODE_TILED:
+		wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
+		break;
+	}
+	wlr_scene_buffer_set_backdrop_blur_ignore_transparent(buffer, true);
 
 	// Titlebar
 	struct comp_widget *titlebar_widget = &toplevel->titlebar->widget;
