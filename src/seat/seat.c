@@ -160,18 +160,32 @@ static void seat_request_set_selection(struct wl_listener *listener,
 	wlr_seat_set_selection(seat->wlr_seat, event->source, event->serial);
 }
 
-static void seat_focus_previous_toplevel(struct wlr_surface *surface) {
-	// Focus previous node
-	if (wl_list_empty(&server.seat->focus_order)) {
-		return;
+static void seat_focus_previous_toplevel(struct comp_workspace *ws,
+										 struct wlr_surface *surface) {
+	struct comp_toplevel *toplevels[2] = {};
+	if (wl_list_length(&ws->toplevels) > 1) {
+		// Workspace focus order
+		struct comp_toplevel *ws_toplevel = wl_container_of(
+			ws->toplevels.next->next, ws_toplevel, workspace_link);
+		toplevels[0] = ws_toplevel;
 	}
-	struct comp_toplevel *toplevel =
-		wl_container_of(server.seat->focus_order.next, toplevel, focus_link);
-	if (toplevel) {
-		struct wlr_surface *toplevel_surface =
-			comp_toplevel_get_wlr_surface(toplevel);
-		if (toplevel_surface && toplevel_surface != surface) {
-			comp_seat_surface_focus(&toplevel->object, toplevel_surface);
+	if (wl_list_length(&server.seat->focus_order) > 1) {
+		// Use seat focus order as fallback
+		struct comp_toplevel *seat_toplevel = wl_container_of(
+			server.seat->focus_order.next, seat_toplevel, focus_link);
+		toplevels[1] = seat_toplevel;
+	}
+
+	// Focus previous node
+	for (size_t i = 0; i < 2; i++) {
+		struct comp_toplevel *toplevel = toplevels[i];
+		if (toplevel) {
+			struct wlr_surface *toplevel_surface =
+				comp_toplevel_get_wlr_surface(toplevel);
+			if (toplevel_surface && toplevel_surface != surface) {
+				comp_seat_surface_focus(&toplevel->object, toplevel_surface);
+				return;
+			}
 		}
 	}
 }
@@ -198,7 +212,8 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 			}
 
 			if (focus_previous) {
-				seat_focus_previous_toplevel(surface);
+				seat_focus_previous_toplevel(toplevel->state.workspace,
+											 surface);
 			}
 
 			/*
@@ -226,7 +241,8 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 			}
 
 			if (focus_previous) {
-				seat_focus_previous_toplevel(surface);
+				seat_focus_previous_toplevel(toplevel->state.workspace,
+											 surface);
 			}
 
 			/*
@@ -254,7 +270,8 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 		}
 
 		if (focus_previous) {
-			seat_focus_previous_toplevel(surface);
+			seat_focus_previous_toplevel(
+				layer_surface->output->active_workspace, surface);
 		}
 		return;
 	}

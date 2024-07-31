@@ -56,8 +56,8 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			if (wl_list_length(&workspace->toplevels) < 2) {
 				break;
 			}
-			struct comp_toplevel *next_toplevel = wl_container_of(
-				workspace->toplevels.prev, next_toplevel, workspace_link);
+			struct comp_toplevel *next_toplevel =
+				comp_workspace_get_next_focused(workspace);
 			comp_seat_surface_focus(
 				&next_toplevel->object,
 				comp_toplevel_get_wlr_surface(next_toplevel));

@@ -46,6 +46,12 @@ struct comp_workspace {
 
 void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 									 struct comp_toplevel *toplevel);
+struct comp_toplevel *
+comp_workspace_get_latest_focused(struct comp_workspace *ws);
+struct comp_toplevel *
+comp_workspace_get_next_focused(struct comp_workspace *ws);
+struct comp_toplevel *
+comp_workspace_get_prev_focused(struct comp_workspace *ws);
 
 /*
  * Main

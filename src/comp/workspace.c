@@ -38,6 +38,26 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 	comp_toplevel_set_position(toplevel, lx, ly);
 }
 
+struct comp_toplevel *
+comp_workspace_get_latest_focused(struct comp_workspace *ws) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(ws->toplevels.next, toplevel, workspace_link);
+	return toplevel;
+}
+
+struct comp_toplevel *
+comp_workspace_get_next_focused(struct comp_workspace *ws) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(ws->toplevels.prev, toplevel, workspace_link);
+	return toplevel;
+}
+struct comp_toplevel *
+comp_workspace_get_prev_focused(struct comp_workspace *ws) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(ws->toplevels.next->next, toplevel, workspace_link);
+	return toplevel;
+}
+
 struct comp_workspace *comp_workspace_new(struct comp_output *output,
 										  enum comp_workspace_type type) {
 	struct comp_workspace *ws = calloc(1, sizeof(*ws));
