@@ -24,6 +24,7 @@
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
 #include "desktop/widgets/workspace_indicator.h"
+#include "seat/seat.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -498,6 +499,15 @@ void comp_output_focus_workspace(struct comp_output *output,
 	}
 
 	comp_output_arrange_output(output);
+
+	// Refocus the lastest focused toplevel
+	if (!wl_list_empty(&ws->toplevels)) {
+		struct comp_toplevel *latest = comp_workspace_get_latest_focused(ws);
+		if (latest) {
+			comp_seat_surface_focus(&latest->object,
+									comp_toplevel_get_wlr_surface(latest));
+		}
+	}
 
 	wl_signal_emit_mutable(&output->events.ws_change, output);
 }
