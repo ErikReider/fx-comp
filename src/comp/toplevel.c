@@ -497,6 +497,11 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 		!comp_toplevel_can_fullscreen(toplevel)) {
 		return;
 	}
+
+	// HACK: Come up with a way of restoring to tiled state
+	if (state) {
+		comp_toplevel_set_tiled(toplevel, false);
+	}
 	toplevel->fullscreen = state;
 
 	if (toplevel->impl && toplevel->impl->set_fullscreen) {
