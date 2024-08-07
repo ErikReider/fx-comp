@@ -44,13 +44,13 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 		toplevel->decorated_size.height - toplevel->state.height;
 
 	comp_toplevel_set_size(
-		toplevel, container->box.width - WIDTH_OFFSET - TILING_GAPS * 2,
-		container->box.height - HEIGHT_OFFSET - TILING_GAPS * 2);
+		toplevel, container->box.width - WIDTH_OFFSET - TILING_GAPS_INNER * 2,
+		container->box.height - HEIGHT_OFFSET - TILING_GAPS_INNER * 2);
 
 	comp_toplevel_set_position(
-		toplevel, container->box.x + BORDER_WIDTH + TILING_GAPS,
+		toplevel, container->box.x + BORDER_WIDTH + TILING_GAPS_INNER,
 		container->box.y + toplevel->decorated_size.top_border_height +
-			TILING_GAPS);
+			TILING_GAPS_INNER);
 
 	comp_toplevel_mark_dirty(toplevel);
 }
@@ -107,7 +107,12 @@ void tiling_node_mark_workspace_dirty(struct comp_workspace *workspace) {
 	struct tiling_node *root = get_root_node(workspace);
 	if (root) {
 		struct comp_output *output = workspace->output;
-		root->box = output->usable_area;
+		root->box = (struct wlr_box){
+			.width = output->usable_area.width - TILING_GAPS_OUTER * 2,
+			.height = output->usable_area.height - TILING_GAPS_OUTER * 2,
+			.x = output->usable_area.x + TILING_GAPS_OUTER,
+			.y = output->usable_area.y + TILING_GAPS_OUTER,
+		};
 		calc_size_pos_recursive(root);
 	}
 }
@@ -142,7 +147,12 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel) {
 	if (!parent_node) {
 		// Don't split first node
 		struct comp_output *output = toplevel->state.workspace->output;
-		container->box = output->usable_area;
+		container->box = (struct wlr_box){
+			.width = output->usable_area.width - TILING_GAPS_OUTER * 2,
+			.height = output->usable_area.height - TILING_GAPS_OUTER * 2,
+			.x = output->usable_area.x + TILING_GAPS_OUTER,
+			.y = output->usable_area.y + TILING_GAPS_OUTER,
+		};
 
 		apply_node_data_to_toplevel(container);
 		return;
