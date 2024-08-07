@@ -97,6 +97,7 @@ struct comp_toplevel_impl {
 	void (*set_resizing)(struct comp_toplevel *toplevel, bool state);
 	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
+	bool (*get_is_fullscreen)(struct comp_toplevel *toplevel);
 	void (*set_tiled)(struct comp_toplevel *toplevel, bool state);
 	void (*set_pid)(struct comp_toplevel *toplevel);
 	void (*marked_dirty_cb)(struct comp_toplevel *toplevel);
@@ -160,6 +161,7 @@ void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel);
+bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel);
 void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel);
 void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel);

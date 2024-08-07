@@ -103,6 +103,10 @@ static void xdg_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	wlr_xdg_toplevel_set_fullscreen(toplevel_xdg->xdg_toplevel, state);
 }
 
+static bool xdg_get_is_fullscreen(struct comp_toplevel *toplevel) {
+	return toplevel->toplevel_xdg->xdg_toplevel->requested.fullscreen;
+}
+
 static void xdg_set_tiled(struct comp_toplevel *toplevel, bool state) {
 	// TODO: XDG Tiling logic. Set maximized/tiled state?
 	// struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
@@ -143,6 +147,7 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.set_resizing = xdg_set_resizing,
 	.set_activated = xdg_set_activated,
 	.set_fullscreen = xdg_set_fullscreen,
+	.get_is_fullscreen = xdg_get_is_fullscreen,
 	.set_tiled = xdg_set_tiled,
 	.set_pid = xdg_set_pid,
 	.marked_dirty_cb = xdg_marked_dirty_cb,
@@ -338,12 +343,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 
 	// Add the toplevel to the tiled/floating layer
 	// TODO: Check if it should be in the floating layer or not
-	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_FLOATING;
-	tiling_mode = COMP_TILING_MODE_TILED;
-	// TODO: Add other condition for tiled
-	if (is_fullscreen) {
-		tiling_mode = COMP_TILING_MODE_TILED;
-	}
+	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(server);
 	struct comp_workspace *workspace =

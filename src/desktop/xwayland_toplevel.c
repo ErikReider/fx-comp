@@ -149,6 +149,10 @@ static void xway_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	wlr_xwayland_surface_set_fullscreen(xsurface, state);
 }
 
+static bool xway_get_is_fullscreen(struct comp_toplevel *toplevel) {
+	return toplevel->toplevel_xway->xwayland_surface->fullscreen;
+}
+
 static void xway_set_tiled(struct comp_toplevel *toplevel, bool state) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 	wlr_xwayland_surface_set_maximized(xsurface, state);
@@ -180,6 +184,7 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.set_resizing = xway_set_resizing,
 	.set_activated = xway_set_activated,
 	.set_fullscreen = xway_set_fullscreen,
+	.get_is_fullscreen = xway_get_is_fullscreen,
 	.set_tiled = xway_set_tiled,
 	.set_pid = xway_set_pid,
 	.marked_dirty_cb = xway_marked_dirty_cb,
@@ -480,11 +485,7 @@ xway_create_toplevel(struct wlr_xwayland_surface *xsurface) {
 
 	bool is_fullscreen = xsurface->fullscreen;
 	// Add the toplevel to the tiled/floating layer
-	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_FLOATING;
-	// TODO: Check if it should be in the floating layer or not
-	if (is_fullscreen) {
-		tiling_mode = COMP_TILING_MODE_TILED;
-	}
+	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(&server);
 	struct comp_workspace *workspace =

@@ -545,6 +545,14 @@ bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel) {
 	return true;
 }
 
+bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel) {
+	if (toplevel->impl && toplevel->impl->get_is_fullscreen) {
+		return toplevel->impl->get_is_fullscreen(toplevel);
+	}
+
+	return false;
+}
+
 void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 	if (toplevel->fullscreen) {
 		return;
@@ -756,6 +764,13 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	comp_toplevel_set_pid(toplevel);
 
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
+
+	toplevel->fullscreen = comp_toplevel_get_is_fullscreen(toplevel);
+	if (toplevel->fullscreen) {
+		toplevel->tiling_mode = COMP_TILING_MODE_TILED;
+	} else if (comp_toplevel_get_always_floating(toplevel)) {
+		toplevel->tiling_mode = COMP_TILING_MODE_FLOATING;
+	}
 
 	// Move into parent tree if there's a parent
 	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
