@@ -6,6 +6,7 @@
 #include <wayland-util.h>
 
 #include "comp/object.h"
+#include "comp/tiling_node.h"
 #include "desktop/toplevel.h"
 #include "server.h"
 
@@ -38,6 +39,8 @@ struct comp_workspace {
 	struct wl_list toplevels;
 
 	struct comp_toplevel *fullscreen_toplevel;
+
+	struct wl_list tiling_nodes;
 };
 
 /*

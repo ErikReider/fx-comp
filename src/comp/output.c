@@ -16,6 +16,7 @@
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
+#include "comp/tiling_node.h"
 #include "comp/widget.h"
 #include "comp/workspace.h"
 #include "constants.h"
@@ -288,9 +289,6 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->object.scene_tree->node.data = &output->object;
 	output->object.data = output;
 	output->object.type = COMP_OBJECT_TYPE_OUTPUT;
-
-	// Tiling layout
-	output->tiling_layout.output = output;
 
 	// Initialize layers
 	output->layers.shell_background = alloc_tree(output->object.scene_tree);
@@ -633,5 +631,11 @@ void comp_output_arrange_layers(struct comp_output *output) {
 		wlr_log(WLR_DEBUG, "Usable area changed, rearranging output");
 		output->usable_area = usable_area;
 		comp_output_arrange_output(output);
+	}
+
+	// Update all usable spaces for all workspaces
+	struct comp_workspace *workspace;
+	wl_list_for_each(workspace, &output->workspaces, output_link) {
+		tiling_node_mark_workspace_dirty(workspace);
 	}
 }

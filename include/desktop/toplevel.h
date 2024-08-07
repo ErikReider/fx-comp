@@ -9,6 +9,7 @@
 
 #include "comp/object.h"
 #include "comp/server.h"
+#include "comp/tiling_node.h"
 #include "seat/cursor.h"
 
 #define NUMBER_OF_RESIZE_TARGETS 8
@@ -57,6 +58,7 @@ struct comp_toplevel {
 	struct comp_resize_edge *edges[NUMBER_OF_RESIZE_TARGETS];
 	bool using_csd;
 
+	struct tiling_node *tiling_node;
 	enum comp_tiling_mode tiling_mode;
 	bool fullscreen;
 	pid_t pid;
@@ -64,8 +66,9 @@ struct comp_toplevel {
 	// The decorated size of the toplevel, if no decorations are visible, the
 	// size will be the same as the state.
 	struct {
-		int width;
-		int height;
+		// Always state size + border width. Height includes titlebar height if
+		// SSD are used
+		int width, height;
 
 		int top_border_height;
 	} decorated_size;

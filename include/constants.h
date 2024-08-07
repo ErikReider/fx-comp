@@ -10,6 +10,9 @@
 
 #define TERM "kitty"
 
+#define TILING_SPLIT_RATIO 0.5
+#define TILING_GAPS 12
+
 /*
  * Overlays
  */

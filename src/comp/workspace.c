@@ -97,6 +97,7 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 	}
 	ws->layers.unmanaged->node.data = &ws->object;
 
+	wl_list_init(&ws->tiling_nodes);
 	wl_list_init(&ws->toplevels);
 
 	// Insert next to active workspace

@@ -5,7 +5,6 @@
 #include <wayland-util.h>
 
 #include "comp/object.h"
-#include "comp/tiling_layout.h"
 #include "comp/workspace.h"
 #include "desktop/widgets/workspace_indicator.h"
 #include "server.h"
@@ -16,8 +15,6 @@ struct comp_output {
 	struct comp_server *server;
 	struct wlr_output *wlr_output;
 	struct wlr_scene_output *scene_output;
-
-	struct tiling_layout tiling_layout;
 
 	// Geometry never set
 	struct comp_object object;
