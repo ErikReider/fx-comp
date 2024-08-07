@@ -761,6 +761,24 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	return toplevel;
 }
 
+static void center_toplevel(struct comp_toplevel *toplevel) {
+	struct comp_workspace *ws = toplevel->state.workspace;
+	struct comp_object *parent_object = NULL;
+	struct wlr_box relative_box = {0};
+
+	if (toplevel->parent_tree &&
+		(parent_object = toplevel->parent_tree->node.data) &&
+		parent_object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
+		relative_box = comp_toplevel_get_geometry(parent_object->data);
+	} else {
+		wlr_output_layout_get_box(toplevel->server->output_layout,
+								  ws->output->wlr_output, &relative_box);
+	}
+	comp_toplevel_set_position(
+		toplevel, (relative_box.width - toplevel->decorated_size.width) / 2,
+		(relative_box.height - toplevel->decorated_size.height) / 2);
+}
+
 /*
  * Implementation generic functions
  */
@@ -787,23 +805,11 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
 	comp_toplevel_set_size(toplevel, geometry.width, geometry.height);
 
-	struct comp_workspace *ws = toplevel->state.workspace;
-	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-		// Open new floating toplevels in the center of the output/parent
-		struct comp_object *parent_object = NULL;
-		struct wlr_box relative_box = {0};
-		if (toplevel->parent_tree &&
-			(parent_object = toplevel->parent_tree->node.data) &&
-			parent_object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			relative_box = comp_toplevel_get_geometry(parent_object->data);
-		} else {
-			wlr_output_layout_get_box(toplevel->server->output_layout,
-									  ws->output->wlr_output, &relative_box);
-		}
-		comp_toplevel_set_position(
-			toplevel, (relative_box.width - toplevel->decorated_size.width) / 2,
-			(relative_box.height - toplevel->decorated_size.height) / 2);
-	} else if (ws->type == COMP_WORKSPACE_TYPE_REGULAR) {
+	// Open new floating toplevels in the center of the output/parent
+	// If tiling, save the centered state so untiling would center
+	center_toplevel(toplevel);
+	save_state(toplevel);
+	if (toplevel->state.workspace->type == COMP_WORKSPACE_TYPE_REGULAR) {
 		// Tile the new toplevel
 		tiling_node_add_toplevel(toplevel);
 	}
