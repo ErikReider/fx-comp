@@ -3,12 +3,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <wayland-server-core.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
+#include <xdg-shell-protocol.h>
 
 #include "comp/object.h"
 #include "comp/output.h"
@@ -108,8 +110,16 @@ static bool xdg_get_is_fullscreen(struct comp_toplevel *toplevel) {
 }
 
 static void xdg_set_tiled(struct comp_toplevel *toplevel, bool state) {
-	// TODO: XDG Tiling logic. Set maximized/tiled state?
-	// struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	if (wl_resource_get_version(toplevel_xdg->xdg_toplevel->resource) >=
+		XDG_TOPLEVEL_STATE_TILED_LEFT_SINCE_VERSION) {
+		wlr_xdg_toplevel_set_tiled(toplevel_xdg->xdg_toplevel,
+								   state ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT |
+											   WLR_EDGE_TOP | WLR_EDGE_BOTTOM
+										 : WLR_EDGE_NONE);
+	} else {
+		wlr_xdg_toplevel_set_maximized(toplevel_xdg->xdg_toplevel, state);
+	}
 }
 
 static void xdg_set_pid(struct comp_toplevel *toplevel) {
@@ -342,7 +352,6 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	bool is_fullscreen = toplevel_xdg->xdg_toplevel->requested.fullscreen;
 
 	// Add the toplevel to the tiled/floating layer
-	// TODO: Check if it should be in the floating layer or not
 	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(server);
