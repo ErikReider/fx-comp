@@ -19,7 +19,7 @@ Todo:
 - [x] Move/resize toplevels with MOD+mouse buttons
 - [ ] ext_workspace_unstable_v1
 - [ ] foreign toplevel for ironbar support
-- [ ] Tiling
+- [x] Tiling
 - [ ] Lock support
 - [x] Fullscreen
 - [ ] Fullscreen titlebar on top hover
