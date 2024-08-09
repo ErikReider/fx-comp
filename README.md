@@ -48,3 +48,5 @@ Todo:
     - [ ] VR support?
     - [ ] Hypr protocols support
     - [ ] Hyprcursor support
+
+Thanks to Sway, Hyprland, and TinyWL for showing how stuff needs to be done! :)

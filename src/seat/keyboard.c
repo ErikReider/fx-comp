@@ -88,15 +88,49 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			return true;
 
 		case XKB_KEY_Left: {
-			struct comp_workspace *ws =
-				comp_output_prev_workspace(output, true);
-			comp_output_focus_workspace(output, ws);
+			struct comp_toplevel *toplevel =
+				comp_workspace_get_toplevel_direction(workspace,
+													  WLR_DIRECTION_LEFT);
+			if (toplevel) {
+				comp_seat_surface_focus(&toplevel->object,
+										comp_toplevel_get_wlr_surface(toplevel));
+			}
+			// struct comp_workspace *ws =
+			// 	comp_output_prev_workspace(output, true);
+			// comp_output_focus_workspace(output, ws);
 			break;
 		}
 		case XKB_KEY_Right: {
-			struct comp_workspace *ws =
-				comp_output_next_workspace(output, true);
-			comp_output_focus_workspace(output, ws);
+			struct comp_toplevel *toplevel =
+				comp_workspace_get_toplevel_direction(workspace,
+													  WLR_DIRECTION_RIGHT);
+			if (toplevel) {
+				comp_seat_surface_focus(&toplevel->object,
+										comp_toplevel_get_wlr_surface(toplevel));
+			}
+			// struct comp_workspace *ws =
+			// 	comp_output_next_workspace(output, true);
+			// comp_output_focus_workspace(output, ws);
+			break;
+		}
+		case XKB_KEY_Up: {
+			struct comp_toplevel *toplevel =
+				comp_workspace_get_toplevel_direction(workspace,
+													  WLR_DIRECTION_UP);
+			if (toplevel) {
+				comp_seat_surface_focus(&toplevel->object,
+										comp_toplevel_get_wlr_surface(toplevel));
+			}
+			break;
+		}
+		case XKB_KEY_Down: {
+			struct comp_toplevel *toplevel =
+				comp_workspace_get_toplevel_direction(workspace,
+													  WLR_DIRECTION_DOWN);
+			if (toplevel) {
+				comp_seat_surface_focus(&toplevel->object,
+										comp_toplevel_get_wlr_surface(toplevel));
+			}
 			break;
 		}
 

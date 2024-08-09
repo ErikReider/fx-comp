@@ -4,6 +4,7 @@
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_output_layout.h>
 
 #include "comp/object.h"
 #include "comp/tiling_node.h"
@@ -55,6 +56,10 @@ struct comp_toplevel *
 comp_workspace_get_next_focused(struct comp_workspace *ws);
 struct comp_toplevel *
 comp_workspace_get_prev_focused(struct comp_workspace *ws);
+
+struct comp_toplevel *
+comp_workspace_get_toplevel_direction(struct comp_workspace *ws,
+									  enum wlr_direction direction);
 
 /*
  * Main
