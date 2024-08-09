@@ -318,6 +318,20 @@ void tiling_node_remove_toplevel(struct comp_toplevel *toplevel) {
 	tiling_node_destroy(node);
 }
 
+void tiling_node_move_start(struct comp_toplevel *toplevel) {
+	if (!toplevel->tiling_node || toplevel->dragging_tiled) {
+		return;
+	}
+
+	toplevel->dragging_tiled = true;
+	comp_toplevel_set_tiled(toplevel, false);
+}
+
+void tiling_node_move_fini(struct comp_toplevel *toplevel) {
+	toplevel->dragging_tiled = false;
+	comp_toplevel_set_tiled(toplevel, true);
+}
+
 struct tiling_node *tiling_node_init(struct comp_workspace *ws, bool is_node) {
 	struct tiling_node *node = calloc(1, sizeof(*node));
 	if (!node) {

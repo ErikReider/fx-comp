@@ -62,6 +62,7 @@ struct comp_toplevel {
 
 	struct tiling_node *tiling_node;
 	enum comp_tiling_mode tiling_mode;
+	bool dragging_tiled;
 	bool fullscreen;
 	pid_t pid;
 

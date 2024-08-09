@@ -29,4 +29,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 							  const bool insert_floating);
 void tiling_node_remove_toplevel(struct comp_toplevel *toplevel);
 
+void tiling_node_move_start(struct comp_toplevel *toplevel);
+void tiling_node_move_fini(struct comp_toplevel *toplevel);
+
 #endif // !FX_COMP_CONTAINER_H

@@ -24,22 +24,32 @@
 #include "seat/seat.h"
 #include "util.h"
 
-static void center_toplevel(struct comp_toplevel *toplevel) {
-	struct comp_workspace *ws = toplevel->state.workspace;
-	struct comp_object *parent_object = NULL;
-	struct wlr_box relative_box = {0};
-
-	if (toplevel->parent_tree &&
-		(parent_object = toplevel->parent_tree->node.data) &&
-		parent_object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-		relative_box = comp_toplevel_get_geometry(parent_object->data);
+static void center_toplevel(struct comp_toplevel *toplevel,
+							bool center_on_cursor) {
+	double x = 0;
+	double y = 0;
+	if (center_on_cursor) {
+		x = server.seat->cursor->wlr_cursor->x -
+			toplevel->decorated_size.width * 0.5;
+		y = server.seat->cursor->wlr_cursor->y -
+			toplevel->decorated_size.height * 0.5;
 	} else {
-		wlr_output_layout_get_box(toplevel->server->output_layout,
-								  ws->output->wlr_output, &relative_box);
+		struct comp_workspace *ws = toplevel->state.workspace;
+		struct comp_object *parent_object = NULL;
+		struct wlr_box relative_box = {0};
+
+		if (toplevel->parent_tree &&
+			(parent_object = toplevel->parent_tree->node.data) &&
+			parent_object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
+			relative_box = comp_toplevel_get_geometry(parent_object->data);
+		} else {
+			wlr_output_layout_get_box(toplevel->server->output_layout,
+									  ws->output->wlr_output, &relative_box);
+		}
+		x = (relative_box.width - toplevel->decorated_size.width) * 0.5;
+		y = (relative_box.height - toplevel->decorated_size.height) * 0.5;
 	}
-	comp_toplevel_set_position(
-		toplevel, (relative_box.width - toplevel->decorated_size.width) / 2,
-		(relative_box.height - toplevel->decorated_size.height) / 2);
+	comp_toplevel_set_position(toplevel, x, y);
 }
 
 static void save_state(struct comp_toplevel *toplevel) {
@@ -141,10 +151,18 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 									   uint32_t time) {
 	/* Move the grabbed toplevel to the new position. */
 	struct comp_toplevel *toplevel = server->seat->grabbed_toplevel;
-	if (toplevel && !toplevel->fullscreen) {
+	if (toplevel && !toplevel->fullscreen &&
+		toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 		// Adjust the toplevel coordinates to be root-relative
 		double lx = server->seat->cursor->wlr_cursor->x - server->seat->grab_x;
 		double ly = server->seat->cursor->wlr_cursor->y - server->seat->grab_y;
+		if (toplevel->dragging_tiled) {
+			// Always center the toplevel when dragging a tiled toplevel
+			lx = server->seat->cursor->wlr_cursor->x -
+				 toplevel->decorated_size.width * 0.5;
+			ly = server->seat->cursor->wlr_cursor->y -
+				 toplevel->decorated_size.height * 0.5;
+		}
 		wlr_output_layout_output_coords(
 			server->output_layout,
 			toplevel->state.workspace->output->wlr_output, &lx, &ly);
@@ -153,17 +171,14 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 		// Update floating toplevels current monitor and workspace.
 		// Also raise the output node to the top so that it's floating toplevels
 		// remain on top on other outputs (if they intersect)
-		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-			struct comp_output *new_output = find_output(toplevel);
-			struct comp_workspace *ws;
-			if (new_output && (ws = comp_output_get_active_ws(
-								   new_output, toplevel->fullscreen))) {
-				comp_workspace_move_toplevel_to(ws, toplevel);
-				// Update the active output
-				server->active_output = new_output;
-				wlr_scene_node_raise_to_top(
-					&new_output->object.scene_tree->node);
-			}
+		struct comp_output *new_output = find_output(toplevel);
+		struct comp_workspace *ws;
+		if (new_output && (ws = comp_output_get_active_ws(
+							   new_output, toplevel->fullscreen))) {
+			comp_workspace_move_toplevel_to(ws, toplevel);
+			// Update the active output
+			server->active_output = new_output;
+			wlr_scene_node_raise_to_top(&new_output->object.scene_tree->node);
 		}
 	}
 }
@@ -322,7 +337,9 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 							   toplevel->object.scene_tree->node.y -
 							   output_box.y;
 
-		comp_toplevel_mark_dirty(toplevel);
+		if (toplevel->tiling_mode == COMP_TILING_MODE_TILED) {
+			tiling_node_move_start(toplevel);
+		}
 		break;
 	case COMP_CURSOR_RESIZE:;
 		if (toplevel_surface) {
@@ -581,13 +598,15 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 		return;
 	}
 
+	const bool is_floating = toplevel->tiling_mode == COMP_TILING_MODE_FLOATING;
+
 	toplevel->tiling_mode =
 		state ? COMP_TILING_MODE_TILED : COMP_TILING_MODE_FLOATING;
 
 	if (comp_toplevel_get_always_floating(toplevel)) {
 		comp_toplevel_set_size(toplevel, toplevel->natural_width,
 							   toplevel->natural_height);
-		center_toplevel(toplevel);
+		center_toplevel(toplevel, false);
 		comp_toplevel_mark_dirty(toplevel);
 		return;
 	}
@@ -596,13 +615,13 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 	comp_toplevel_move_into_parent_tree(toplevel, NULL);
 
 	if (state && !toplevel->tiling_node) {
-		tiling_node_add_toplevel(toplevel);
+		tiling_node_add_toplevel(toplevel, is_floating);
 	} else if (!state && toplevel->tiling_node) {
 		tiling_node_remove_toplevel(toplevel);
 		// Center the toplevel
 		comp_toplevel_set_size(toplevel, toplevel->natural_width,
 							   toplevel->natural_height);
-		center_toplevel(toplevel);
+		center_toplevel(toplevel, toplevel->dragging_tiled);
 		comp_toplevel_mark_dirty(toplevel);
 	}
 
@@ -745,6 +764,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->shadow_data.offset_x = TOPLEVEL_SHADOW_X_OFFSET;
 	toplevel->shadow_data.offset_y = TOPLEVEL_SHADOW_Y_OFFSET;
 
+	toplevel->dragging_tiled = false;
 	toplevel->tiling_mode = tiling_mode;
 	toplevel->state.workspace = workspace;
 	struct wlr_scene_tree *tree = comp_toplevel_get_layer(toplevel);
@@ -827,7 +847,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	// Open new floating toplevels in the center of the output/parent
 	// If tiling, save the centered state so untiling would center
 	set_natural_size(toplevel);
-	center_toplevel(toplevel);
+	center_toplevel(toplevel, false);
 	save_state(toplevel);
 
 	// Tile/float the new toplevel

@@ -280,6 +280,13 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		comp_object_at(server, cursor->wlr_cursor->x, cursor->wlr_cursor->y,
 					   &sx, &sy, &scene_buffer, &surface);
 	if (event->state == WLR_BUTTON_RELEASED) {
+		// Finish moving tiled window
+		if (cursor->cursor_mode == COMP_CURSOR_MOVE &&
+			server->seat->grabbed_toplevel &&
+			server->seat->grabbed_toplevel->dragging_tiled) {
+			tiling_node_move_fini(server->seat->grabbed_toplevel);
+		}
+
 		if (object) {
 			switch (object->type) {
 			case COMP_OBJECT_TYPE_WIDGET:
