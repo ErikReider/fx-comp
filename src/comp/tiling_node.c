@@ -127,6 +127,8 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	struct tiling_node *container = toplevel->tiling_node;
 	container->toplevel = toplevel;
 
+	bool split_first = false;
+
 	// Try to get parent node
 	struct comp_workspace *ws = toplevel->state.workspace;
 	struct tiling_node *parent_node = NULL;
@@ -138,7 +140,8 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 		const int center_y =
 			toplevel->state.y + (toplevel->decorated_size.height * 0.5);
 
-		pixman_region32_t region;
+		pixman_region32_t region1; // Top/left region
+		pixman_region32_t region2; // Bottom/right region
 		struct comp_toplevel *t;
 		wl_list_for_each(t, &ws->toplevels, workspace_link) {
 			struct tiling_node *n = t->tiling_node;
@@ -146,8 +149,23 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 				continue;
 			}
 
-			pixman_region32_init_rect(&region, n->box.x, n->box.y, n->box.width,
-									  n->box.height);
+			if (n->box.width > n->box.height) {
+				pixman_region32_init_rect(&region1, n->box.x, n->box.y,
+										  n->box.width * TILING_SPLIT_RATIO,
+										  n->box.height);
+				pixman_region32_init_rect(
+					&region2, n->box.x + n->box.width * TILING_SPLIT_RATIO,
+					n->box.y, n->box.width * TILING_SPLIT_RATIO, n->box.height);
+			} else {
+				pixman_region32_init_rect(&region1, n->box.x, n->box.y,
+										  n->box.width,
+										  n->box.height * TILING_SPLIT_RATIO);
+				pixman_region32_init_rect(
+					&region2, n->box.x,
+					n->box.y + n->box.height * TILING_SPLIT_RATIO, n->box.width,
+					n->box.height * TILING_SPLIT_RATIO);
+			}
+
 			// A 2x2 px even box
 			const pixman_box32_t center = {
 				.x1 = center_x - 1,
@@ -155,12 +173,20 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 				.y1 = center_y - 1,
 				.y2 = center_y + 2,
 			};
-			if (pixman_region32_contains_rectangle(&region, &center)) {
+			if (pixman_region32_contains_rectangle(&region1, &center)) {
+				// Insert as parent to node
 				parent_node = n;
+				split_first = true;
+				break;
+			} else if (pixman_region32_contains_rectangle(&region2, &center)) {
+				// Insert as child to node
+				parent_node = n;
+				split_first = false;
 				break;
 			}
 		}
-		pixman_region32_fini(&region);
+		pixman_region32_fini(&region1);
+		pixman_region32_fini(&region2);
 	} else {
 		struct comp_toplevel *focused_toplevel = NULL;
 		if ((focused_toplevel = comp_workspace_get_latest_focused(ws)) &&
@@ -202,8 +228,13 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	new_parent->box = parent_node->box;
 	new_parent->parent = parent_node->parent;
 
-	new_parent->children[0] = parent_node;
-	new_parent->children[1] = container;
+	if (split_first) {
+		new_parent->children[1] = parent_node;
+		new_parent->children[0] = container;
+	} else {
+		new_parent->children[0] = parent_node;
+		new_parent->children[1] = container;
+	}
 
 	if (parent_node->parent) {
 		if (parent_node->parent->children[0] == parent_node) {
