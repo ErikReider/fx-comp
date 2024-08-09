@@ -139,16 +139,23 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 			toplevel->state.y + (toplevel->decorated_size.height * 0.5);
 
 		pixman_region32_t region;
-		struct tiling_node *n;
-		wl_list_for_each(n, &ws->tiling_nodes, parent_link) {
-			if (n->is_node || !n->toplevel || n->toplevel == toplevel) {
+		struct comp_toplevel *t;
+		wl_list_for_each(t, &ws->toplevels, workspace_link) {
+			struct tiling_node *n = t->tiling_node;
+			if (!n || t == toplevel) {
 				continue;
 			}
 
 			pixman_region32_init_rect(&region, n->box.x, n->box.y, n->box.width,
 									  n->box.height);
-			if (pixman_region32_contains_point(&region, center_x, center_y,
-											   NULL)) {
+			// A 2x2 px even box
+			const pixman_box32_t center = {
+				.x1 = center_x - 1,
+				.x2 = center_x + 2,
+				.y1 = center_y - 1,
+				.y2 = center_y + 2,
+			};
+			if (pixman_region32_contains_rectangle(&region, &center)) {
 				parent_node = n;
 				break;
 			}
