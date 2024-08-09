@@ -13,6 +13,8 @@
 #include "seat/cursor.h"
 
 #define NUMBER_OF_RESIZE_TARGETS 8
+#define TOPLEVEL_MIN_WIDTH 75
+#define TOPLEVEL_MIN_HEIGHT 50
 
 enum comp_tiling_mode {
 	COMP_TILING_MODE_FLOATING, // Only floating
@@ -72,6 +74,8 @@ struct comp_toplevel {
 
 		int top_border_height;
 	} decorated_size;
+	// Size when mapped
+	int natural_width, natural_height;
 	// The current state
 	struct comp_toplevel_state state;
 	// Used to restore the state when exiting fullscreen
