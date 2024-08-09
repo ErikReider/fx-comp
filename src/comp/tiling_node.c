@@ -141,7 +141,9 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 			toplevel->state.y + (toplevel->decorated_size.height * 0.5);
 
 		pixman_region32_t region1; // Top/left region
+		pixman_region32_init(&region1);
 		pixman_region32_t region2; // Bottom/right region
+		pixman_region32_init(&region2);
 		struct comp_toplevel *t;
 		wl_list_for_each(t, &ws->toplevels, workspace_link) {
 			struct tiling_node *n = t->tiling_node;
