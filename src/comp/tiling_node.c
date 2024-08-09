@@ -1,4 +1,5 @@
 #include <assert.h>
+#include <pixman.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -12,6 +13,9 @@
 #include "desktop/toplevel.h"
 
 static void tiling_node_destroy(struct tiling_node *node) {
+	if (node->toplevel) {
+		node->toplevel->tiling_node = NULL;
+	}
 
 	wl_list_remove(&node->parent_link);
 
@@ -117,7 +121,8 @@ void tiling_node_mark_workspace_dirty(struct comp_workspace *workspace) {
 	}
 }
 
-void tiling_node_add_toplevel(struct comp_toplevel *toplevel) {
+void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
+							  const bool insert_floating) {
 	toplevel->tiling_node = tiling_node_init(toplevel->state.workspace, false);
 	struct tiling_node *container = toplevel->tiling_node;
 	container->toplevel = toplevel;
@@ -125,15 +130,42 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel) {
 	// Try to get parent node
 	struct comp_workspace *ws = toplevel->state.workspace;
 	struct tiling_node *parent_node = NULL;
-	struct comp_toplevel *focused_toplevel =
-		comp_workspace_get_latest_focused(ws);
-	if (focused_toplevel &&
-		focused_toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
-		focused_toplevel != toplevel) {
-		// Attach to focused tree
-		assert(focused_toplevel->tiling_node);
-		parent_node = focused_toplevel->tiling_node;
+	if (insert_floating) {
+		// Get the tiling node beneath the floating toplevel.
+		// Check if any toplevel intersects the center point of the toplevel.
+		const int center_x =
+			toplevel->state.x + (toplevel->decorated_size.width * 0.5);
+		const int center_y =
+			toplevel->state.y + (toplevel->decorated_size.height * 0.5);
+
+		pixman_region32_t region;
+		struct tiling_node *n;
+		wl_list_for_each(n, &ws->tiling_nodes, parent_link) {
+			if (n->is_node || !n->toplevel || n->toplevel == toplevel) {
+				continue;
+			}
+
+			pixman_region32_init_rect(&region, n->box.x, n->box.y, n->box.width,
+									  n->box.height);
+			if (pixman_region32_contains_point(&region, center_x, center_y,
+											   NULL)) {
+				parent_node = n;
+				break;
+			}
+		}
+		pixman_region32_fini(&region);
 	} else {
+		struct comp_toplevel *focused_toplevel = NULL;
+		if ((focused_toplevel = comp_workspace_get_latest_focused(ws)) &&
+			focused_toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
+			focused_toplevel != toplevel) {
+			// Attach to focused tree
+			assert(focused_toplevel->tiling_node);
+			parent_node = focused_toplevel->tiling_node;
+		}
+	}
+
+	if (!parent_node) {
 		// Try focusing the latest tiled toplevel
 		struct comp_toplevel *t;
 		wl_list_for_each(t, &ws->toplevels, workspace_link) {
@@ -145,7 +177,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel) {
 	}
 
 	if (!parent_node) {
-		// Don't split first node
+		// No tiled nodes, don't split first node
 		struct comp_output *output = toplevel->state.workspace->output;
 		container->box = (struct wlr_box){
 			.width = output->usable_area.width - TILING_GAPS_OUTER * 2,
