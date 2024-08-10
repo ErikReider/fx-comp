@@ -3,12 +3,14 @@
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdlib.h>
+#include <wayland-server-core.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_subcompositor.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
+#include <xdg-shell-protocol.h>
 
 #include "comp/object.h"
 #include "comp/output.h"
@@ -54,6 +56,18 @@ static char *xdg_get_title(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
+static bool xdg_get_always_floating(struct comp_toplevel *toplevel) {
+	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	struct wlr_xdg_toplevel *xdg_toplevel = toplevel_xdg->xdg_toplevel;
+
+	// Always float toplevels that can't be resized
+	struct wlr_xdg_toplevel_state *state = &xdg_toplevel->current;
+	return (state->min_width != 0 && state->min_height != 0 &&
+			(state->min_width == state->max_width ||
+			 state->min_height == state->max_height)) ||
+		   xdg_toplevel->parent;
+}
+
 static struct wlr_scene_tree *
 xdg_get_parent_tree(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
@@ -68,12 +82,16 @@ xdg_get_parent_tree(struct comp_toplevel *toplevel) {
 static void xdg_configure(struct comp_toplevel *toplevel, int width, int height,
 						  int x, int y) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
-	wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
+	struct wlr_box geometry = xdg_get_geometry(toplevel);
+	if (geometry.width != width || geometry.height != height) {
+		wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
+	}
 }
 
 static void xdg_set_size(struct comp_toplevel *toplevel, int width,
 						 int height) {
-	xdg_configure(toplevel, width, height, 0, 0);
+	xdg_configure(toplevel, width, height, toplevel->state.x,
+				  toplevel->state.y);
 }
 
 static void xdg_set_resizing(struct comp_toplevel *toplevel, bool state) {
@@ -89,6 +107,23 @@ static void xdg_set_activated(struct comp_toplevel *toplevel, bool state) {
 static void xdg_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
 	wlr_xdg_toplevel_set_fullscreen(toplevel_xdg->xdg_toplevel, state);
+}
+
+static bool xdg_get_is_fullscreen(struct comp_toplevel *toplevel) {
+	return toplevel->toplevel_xdg->xdg_toplevel->requested.fullscreen;
+}
+
+static void xdg_set_tiled(struct comp_toplevel *toplevel, bool state) {
+	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	if (wl_resource_get_version(toplevel_xdg->xdg_toplevel->resource) >=
+		XDG_TOPLEVEL_STATE_TILED_LEFT_SINCE_VERSION) {
+		wlr_xdg_toplevel_set_tiled(toplevel_xdg->xdg_toplevel,
+								   state ? WLR_EDGE_LEFT | WLR_EDGE_RIGHT |
+											   WLR_EDGE_TOP | WLR_EDGE_BOTTOM
+										 : WLR_EDGE_NONE);
+	} else {
+		wlr_xdg_toplevel_set_maximized(toplevel_xdg->xdg_toplevel, state);
+	}
 }
 
 static void xdg_set_pid(struct comp_toplevel *toplevel) {
@@ -119,12 +154,15 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.get_constraints = xdg_get_constraints,
 	.get_wlr_surface = xdg_get_wlr_surface,
 	.get_title = xdg_get_title,
+	.get_always_floating = xdg_get_always_floating,
 	.get_parent_tree = xdg_get_parent_tree,
 	.configure = xdg_configure,
 	.set_size = xdg_set_size,
 	.set_resizing = xdg_set_resizing,
 	.set_activated = xdg_set_activated,
 	.set_fullscreen = xdg_set_fullscreen,
+	.get_is_fullscreen = xdg_get_is_fullscreen,
+	.set_tiled = xdg_set_tiled,
 	.set_pid = xdg_set_pid,
 	.marked_dirty_cb = xdg_marked_dirty_cb,
 	.close = xdg_close,
@@ -174,6 +212,9 @@ static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
 	struct comp_xdg_toplevel *toplevel_xdg =
 		wl_container_of(listener, toplevel_xdg, destroy);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
+
+	// TODO: Unmap if not already called
+	//
 
 	comp_toplevel_destroy(toplevel);
 
@@ -315,12 +356,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	bool is_fullscreen = toplevel_xdg->xdg_toplevel->requested.fullscreen;
 
 	// Add the toplevel to the tiled/floating layer
-	// TODO: Check if it should be in the floating layer or not
-	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_FLOATING;
-	// TODO: Add other condition for tiled
-	if (is_fullscreen) {
-		tiling_mode = COMP_TILING_MODE_TILED;
-	}
+	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(server);
 	struct comp_workspace *workspace =

@@ -164,6 +164,9 @@ static void pointer_motion(struct comp_cursor *cursor, uint32_t time,
 		dy = sy_confined - sy;
 	}
 
+	cursor->previous.x = cursor->wlr_cursor->x;
+	cursor->previous.y = cursor->wlr_cursor->y;
+
 	wlr_cursor_move(cursor->wlr_cursor, device, dx, dy);
 
 	process_cursor_motion(cursor, time);
@@ -280,6 +283,13 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		comp_object_at(server, cursor->wlr_cursor->x, cursor->wlr_cursor->y,
 					   &sx, &sy, &scene_buffer, &surface);
 	if (event->state == WLR_BUTTON_RELEASED) {
+		// Finish moving tiled window
+		if (cursor->cursor_mode == COMP_CURSOR_MOVE &&
+			server->seat->grabbed_toplevel &&
+			server->seat->grabbed_toplevel->dragging_tiled) {
+			tiling_node_move_fini(server->seat->grabbed_toplevel);
+		}
+
 		if (object) {
 			switch (object->type) {
 			case COMP_OBJECT_TYPE_WIDGET:

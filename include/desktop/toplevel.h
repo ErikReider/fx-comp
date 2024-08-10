@@ -9,9 +9,13 @@
 
 #include "comp/object.h"
 #include "comp/server.h"
+#include "comp/tiling_node.h"
 #include "seat/cursor.h"
 
 #define NUMBER_OF_RESIZE_TARGETS 8
+#define TOPLEVEL_MIN_WIDTH 75
+#define TOPLEVEL_MIN_HEIGHT 50
+#define TOPLEVEL_TILED_DRAG_SIZE 1.1
 
 enum comp_tiling_mode {
 	COMP_TILING_MODE_FLOATING, // Only floating
@@ -57,18 +61,25 @@ struct comp_toplevel {
 	struct comp_resize_edge *edges[NUMBER_OF_RESIZE_TARGETS];
 	bool using_csd;
 
+	struct tiling_node *tiling_node;
 	enum comp_tiling_mode tiling_mode;
+	bool dragging_tiled;
 	bool fullscreen;
 	pid_t pid;
 
 	// The decorated size of the toplevel, if no decorations are visible, the
 	// size will be the same as the state.
 	struct {
-		int width;
-		int height;
+		// Always state size + border width. Height includes titlebar height if
+		// SSD are used
+		int width, height;
 
 		int top_border_height;
 	} decorated_size;
+	// Size when mapped
+	int natural_width, natural_height;
+	// Geometry
+	struct wlr_box geometry;
 	// The current state
 	struct comp_toplevel_state state;
 	// Used to restore the state when exiting fullscreen
@@ -94,6 +105,7 @@ struct comp_toplevel_impl {
 	void (*set_resizing)(struct comp_toplevel *toplevel, bool state);
 	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
+	bool (*get_is_fullscreen)(struct comp_toplevel *toplevel);
 	void (*set_tiled)(struct comp_toplevel *toplevel, bool state);
 	void (*set_pid)(struct comp_toplevel *toplevel);
 	void (*marked_dirty_cb)(struct comp_toplevel *toplevel);
@@ -123,9 +135,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
 
-/** Set the effects for each scene_buffer */
-void comp_toplevel_apply_effects(struct wlr_scene_tree *tree,
-								 struct comp_toplevel *toplevel);
+/** Re-apply the effects to each child buffer */
+void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel);
 /**
  * Moves the toplevel into it's parent tree if it exists. Otherwise, move it
  * into the correct layer.
@@ -157,6 +168,8 @@ void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel);
+bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel);
+void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel);
 void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel);
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
@@ -164,6 +177,8 @@ void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state);
 
 void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel);
+
+void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 

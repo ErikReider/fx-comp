@@ -4,8 +4,10 @@
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_output_layout.h>
 
 #include "comp/object.h"
+#include "comp/tiling_node.h"
 #include "desktop/toplevel.h"
 #include "server.h"
 
@@ -38,6 +40,8 @@ struct comp_workspace {
 	struct wl_list toplevels;
 
 	struct comp_toplevel *fullscreen_toplevel;
+
+	struct wl_list tiling_nodes;
 };
 
 /*
@@ -46,6 +50,16 @@ struct comp_workspace {
 
 void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 									 struct comp_toplevel *toplevel);
+struct comp_toplevel *
+comp_workspace_get_latest_focused(struct comp_workspace *ws);
+struct comp_toplevel *
+comp_workspace_get_next_focused(struct comp_workspace *ws);
+struct comp_toplevel *
+comp_workspace_get_prev_focused(struct comp_workspace *ws);
+
+struct comp_toplevel *
+comp_workspace_get_toplevel_direction(struct comp_workspace *ws,
+									  enum wlr_direction direction);
 
 /*
  * Main

@@ -38,6 +38,127 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 	comp_toplevel_set_position(toplevel, lx, ly);
 }
 
+struct comp_toplevel *
+comp_workspace_get_latest_focused(struct comp_workspace *ws) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(ws->toplevels.next, toplevel, workspace_link);
+	return toplevel;
+}
+
+struct comp_toplevel *
+comp_workspace_get_next_focused(struct comp_workspace *ws) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(ws->toplevels.prev, toplevel, workspace_link);
+	return toplevel;
+}
+struct comp_toplevel *
+comp_workspace_get_prev_focused(struct comp_workspace *ws) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(ws->toplevels.next->next, toplevel, workspace_link);
+	return toplevel;
+}
+
+struct comp_toplevel *
+comp_workspace_get_toplevel_direction(struct comp_workspace *ws,
+									  enum wlr_direction direction) {
+	// Get latest focused toplevel on other monitor if fullscreen
+	if (ws->fullscreen_toplevel || wl_list_empty(&ws->toplevels)) {
+		goto focus_adjacent_monitor;
+	}
+
+	struct comp_toplevel *focused_toplevel =
+		comp_workspace_get_latest_focused(ws);
+	if (focused_toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+		// TODO: Floating direction switching?
+		wlr_log(WLR_DEBUG, "Floating direction switching not supported");
+		return NULL;
+	}
+
+	struct comp_toplevel *toplevel = NULL;
+	int leader_value = -1;
+	struct wlr_box box = focused_toplevel->tiling_node->box;
+
+	const int MAX_DISTANCE = 2;
+	struct tiling_node *node;
+	wl_list_for_each(node, &ws->tiling_nodes, parent_link) {
+		if (node->is_node) {
+			continue;
+		}
+		if (!node->toplevel || node->toplevel == focused_toplevel) {
+			continue;
+		}
+
+		struct wlr_box iter_box = node->box;
+		int intersect_length = -1;
+		switch (direction) {
+		case WLR_DIRECTION_LEFT:
+			if (abs(box.x - (iter_box.x + iter_box.width)) < MAX_DISTANCE) {
+				intersect_length = MAX(
+					0.0, MIN(box.y + box.height, iter_box.y + iter_box.height) -
+							 MAX(box.y, iter_box.y));
+			}
+			break;
+		case WLR_DIRECTION_RIGHT:
+			if (abs((box.x + box.width) - iter_box.x) < MAX_DISTANCE) {
+				intersect_length = MAX(
+					0.0, MIN(box.y + box.height, iter_box.y + iter_box.height) -
+							 MAX(box.y, iter_box.y));
+			}
+			break;
+		case WLR_DIRECTION_UP:
+			if (abs(box.y - (iter_box.y + iter_box.height)) < MAX_DISTANCE) {
+				intersect_length = MAX(
+					0.0, MIN(box.x + box.width, iter_box.x + iter_box.width) -
+							 MAX(box.x, iter_box.x));
+			}
+			break;
+		case WLR_DIRECTION_DOWN:
+			if (abs((box.y + box.height) - iter_box.y) < MAX_DISTANCE) {
+				intersect_length = MAX(
+					0.0, MIN(box.x + box.width, iter_box.x + iter_box.width) -
+							 MAX(box.x, iter_box.x));
+			}
+			break;
+		}
+		if (intersect_length > 0) {
+			// Find the closest toplevel which was focused most recently
+			int index = 0;
+			struct comp_toplevel *t;
+			wl_list_for_each_reverse(t, &ws->toplevels, workspace_link) {
+				if (t == node->toplevel) {
+					break;
+				}
+				index++;
+			}
+
+			if (index > leader_value) {
+				leader_value = index;
+				toplevel = node->toplevel;
+			}
+		}
+	}
+
+	if (toplevel) {
+		return toplevel;
+	}
+
+focus_adjacent_monitor:;
+	// Get latest focused toplevel on other monitor
+	struct wlr_box output_box;
+	wlr_output_layout_get_box(server.output_layout, ws->output->wlr_output,
+							  &output_box);
+	int lx = output_box.x + output_box.width / 2;
+	int ly = output_box.y + output_box.height / 2;
+	struct wlr_output *wlr_adjacent = wlr_output_layout_adjacent_output(
+		server.output_layout, direction, ws->output->wlr_output, lx, ly);
+	struct comp_output *output = NULL;
+	if (wlr_adjacent && (output = wlr_adjacent->data)) {
+		return comp_workspace_get_latest_focused(output->active_workspace);
+	}
+
+	return NULL;
+}
+
 struct comp_workspace *comp_workspace_new(struct comp_output *output,
 										  enum comp_workspace_type type) {
 	struct comp_workspace *ws = calloc(1, sizeof(*ws));
@@ -77,6 +198,7 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 	}
 	ws->layers.unmanaged->node.data = &ws->object;
 
+	wl_list_init(&ws->tiling_nodes);
 	wl_list_init(&ws->toplevels);
 
 	// Insert next to active workspace

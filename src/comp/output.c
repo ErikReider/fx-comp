@@ -16,6 +16,7 @@
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
+#include "comp/tiling_node.h"
 #include "comp/widget.h"
 #include "comp/workspace.h"
 #include "constants.h"
@@ -23,6 +24,7 @@
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
 #include "desktop/widgets/workspace_indicator.h"
+#include "seat/seat.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -498,6 +500,15 @@ void comp_output_focus_workspace(struct comp_output *output,
 
 	comp_output_arrange_output(output);
 
+	// Refocus the lastest focused toplevel
+	if (!wl_list_empty(&ws->toplevels)) {
+		struct comp_toplevel *latest = comp_workspace_get_latest_focused(ws);
+		if (latest) {
+			comp_seat_surface_focus(&latest->object,
+									comp_toplevel_get_wlr_surface(latest));
+		}
+	}
+
 	wl_signal_emit_mutable(&output->events.ws_change, output);
 }
 
@@ -630,5 +641,11 @@ void comp_output_arrange_layers(struct comp_output *output) {
 		wlr_log(WLR_DEBUG, "Usable area changed, rearranging output");
 		output->usable_area = usable_area;
 		comp_output_arrange_output(output);
+	}
+
+	// Update all usable spaces for all workspaces
+	struct comp_workspace *workspace;
+	wl_list_for_each(workspace, &output->workspaces, output_link) {
+		tiling_node_mark_workspace_dirty(workspace);
 	}
 }

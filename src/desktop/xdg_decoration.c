@@ -3,6 +3,7 @@
 #include <wayland-util.h>
 
 #include "comp/object.h"
+#include "comp/tiling_node.h"
 #include "desktop/toplevel.h"
 #include "desktop/xdg.h"
 #include "desktop/xdg_decoration.h"
@@ -26,6 +27,10 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 
 	if (floating && client_mode) {
 		mode = client_mode;
+	}
+
+	if (!floating && toplevel->tiling_node && toplevel->state.workspace) {
+		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
 	}
 
 	if (toplevel_xdg->xdg_toplevel->base->initialized) {
