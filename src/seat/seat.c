@@ -165,9 +165,15 @@ static void seat_focus_previous_toplevel(struct comp_workspace *ws,
 	struct comp_toplevel *toplevels[2] = {};
 	if (wl_list_length(&ws->toplevels) > 1) {
 		// Workspace focus order
-		struct comp_toplevel *ws_toplevel = wl_container_of(
-			ws->toplevels.next->next, ws_toplevel, workspace_link);
-		toplevels[0] = ws_toplevel;
+		struct comp_toplevel *toplevel;
+		wl_list_for_each(toplevel, &ws->toplevels, workspace_link) {
+			struct wlr_surface *toplevel_surface =
+				comp_toplevel_get_wlr_surface(toplevel);
+			if (toplevel_surface && toplevel_surface != surface) {
+				toplevels[0] = toplevel;
+				break;
+			}
+		}
 	}
 	if (wl_list_length(&server.seat->focus_order) > 1) {
 		// Use seat focus order as fallback
