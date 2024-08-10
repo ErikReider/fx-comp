@@ -15,6 +15,7 @@
 #define NUMBER_OF_RESIZE_TARGETS 8
 #define TOPLEVEL_MIN_WIDTH 75
 #define TOPLEVEL_MIN_HEIGHT 50
+#define TOPLEVEL_TILED_DRAG_SIZE 1.1
 
 enum comp_tiling_mode {
 	COMP_TILING_MODE_FLOATING, // Only floating

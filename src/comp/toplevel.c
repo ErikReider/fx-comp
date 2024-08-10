@@ -619,8 +619,14 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 	} else if (!state && toplevel->tiling_node) {
 		tiling_node_remove_toplevel(toplevel);
 		// Center the toplevel
-		comp_toplevel_set_size(toplevel, toplevel->natural_width,
-							   toplevel->natural_height);
+		if (toplevel->dragging_tiled) {
+			comp_toplevel_set_size(
+				toplevel, toplevel->state.width * TOPLEVEL_TILED_DRAG_SIZE,
+				toplevel->state.height * TOPLEVEL_TILED_DRAG_SIZE);
+		} else {
+			comp_toplevel_set_size(toplevel, toplevel->natural_width,
+								   toplevel->natural_height);
+		}
 		center_toplevel(toplevel, toplevel->dragging_tiled);
 		comp_toplevel_mark_dirty(toplevel);
 	}
