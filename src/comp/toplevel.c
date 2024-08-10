@@ -631,9 +631,18 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 		tiling_node_remove_toplevel(toplevel);
 		// Center the toplevel
 		if (toplevel->dragging_tiled) {
-			comp_toplevel_set_size(
-				toplevel, toplevel->state.width * TOPLEVEL_TILED_DRAG_SIZE,
-				toplevel->state.height * TOPLEVEL_TILED_DRAG_SIZE);
+			// Limit to the outputs usable area
+			struct wlr_box *usable_area =
+				&toplevel->state.workspace->output->usable_area;
+			const int WIDTH =
+				MIN(toplevel->state.width * TOPLEVEL_TILED_DRAG_SIZE,
+					usable_area->width * 0.5) -
+				BORDER_WIDTH * 2;
+			const int HEIGHT =
+				MIN(toplevel->state.height * TOPLEVEL_TILED_DRAG_SIZE,
+					usable_area->height * 0.5) -
+				toplevel->decorated_size.top_border_height - BORDER_WIDTH;
+			comp_toplevel_set_size(toplevel, WIDTH, HEIGHT);
 		} else {
 			comp_toplevel_set_size(toplevel, toplevel->natural_width,
 								   toplevel->natural_height);
@@ -669,11 +678,11 @@ void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 
 	struct comp_titlebar *titlebar = toplevel->titlebar;
 	comp_titlebar_calculate_bar_height(titlebar);
-	int *top_border_height = &toplevel->decorated_size.top_border_height;
-	*top_border_height = BORDER_WIDTH;
+	toplevel->decorated_size.top_border_height = BORDER_WIDTH;
 	if (comp_titlebar_should_be_shown(toplevel)) {
 		toplevel->decorated_size.height += toplevel->titlebar->bar_height;
-		*top_border_height += toplevel->titlebar->bar_height;
+		toplevel->decorated_size.top_border_height +=
+			toplevel->titlebar->bar_height;
 	}
 
 	if (toplevel->impl && toplevel->impl->set_size) {
