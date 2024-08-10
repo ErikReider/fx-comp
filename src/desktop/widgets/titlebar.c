@@ -214,8 +214,6 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
 	struct comp_toplevel *toplevel = titlebar->toplevel;
 
-	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
-
 	const bool is_focused =
 		comp_seat_object_is_focus(server.seat, &toplevel->object);
 
@@ -224,8 +222,8 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	const int toplevel_radius = toplevel->corner_radius;
 	const int toplevel_x = BORDER_WIDTH;
 	const int toplevel_y = TITLEBAR_HEIGHT;
-	const int toplevel_width = geometry.width;
-	const int toplevel_height = geometry.height;
+	const int toplevel_width = toplevel->state.width;
+	const int toplevel_height = toplevel->state.height;
 
 	const int titlebar_radii = titlebar->widget.corner_radius;
 	const int button_margin = titlebar_radii;
