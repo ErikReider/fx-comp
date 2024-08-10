@@ -64,7 +64,7 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 
 static void calc_size_pos_recursive(struct tiling_node *node) {
 	if (node->children[0]) {
-		if (node->box.width > node->box.height) {
+		if (!node->split_vertical) {
 			const float split_width = node->box.width * node->split_ratio;
 			node->children[0]->box = (struct wlr_box){
 				.width = split_width,
