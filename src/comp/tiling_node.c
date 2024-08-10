@@ -154,22 +154,25 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 				continue;
 			}
 
+			const double SPLIT_RATIO =
+				n->parent ? n->parent->split_ratio : TILING_SPLIT_RATIO;
+
 			if (n->box.width > n->box.height) {
 				pixman_region32_init_rect(&region1, n->box.x, n->box.y,
-										  n->box.width * n->parent->split_ratio,
+										  n->box.width * SPLIT_RATIO,
 										  n->box.height);
 				pixman_region32_init_rect(
-					&region2, n->box.x + n->box.width * n->parent->split_ratio,
-					n->box.y, n->box.width * n->parent->split_ratio,
+					&region2, n->box.x + n->box.width * SPLIT_RATIO,
+					n->box.y, n->box.width * SPLIT_RATIO,
 					n->box.height);
 			} else {
 				pixman_region32_init_rect(
 					&region1, n->box.x, n->box.y, n->box.width,
-					n->box.height * n->parent->split_ratio);
+					n->box.height * SPLIT_RATIO);
 				pixman_region32_init_rect(
 					&region2, n->box.x,
-					n->box.y + n->box.height * n->parent->split_ratio,
-					n->box.width, n->box.height * n->parent->split_ratio);
+					n->box.y + n->box.height * SPLIT_RATIO,
+					n->box.width, n->box.height * SPLIT_RATIO);
 			}
 
 			// A 2x2 px even box
