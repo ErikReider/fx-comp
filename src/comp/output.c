@@ -22,7 +22,6 @@
 #include "constants.h"
 #include "desktop/layer_shell.h"
 #include "desktop/toplevel.h"
-#include "desktop/widgets/titlebar.h"
 #include "desktop/widgets/workspace_indicator.h"
 #include "seat/seat.h"
 #include "util.h"
@@ -123,52 +122,6 @@ struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 	return active_ws;
 }
 
-static void output_configure_scene(struct comp_output *output,
-								   struct wlr_scene_node *node, void *data) {
-	if (!node->enabled) {
-		return;
-	}
-
-	switch (node->type) {
-	case WLR_SCENE_NODE_BUFFER:;
-		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
-
-		struct wlr_scene_surface *scene_surface =
-			wlr_scene_surface_try_from_buffer(buffer);
-		struct comp_object *object = data;
-		if (!scene_surface || !object) {
-			return;
-		}
-
-		if (object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			struct comp_toplevel *toplevel = object->data;
-			struct comp_titlebar *titlebar = toplevel->titlebar;
-
-			float opacity = 1;
-			// Change the opacity of the grabbed toplevel if it's not displayed
-			// on it's active monitor
-			if (output != toplevel->state.workspace->output) {
-				opacity = TOPLEVEL_NON_MAIN_OUTPUT_OPACITY;
-			}
-			wlr_scene_buffer_set_opacity(buffer, opacity);
-			wlr_scene_buffer_set_opacity(titlebar->widget.scene_buffer,
-										 opacity);
-		}
-		break;
-	case WLR_SCENE_NODE_TREE:;
-		struct wlr_scene_tree *tree = wl_container_of(node, tree, node);
-		if (node->data) {
-			data = node->data;
-		}
-		struct wlr_scene_node *node;
-		wl_list_for_each(node, &tree->children, link) {
-			output_configure_scene(output, node, data);
-		}
-	default:
-		break;
-	}
-}
-
 static void output_frame(struct wl_listener *listener, void *data) {
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -177,8 +130,6 @@ static void output_frame(struct wl_listener *listener, void *data) {
 
 	struct wlr_scene_output *scene_output =
 		wlr_scene_get_scene_output(scene, output->wlr_output);
-
-	output_configure_scene(output, &server.root_scene->tree.node, NULL);
 
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
