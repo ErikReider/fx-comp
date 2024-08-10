@@ -78,6 +78,8 @@ struct comp_toplevel {
 	} decorated_size;
 	// Size when mapped
 	int natural_width, natural_height;
+	// Geometry
+	struct wlr_box geometry;
 	// The current state
 	struct comp_toplevel_state state;
 	// Used to restore the state when exiting fullscreen
@@ -175,6 +177,8 @@ void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state);
 
 void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel);
+
+void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 

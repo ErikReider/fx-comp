@@ -679,6 +679,8 @@ void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 	if (toplevel->impl && toplevel->impl->set_size) {
 		toplevel->impl->set_size(toplevel, width, height);
 	}
+
+	comp_toplevel_center_and_clip(toplevel);
 }
 
 void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state) {
@@ -728,6 +730,19 @@ void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel) {
 	} else {
 		comp_toplevel_set_position(toplevel, 0, 0);
 	}
+}
+
+void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
+	wlr_scene_node_set_position(&toplevel->toplevel_scene_tree->node, 0, 0);
+
+	struct wlr_box clip = {
+		.width = toplevel->state.width,
+		.height = toplevel->state.height,
+		.x = toplevel->geometry.x,
+		.y = toplevel->geometry.y,
+	};
+	wlr_scene_subsurface_tree_set_clip(&toplevel->toplevel_scene_tree->node,
+									   toplevel->fullscreen ? NULL : &clip);
 }
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y) {
@@ -921,7 +936,19 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 }
 
 void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
-	comp_toplevel_configure(toplevel, toplevel->state.width,
-							toplevel->state.height, toplevel->state.x,
-							toplevel->state.y);
+	struct wlr_box new_geo = comp_toplevel_get_geometry(toplevel);
+
+	bool new_size = new_geo.width != toplevel->state.width ||
+					new_geo.height != toplevel->state.height ||
+					new_geo.x != toplevel->geometry.x ||
+					new_geo.y != toplevel->geometry.y;
+	if (new_size) {
+		toplevel->geometry = new_geo;
+		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+			comp_toplevel_set_size(toplevel, new_geo.width, new_geo.height);
+			comp_toplevel_mark_dirty(toplevel);
+		}
+
+		comp_toplevel_center_and_clip(toplevel);
+	}
 }

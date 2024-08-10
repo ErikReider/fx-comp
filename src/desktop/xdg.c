@@ -82,12 +82,16 @@ xdg_get_parent_tree(struct comp_toplevel *toplevel) {
 static void xdg_configure(struct comp_toplevel *toplevel, int width, int height,
 						  int x, int y) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
-	wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
+	struct wlr_box geometry = xdg_get_geometry(toplevel);
+	if (geometry.width != width || geometry.height != height) {
+		wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
+	}
 }
 
 static void xdg_set_size(struct comp_toplevel *toplevel, int width,
 						 int height) {
-	xdg_configure(toplevel, width, height, 0, 0);
+	xdg_configure(toplevel, width, height, toplevel->state.x,
+				  toplevel->state.y);
 }
 
 static void xdg_set_resizing(struct comp_toplevel *toplevel, bool state) {

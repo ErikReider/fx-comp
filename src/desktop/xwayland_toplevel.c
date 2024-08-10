@@ -120,13 +120,16 @@ xway_get_parent_tree(struct comp_toplevel *toplevel) {
 static void xway_configure(struct comp_toplevel *toplevel, int width,
 						   int height, int x, int y) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
-	wlr_xwayland_surface_configure(xsurface, x, y, width, height);
+	if (xsurface->x != x || xsurface->y != y || xsurface->width != width ||
+		xsurface->height != height) {
+		wlr_xwayland_surface_configure(xsurface, x, y, width, height);
+	}
 }
 
 static void xway_set_size(struct comp_toplevel *toplevel, int width,
 						  int height) {
-	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
-	xway_configure(toplevel, width, height, xsurface->x, xsurface->y);
+	xway_configure(toplevel, width, height, toplevel->state.x,
+				   toplevel->state.y);
 }
 
 static void xway_set_resizing(struct comp_toplevel *toplevel, bool state) {
@@ -363,6 +366,7 @@ static void xway_toplevel_request_configure(struct wl_listener *listener,
 											void *data) {
 	struct comp_xwayland_toplevel *toplevel_xway =
 		wl_container_of(listener, toplevel_xway, request_configure);
+	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
 
 	struct wlr_xwayland_surface_configure_event *event = data;
 	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
@@ -372,10 +376,11 @@ static void xway_toplevel_request_configure(struct wl_listener *listener,
 		return;
 	}
 
-	wlr_xwayland_surface_configure(xsurface, event->x, event->y, event->width,
-								   event->height);
-	comp_toplevel_set_size(toplevel_xway->toplevel, event->width,
-						   event->height);
+	wlr_xwayland_surface_configure(xsurface, toplevel->state.x,
+								   toplevel->state.y, toplevel->state.width,
+								   toplevel->state.height);
+	comp_toplevel_set_size(toplevel_xway->toplevel, toplevel->state.width,
+						   toplevel->state.height);
 	comp_toplevel_mark_dirty(toplevel_xway->toplevel);
 }
 
