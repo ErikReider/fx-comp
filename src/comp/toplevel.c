@@ -370,8 +370,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 		server->seat->resize_edges = edges;
 
+		comp_toplevel_set_resizing(toplevel, true);
 		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-			comp_toplevel_set_resizing(toplevel, true);
 			comp_toplevel_set_size(toplevel, geo_box.width, geo_box.height);
 			comp_toplevel_mark_dirty(toplevel);
 		}
