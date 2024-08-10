@@ -199,6 +199,15 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	if (toplevel->fullscreen) {
 		return;
 	}
+
+	switch (toplevel->tiling_mode) {
+	case COMP_TILING_MODE_TILED:
+		tiling_node_resize(toplevel);
+		return;
+	case COMP_TILING_MODE_FLOATING:
+		break;
+	}
+
 	double border_x =
 		server->seat->cursor->wlr_cursor->x - server->seat->grab_x;
 	double border_y =
@@ -361,9 +370,11 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 		server->seat->resize_edges = edges;
 
-		comp_toplevel_set_resizing(toplevel, true);
-		comp_toplevel_set_size(toplevel, geo_box.width, geo_box.height);
-		comp_toplevel_mark_dirty(toplevel);
+		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+			comp_toplevel_set_resizing(toplevel, true);
+			comp_toplevel_set_size(toplevel, geo_box.width, geo_box.height);
+			comp_toplevel_mark_dirty(toplevel);
+		}
 		break;
 	}
 }

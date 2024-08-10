@@ -4,6 +4,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_cursor.h>
+#include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 
 #include "comp/output.h"
@@ -11,6 +13,7 @@
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
+#include "seat/seat.h"
 
 static void tiling_node_destroy(struct tiling_node *node) {
 	if (node->toplevel) {
@@ -62,7 +65,7 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 static void calc_size_pos_recursive(struct tiling_node *node) {
 	if (node->children[0]) {
 		if (node->box.width > node->box.height) {
-			const float split_width = node->box.width * TILING_SPLIT_RATIO;
+			const float split_width = node->box.width * node->split_ratio;
 			node->children[0]->box = (struct wlr_box){
 				.width = split_width,
 				.height = node->box.height,
@@ -76,7 +79,7 @@ static void calc_size_pos_recursive(struct tiling_node *node) {
 				.y = node->box.y,
 			};
 		} else {
-			const float split_height = node->box.height * TILING_SPLIT_RATIO;
+			const float split_height = node->box.height * node->split_ratio;
 			node->children[0]->box = (struct wlr_box){
 				.width = node->box.width,
 				.height = split_height,
@@ -153,19 +156,20 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 
 			if (n->box.width > n->box.height) {
 				pixman_region32_init_rect(&region1, n->box.x, n->box.y,
-										  n->box.width * TILING_SPLIT_RATIO,
+										  n->box.width * n->parent->split_ratio,
 										  n->box.height);
 				pixman_region32_init_rect(
-					&region2, n->box.x + n->box.width * TILING_SPLIT_RATIO,
-					n->box.y, n->box.width * TILING_SPLIT_RATIO, n->box.height);
+					&region2, n->box.x + n->box.width * n->parent->split_ratio,
+					n->box.y, n->box.width * n->parent->split_ratio,
+					n->box.height);
 			} else {
-				pixman_region32_init_rect(&region1, n->box.x, n->box.y,
-										  n->box.width,
-										  n->box.height * TILING_SPLIT_RATIO);
+				pixman_region32_init_rect(
+					&region1, n->box.x, n->box.y, n->box.width,
+					n->box.height * n->parent->split_ratio);
 				pixman_region32_init_rect(
 					&region2, n->box.x,
-					n->box.y + n->box.height * TILING_SPLIT_RATIO, n->box.width,
-					n->box.height * TILING_SPLIT_RATIO);
+					n->box.y + n->box.height * n->parent->split_ratio,
+					n->box.width, n->box.height * n->parent->split_ratio);
 			}
 
 			// A 2x2 px even box
@@ -229,6 +233,8 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 		tiling_node_init(toplevel->state.workspace, true);
 	new_parent->box = parent_node->box;
 	new_parent->parent = parent_node->parent;
+	new_parent->split_vertical =
+		new_parent->box.width <= new_parent->box.height;
 
 	if (split_first) {
 		new_parent->children[1] = parent_node;
@@ -249,29 +255,31 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	// Update
 	if (new_parent->box.width > new_parent->box.height) {
 		parent_node->box = (struct wlr_box){
-			.width = new_parent->box.width / 2,
+			.width = new_parent->box.width * new_parent->split_ratio,
 			.height = new_parent->box.height,
 			.x = new_parent->box.x,
 			.y = new_parent->box.y,
 		};
 		container->box = (struct wlr_box){
-			.width = new_parent->box.width / 2,
+			.width = new_parent->box.width * new_parent->split_ratio,
 			.height = new_parent->box.height,
-			.x = new_parent->box.x + new_parent->box.width / 2,
+			.x = new_parent->box.x +
+				 new_parent->box.width * new_parent->split_ratio,
 			.y = new_parent->box.y,
 		};
 	} else {
 		parent_node->box = (struct wlr_box){
 			.width = new_parent->box.width,
-			.height = new_parent->box.height / 2,
+			.height = new_parent->box.height * new_parent->split_ratio,
 			.x = new_parent->box.x,
 			.y = new_parent->box.y,
 		};
 		container->box = (struct wlr_box){
 			.width = new_parent->box.width,
-			.height = new_parent->box.height / 2,
+			.height = new_parent->box.height * new_parent->split_ratio,
 			.x = new_parent->box.x,
-			.y = new_parent->box.y + new_parent->box.height / 2,
+			.y = new_parent->box.y +
+				 new_parent->box.height * new_parent->split_ratio,
 		};
 	}
 
@@ -318,6 +326,83 @@ void tiling_node_remove_toplevel(struct comp_toplevel *toplevel) {
 	tiling_node_destroy(node);
 }
 
+void tiling_node_resize(struct comp_toplevel *toplevel) {
+	const int MAX_DISTANCE = 2;
+
+	struct comp_seat *seat = server.seat;
+	struct tiling_node *node = toplevel->tiling_node;
+	struct wlr_box box = node->box;
+	struct wlr_box usable_area = toplevel->state.workspace->output->usable_area;
+
+	const double delta_x =
+		seat->cursor->wlr_cursor->x - seat->cursor->previous.x;
+	const double delta_y =
+		seat->cursor->wlr_cursor->y - seat->cursor->previous.y;
+
+	if ((ABS(delta_x) < 0.5 && ABS(delta_y) < 0.5)) {
+		return;
+	}
+
+	// Thanks Hyprland :)
+
+	const bool ON_DISPLAY_LEFT = abs(box.x - usable_area.x) < MAX_DISTANCE;
+	const bool ON_DISPLAY_RIGHT =
+		abs((box.x + box.width) - (usable_area.x + usable_area.width)) <
+		MAX_DISTANCE;
+	const bool ON_DISPLAY_TOP = abs(box.y - usable_area.y) < MAX_DISTANCE;
+	const bool ON_DISPLAY_BOTTOM =
+		abs((box.y + box.height) - (usable_area.y + usable_area.height)) <
+		MAX_DISTANCE;
+
+	double allow_x_movement = ON_DISPLAY_LEFT && ON_DISPLAY_RIGHT ? 0 : delta_x;
+	double allow_y_movement = ON_DISPLAY_TOP && ON_DISPLAY_BOTTOM ? 0 : delta_y;
+
+	struct tiling_node *v_outer = NULL;
+	struct tiling_node *h_outer = NULL;
+	const bool LEFT = seat->resize_edges & WLR_EDGE_LEFT || ON_DISPLAY_RIGHT;
+	const bool TOP = seat->resize_edges & WLR_EDGE_TOP || ON_DISPLAY_BOTTOM;
+	const bool RIGHT = seat->resize_edges & WLR_EDGE_RIGHT || ON_DISPLAY_LEFT;
+	const bool BOTTOM = seat->resize_edges & WLR_EDGE_BOTTOM || ON_DISPLAY_TOP;
+	const bool NONE = seat->resize_edges & WLR_EDGE_NONE;
+
+	for (struct tiling_node *current = node; current && current->parent;
+		 current = current->parent) {
+		const struct tiling_node *parent = current->parent;
+
+		if (!v_outer && parent->split_vertical &&
+			(NONE || (TOP && parent->children[1] == current) ||
+			 (BOTTOM && parent->children[0] == current))) {
+			v_outer = current;
+		} else if (!h_outer && !parent->split_vertical &&
+				   (NONE || (LEFT && parent->children[1] == current) ||
+					(RIGHT && parent->children[0] == current))) {
+			h_outer = current;
+		}
+
+		if (v_outer && h_outer) {
+			break;
+		}
+	}
+
+	if (h_outer) {
+		h_outer->parent->split_ratio =
+			CLAMP(h_outer->parent->split_ratio +
+					  allow_x_movement / h_outer->parent->box.width,
+				  0.1, 1.9);
+
+		calc_size_pos_recursive(h_outer->parent);
+	}
+
+	if (v_outer) {
+		v_outer->parent->split_ratio =
+			CLAMP(v_outer->parent->split_ratio +
+					  allow_y_movement / v_outer->parent->box.height,
+				  0.1, 1.9);
+
+		calc_size_pos_recursive(v_outer->parent);
+	}
+}
+
 void tiling_node_move_start(struct comp_toplevel *toplevel) {
 	if (!toplevel->tiling_node || toplevel->dragging_tiled) {
 		return;
@@ -346,6 +431,8 @@ struct tiling_node *tiling_node_init(struct comp_workspace *ws, bool is_node) {
 	node->parent = NULL;
 	node->ws = ws;
 	node->is_node = is_node;
+	node->split_ratio = CLAMP(TILING_SPLIT_RATIO, 0.1, 1.9);
+	node->split_vertical = false;
 	node->box = ws->output->usable_area;
 
 	wl_list_insert(&ws->tiling_nodes, &node->parent_link);

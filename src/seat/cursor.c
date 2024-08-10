@@ -164,6 +164,9 @@ static void pointer_motion(struct comp_cursor *cursor, uint32_t time,
 		dy = sy_confined - sy;
 	}
 
+	cursor->previous.x = cursor->wlr_cursor->x;
+	cursor->previous.y = cursor->wlr_cursor->y;
+
 	wlr_cursor_move(cursor->wlr_cursor, device, dx, dy);
 
 	process_cursor_motion(cursor, time);

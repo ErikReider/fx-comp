@@ -16,6 +16,10 @@ struct tiling_node {
 	bool is_node;
 	// NODE: Gapless size and position
 	struct wlr_box box;
+	// NODE: Split ratio
+	double split_ratio;
+	// NODE: if the children are split vertically
+	bool split_vertical;
 	// NON-NODE: Connected toplevel
 	struct comp_toplevel *toplevel;
 };
@@ -29,6 +33,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 							  const bool insert_floating);
 void tiling_node_remove_toplevel(struct comp_toplevel *toplevel);
 
+void tiling_node_resize(struct comp_toplevel *toplevel);
 void tiling_node_move_start(struct comp_toplevel *toplevel);
 void tiling_node_move_fini(struct comp_toplevel *toplevel);
 
