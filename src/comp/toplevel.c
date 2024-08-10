@@ -432,10 +432,10 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 									 titlebar_widget->shadow_data);
 }
 
-void comp_toplevel_apply_effects(struct wlr_scene_tree *tree,
-								 struct comp_toplevel *toplevel) {
-	wlr_scene_node_for_each_buffer(&tree->node,
+void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
+	wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,
 								   iter_scene_buffers_apply_effects, toplevel);
+	comp_toplevel_mark_dirty(toplevel);
 }
 
 void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
@@ -848,7 +848,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
 	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
 
-	comp_toplevel_apply_effects(toplevel->toplevel_scene_tree, toplevel);
+	comp_toplevel_mark_effects_dirty(toplevel);
 
 	// Open new floating toplevels in the center of the output/parent
 	// If tiling, save the centered state so untiling would center

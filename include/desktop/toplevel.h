@@ -133,9 +133,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
 
-/** Set the effects for each scene_buffer */
-void comp_toplevel_apply_effects(struct wlr_scene_tree *tree,
-								 struct comp_toplevel *toplevel);
+/** Re-apply the effects to each child buffer */
+void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel);
 /**
  * Moves the toplevel into it's parent tree if it exists. Otherwise, move it
  * into the correct layer.

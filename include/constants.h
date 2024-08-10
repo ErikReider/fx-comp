@@ -11,6 +11,7 @@
 #define TERM "kitty"
 
 #define TILING_SPLIT_RATIO 0.5
+#define TILING_MOVE_TOPLEVEL_OPACITY 0.7
 #define TILING_GAPS_INNER 12 / 2
 #define TILING_GAPS_OUTER 12 / 2
 
