@@ -144,11 +144,17 @@ static void titlebar_pointer_button(struct comp_widget *widget, double x,
 	case WLR_BUTTON_PRESSED:
 		// Don't move the toplevel if we're pressing on a button
 		if (hovered_button == NULL) {
-			// Focus the titlebars toplevel
-			comp_seat_surface_focus(&toplevel->object,
-									comp_toplevel_get_wlr_surface(toplevel));
+			bool has_focus = server.seat->focused_toplevel == toplevel;
+			if (!has_focus) {
+				// Focus the titlebars toplevel
+				comp_seat_surface_focus(&toplevel->object,
+										comp_toplevel_get_wlr_surface(toplevel));
+			}
 
-			comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+			// Don't move tiled directly, require focus first
+			if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING || has_focus) {
+				comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+			}
 		}
 		break;
 	}
