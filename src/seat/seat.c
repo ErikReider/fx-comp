@@ -313,7 +313,6 @@ void comp_seat_surface_focus(struct comp_object *object,
 	struct comp_layer_surface *focused_layer = seat->focused_layer_surface;
 
 	switch (object->type) {
-	case COMP_OBJECT_TYPE_UNMANAGED:;
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		if (seat->exclusive_layer && focused_layer) {
 			// Hacky... Some toplevels like kitty needs to be focused then
@@ -346,6 +345,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
+	case COMP_OBJECT_TYPE_UNMANAGED:
 		return;
 	}
 
