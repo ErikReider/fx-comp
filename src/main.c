@@ -149,14 +149,15 @@ int main(int argc, char *argv[]) {
 	 * backend based on the current environment, such as opening an X11 window
 	 * if an X11 server is running. */
 	// TODO: Use wlr_session?
-	server.backend = wlr_backend_autocreate(server.wl_display, NULL);
+	server.backend =
+		wlr_backend_autocreate(server.wl_event_loop, &server.session);
 	if (server.backend == NULL) {
 		wlr_log(WLR_ERROR, "failed to create wlr_backend");
 		return 1;
 	}
 
 	// Create headless backend
-	server.headless_backend = wlr_headless_backend_create(server.wl_display);
+	server.headless_backend = wlr_headless_backend_create(server.wl_event_loop);
 	if (server.headless_backend == NULL) {
 		wlr_log(WLR_ERROR, "Failed to create headless backend");
 		wlr_backend_destroy(server.backend);
@@ -206,7 +207,7 @@ int main(int argc, char *argv[]) {
 
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
-	server.output_layout = wlr_output_layout_create();
+	server.output_layout = wlr_output_layout_create(server.wl_display);
 	if (server.output_layout == NULL) {
 		wlr_log(WLR_ERROR, "failed to create wlr_output_layout");
 		return 1;
@@ -260,7 +261,6 @@ int main(int argc, char *argv[]) {
 		wlr_log(WLR_ERROR, "failed to create wlr_presentation");
 		return 1;
 	}
-	wlr_scene_set_presentation(server.root_scene, presentation);
 
 	// Create a fallback headless output
 	struct wlr_output *wlr_output = wlr_headless_add_output(
@@ -278,9 +278,9 @@ int main(int argc, char *argv[]) {
 	 * https://drewdevault.com/2018/07/29/Wayland-shells.html.
 	 */
 	server.xdg_shell = wlr_xdg_shell_create(server.wl_display, 3);
-	server.new_xdg_surface.notify = xdg_new_xdg_surface;
-	wl_signal_add(&server.xdg_shell->events.new_surface,
-				  &server.new_xdg_surface);
+	server.new_xdg_toplevel.notify = xdg_new_xdg_toplevel;
+	wl_signal_add(&server.xdg_shell->events.new_toplevel,
+				  &server.new_xdg_toplevel);
 
 	/*
 	 * Layer shell

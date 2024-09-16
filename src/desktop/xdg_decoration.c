@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wayland-util.h>
+#include <wlr/util/log.h>
 
 #include "comp/object.h"
 #include "comp/tiling_node.h"
@@ -60,6 +61,10 @@ static void xdg_decoration_handle_request_mode(struct wl_listener *listener,
 /* Ensure that the XDG toplevels use our server-side decorations */
 void handle_xdg_decoration(struct wl_listener *listener, void *data) {
 	struct wlr_xdg_toplevel_decoration_v1 *wlr_deco = data;
+	if (!wlr_deco->toplevel) {
+		wlr_log(WLR_ERROR, "Decoration Toplevel NULL");
+		return;
+	}
 	struct wlr_scene_tree *tree = wlr_deco->toplevel->base->data;
 	struct comp_object *object = tree->node.data;
 	if (!object || object->type != COMP_OBJECT_TYPE_TOPLEVEL) {

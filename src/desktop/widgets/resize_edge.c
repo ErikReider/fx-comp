@@ -1,6 +1,7 @@
 #include <cairo.h>
 #include <linux/input-event-codes.h>
 #include <stdlib.h>
+#include <wayland-server-protocol.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/util/log.h>
 #include <xdg-shell-protocol.h>
@@ -56,7 +57,8 @@ static void edge_destroy(struct comp_widget *widget) {
 
 static void edge_pointer_button(struct comp_widget *widget, double x, double y,
 								struct wlr_pointer_button_event *event) {
-	if (event->state != WLR_BUTTON_PRESSED || event->button != BTN_LEFT) {
+	if (event->state != WL_POINTER_BUTTON_STATE_PRESSED ||
+		event->button != BTN_LEFT) {
 		return;
 	}
 

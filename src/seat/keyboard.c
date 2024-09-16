@@ -225,7 +225,9 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 		}
 	}
 
-	if (!handled) {
+	// TODO: Handling for wlr_session_change_vt
+
+	if (!handled && seat->wlr_seat->keyboard_state.focused_surface) {
 		/* Otherwise, we pass it along to the client. */
 		wlr_seat_set_keyboard(wlr_seat, keyboard->wlr_keyboard);
 		wlr_seat_keyboard_notify_key(wlr_seat, event->time_msec, event->keycode,

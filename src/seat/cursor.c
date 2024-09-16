@@ -282,7 +282,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 	struct comp_object *object =
 		comp_object_at(server, cursor->wlr_cursor->x, cursor->wlr_cursor->y,
 					   &sx, &sy, &scene_buffer, &surface);
-	if (event->state == WLR_BUTTON_RELEASED) {
+	if (event->state == WL_POINTER_BUTTON_STATE_RELEASED) {
 		// Finish moving tiled window
 		if (cursor->cursor_mode == COMP_CURSOR_MOVE &&
 			server->seat->grabbed_toplevel &&
@@ -349,7 +349,8 @@ static void comp_server_cursor_axis(struct wl_listener *listener, void *data) {
 	/* Notify the client with pointer focus of the axis event. */
 	wlr_seat_pointer_notify_axis(server->seat->wlr_seat, event->time_msec,
 								 event->orientation, event->delta,
-								 event->delta_discrete, event->source);
+								 event->delta_discrete, event->source,
+								 event->relative_direction);
 }
 
 static void comp_server_cursor_frame(struct wl_listener *listener, void *data) {
