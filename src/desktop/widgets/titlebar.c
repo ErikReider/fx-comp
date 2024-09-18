@@ -271,8 +271,8 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	// Draw background
 	if (!toplevel->using_csd) {
 		cairo_set_rgba32(cr, &background_color);
-		cairo_draw_rounded_rect(cr, surface_width, surface_height, 0, 0,
-								titlebar_radii);
+		cairo_draw_rounded_rect(cr, surface_width - x * 2,
+								surface_height - y * 2, x, y, titlebar_radii);
 		cairo_close_path(cr);
 		cairo_fill(cr);
 	}
