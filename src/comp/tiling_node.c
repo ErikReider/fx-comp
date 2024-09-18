@@ -62,7 +62,7 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	comp_toplevel_mark_dirty(toplevel);
 }
 
-static void calc_size_pos_recursive(struct tiling_node *node) {
+static void calc_size_pos_recursive(struct tiling_node *node, bool update) {
 	if (node->children[0]) {
 		if (!node->split_vertical) {
 			const float split_width = node->box.width * node->split_ratio;
@@ -94,9 +94,9 @@ static void calc_size_pos_recursive(struct tiling_node *node) {
 			};
 		}
 
-		calc_size_pos_recursive(node->children[0]);
-		calc_size_pos_recursive(node->children[1]);
-	} else {
+		calc_size_pos_recursive(node->children[0], update);
+		calc_size_pos_recursive(node->children[1], update);
+	} else if (update) {
 		// Toplevel
 		apply_node_data_to_toplevel(node);
 	}
@@ -120,7 +120,7 @@ void tiling_node_mark_workspace_dirty(struct comp_workspace *workspace) {
 			.x = output->usable_area.x + TILING_GAPS_OUTER,
 			.y = output->usable_area.y + TILING_GAPS_OUTER,
 		};
-		calc_size_pos_recursive(root);
+		calc_size_pos_recursive(root, true);
 	}
 }
 
@@ -162,16 +162,14 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 										  n->box.width * SPLIT_RATIO,
 										  n->box.height);
 				pixman_region32_init_rect(
-					&region2, n->box.x + n->box.width * SPLIT_RATIO,
-					n->box.y, n->box.width * SPLIT_RATIO,
-					n->box.height);
+					&region2, n->box.x + n->box.width * SPLIT_RATIO, n->box.y,
+					n->box.width * SPLIT_RATIO, n->box.height);
 			} else {
+				pixman_region32_init_rect(&region1, n->box.x, n->box.y,
+										  n->box.width,
+										  n->box.height * SPLIT_RATIO);
 				pixman_region32_init_rect(
-					&region1, n->box.x, n->box.y, n->box.width,
-					n->box.height * SPLIT_RATIO);
-				pixman_region32_init_rect(
-					&region2, n->box.x,
-					n->box.y + n->box.height * SPLIT_RATIO,
+					&region2, n->box.x, n->box.y + n->box.height * SPLIT_RATIO,
 					n->box.width, n->box.height * SPLIT_RATIO);
 			}
 
@@ -289,7 +287,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	parent_node->parent = new_parent;
 	container->parent = new_parent;
 
-	calc_size_pos_recursive(new_parent);
+	calc_size_pos_recursive(new_parent, true);
 
 	tiling_node_mark_workspace_dirty(toplevel->state.workspace);
 }
@@ -320,13 +318,43 @@ void tiling_node_remove_toplevel(struct comp_toplevel *toplevel) {
 	}
 
 	if (sibling->parent) {
-		calc_size_pos_recursive(sibling->parent);
+		calc_size_pos_recursive(sibling->parent, true);
 	} else {
-		calc_size_pos_recursive(sibling);
+		calc_size_pos_recursive(sibling, true);
 	}
 
 	tiling_node_destroy(node->parent);
 	tiling_node_destroy(node);
+}
+
+void tiling_node_resize_start(struct comp_toplevel *toplevel) {
+	struct tiling_node *node = toplevel->tiling_node;
+	clock_gettime(CLOCK_MONOTONIC, &node->time);
+}
+
+void tiling_node_resize_fini(struct comp_toplevel *toplevel) {
+}
+
+/** Only render each 16.667ms */
+static bool can_update(struct comp_toplevel *toplevel) {
+	struct tiling_node *node = toplevel->tiling_node;
+
+	const float MS = 16.667;
+
+	struct timespec now;
+	clock_gettime(CLOCK_MONOTONIC, &now);
+
+	struct timespec *start = &node->time;
+	const float DELTA = (now.tv_sec - start->tv_sec) * 1000 +
+						(now.tv_nsec - start->tv_nsec) / 1000000.0;
+
+	if (DELTA < MS) {
+		return false;
+	}
+
+	clock_gettime(CLOCK_MONOTONIC, &node->time);
+
+	return true;
 }
 
 void tiling_node_resize(struct comp_toplevel *toplevel) {
@@ -334,13 +362,14 @@ void tiling_node_resize(struct comp_toplevel *toplevel) {
 
 	struct comp_seat *seat = server.seat;
 	struct tiling_node *node = toplevel->tiling_node;
+
 	struct wlr_box box = node->box;
 	struct wlr_box usable_area = toplevel->state.workspace->output->usable_area;
 
 	const double delta_x =
-		seat->cursor->wlr_cursor->x - seat->cursor->previous.x;
+		(seat->cursor->wlr_cursor->x - seat->cursor->previous.x);
 	const double delta_y =
-		seat->cursor->wlr_cursor->y - seat->cursor->previous.y;
+		(seat->cursor->wlr_cursor->y - seat->cursor->previous.y);
 
 	if ((ABS(delta_x) < 0.5 && ABS(delta_y) < 0.5)) {
 		return;
@@ -387,13 +416,15 @@ void tiling_node_resize(struct comp_toplevel *toplevel) {
 		}
 	}
 
+	bool update = can_update(toplevel);
+
 	if (h_outer) {
 		h_outer->parent->split_ratio =
 			CLAMP(h_outer->parent->split_ratio +
 					  allow_x_movement / h_outer->parent->box.width,
 				  0.1, 1.9);
 
-		calc_size_pos_recursive(h_outer->parent);
+		calc_size_pos_recursive(h_outer->parent, update);
 	}
 
 	if (v_outer) {
@@ -402,7 +433,7 @@ void tiling_node_resize(struct comp_toplevel *toplevel) {
 					  allow_y_movement / v_outer->parent->box.height,
 				  0.1, 1.9);
 
-		calc_size_pos_recursive(v_outer->parent);
+		calc_size_pos_recursive(v_outer->parent, update);
 	}
 }
 

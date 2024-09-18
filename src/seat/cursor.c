@@ -288,6 +288,9 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			server->seat->grabbed_toplevel &&
 			server->seat->grabbed_toplevel->dragging_tiled) {
 			tiling_node_move_fini(server->seat->grabbed_toplevel);
+		} else if (cursor->cursor_mode == COMP_CURSOR_RESIZE &&
+				   server->seat->grabbed_toplevel) {
+			tiling_node_resize_fini(server->seat->grabbed_toplevel);
 		}
 
 		if (object) {

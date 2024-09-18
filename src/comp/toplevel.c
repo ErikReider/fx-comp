@@ -374,6 +374,8 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 			comp_toplevel_set_size(toplevel, geo_box.width, geo_box.height);
 			comp_toplevel_mark_dirty(toplevel);
+		} else {
+			tiling_node_resize_start(toplevel);
 		}
 		break;
 	}
