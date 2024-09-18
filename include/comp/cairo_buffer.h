@@ -11,6 +11,8 @@ struct cairo_buffer {
 	cairo_t *cairo;
 };
 
+struct cairo_buffer *cairo_buffer_init(int width, int height);
+
 extern const struct wlr_buffer_impl cairo_buffer_buffer_impl;
 
 #endif // !FX_COMP_CAIRO_BUFFER_H

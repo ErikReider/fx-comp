@@ -39,6 +39,7 @@ struct comp_widget {
 
 	const struct comp_widget_impl *impl;
 
+	struct cairo_buffer *buffer;
 	pixman_region32_t damage;
 
 	// Effects
