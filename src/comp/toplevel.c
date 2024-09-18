@@ -670,6 +670,10 @@ void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height) {
+	// Fixes the size sometimes being negative when resizing tiled toplevels
+	width = MAX(0, width);
+	height = MAX(0, height);
+
 	toplevel->state.width = width;
 	toplevel->state.height = height;
 
