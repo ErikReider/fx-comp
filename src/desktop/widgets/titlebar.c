@@ -25,6 +25,11 @@
 #include "seat/seat.h"
 #include "util.h"
 
+void comp_titlebar_refresh_corner_radii(struct comp_titlebar *titlebar) {
+	titlebar->widget.corner_radius =
+		titlebar->toplevel->corner_radius + BORDER_WIDTH * 0.5;
+}
+
 void comp_titlebar_change_title(struct comp_titlebar *titlebar) {
 	if (comp_titlebar_should_be_shown(titlebar->toplevel)) {
 		pixman_region32_union_rect(
@@ -491,7 +496,7 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 
 	// Set the titlebar decoration data
 	titlebar->widget.opacity = 1;
-	titlebar->widget.corner_radius = toplevel->corner_radius + BORDER_WIDTH;
+	comp_titlebar_refresh_corner_radii(titlebar);
 	if (toplevel->corner_radius == 0) {
 		titlebar->widget.corner_radius = 0;
 	}

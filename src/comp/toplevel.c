@@ -437,6 +437,7 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	// Titlebar
 	struct comp_widget *titlebar_widget = &toplevel->titlebar->widget;
 	struct wlr_scene_buffer *titlebar_buffer = titlebar_widget->scene_buffer;
+	comp_titlebar_refresh_corner_radii(toplevel->titlebar);
 	wlr_scene_buffer_set_corner_radius(
 		titlebar_buffer, has_effects ? titlebar_widget->corner_radius : 0);
 	wlr_scene_buffer_set_shadow_data(titlebar_buffer,
