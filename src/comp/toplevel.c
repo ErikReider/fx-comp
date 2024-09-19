@@ -912,6 +912,8 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
 	comp_seat_surface_focus(&toplevel->object,
 							comp_toplevel_get_wlr_surface(toplevel));
+
+	comp_toplevel_mark_dirty(toplevel);
 }
 
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
