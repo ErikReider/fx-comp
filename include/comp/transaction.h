@@ -49,6 +49,7 @@ void comp_transaction_init(struct comp_transaction_mgr *mgr,
 						   void *data);
 void comp_transaction_add(struct comp_transaction_mgr *mgr,
 						  struct comp_transaction *client);
+void comp_transaction_remove(struct comp_transaction *client);
 void comp_transaction_run_now(struct comp_transaction_mgr *mgr,
 							  struct comp_transaction *client);
 

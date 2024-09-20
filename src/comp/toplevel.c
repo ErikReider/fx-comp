@@ -25,6 +25,21 @@
 #include "seat/seat.h"
 #include "util.h"
 
+static void txn_set_size(struct comp_toplevel *toplevel, int width,
+						 int height) {
+	assert(toplevel->state.workspace);
+	toplevel->txn.state.workspace = toplevel->state.workspace;
+	toplevel->txn.state.width = width;
+	toplevel->txn.state.height = height;
+}
+
+static void txn_set_position(struct comp_toplevel *toplevel, int x, int y) {
+	assert(toplevel->state.workspace);
+	toplevel->txn.state.workspace = toplevel->state.workspace;
+	toplevel->txn.state.x = x;
+	toplevel->txn.state.y = y;
+}
+
 static void center_toplevel(struct comp_toplevel *toplevel, int width,
 							int height, bool center_on_cursor) {
 	struct comp_toplevel_state original_state = toplevel->state;
@@ -695,10 +710,8 @@ void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height) {
-	toplevel->txn.state.workspace = toplevel->state.workspace;
 	// Fixes the size sometimes being negative when resizing tiled toplevels
-	toplevel->txn.state.width = MAX(0, width);
-	toplevel->txn.state.height = MAX(0, height);
+	txn_set_size(toplevel, MAX(0, width), MAX(0, height));
 }
 
 void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state) {
@@ -712,6 +725,9 @@ void comp_toplevel_refresh_titlebar(struct comp_toplevel *toplevel) {
 	toplevel->decorated_size.height = toplevel->state.height + 2 * BORDER_WIDTH;
 
 	struct comp_titlebar *titlebar = toplevel->titlebar;
+	if (!titlebar) {
+		return;
+	}
 	comp_titlebar_calculate_bar_height(titlebar);
 	toplevel->decorated_size.top_border_height = BORDER_WIDTH;
 	if (comp_titlebar_should_be_shown(toplevel)) {
@@ -758,7 +774,15 @@ static bool run_transaction(struct comp_transaction_mgr *mgr,
 	client->ready = true;
 
 	struct comp_toplevel *toplevel = client->data;
-	toplevel->state = toplevel->txn.state;
+
+	if (toplevel->destroying) {
+		return true;
+	}
+
+	toplevel->state.width = toplevel->txn.state.width;
+	toplevel->state.height = toplevel->txn.state.height;
+	toplevel->state.x = toplevel->txn.state.x;
+	toplevel->state.y = toplevel->txn.state.y;
 
 	// Set decoration size
 	comp_toplevel_refresh_titlebar(toplevel);
@@ -844,9 +868,7 @@ void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel, bool run_now) {
 }
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y) {
-	toplevel->txn.state.workspace = toplevel->state.workspace;
-	toplevel->txn.state.x = x;
-	toplevel->txn.state.y = y;
+	txn_set_position(toplevel, x, y);
 }
 
 void comp_toplevel_close(struct comp_toplevel *toplevel) {
@@ -856,6 +878,10 @@ void comp_toplevel_close(struct comp_toplevel *toplevel) {
 }
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
+	toplevel->destroying = true;
+
+	comp_transaction_remove(&toplevel->txn.transaction);
+
 	// Only destroy if no parent or if the parent hasn't been destroyed yet
 	if (!toplevel->parent_tree ||
 		(toplevel->parent_tree && !toplevel->parent_tree->node.data)) {

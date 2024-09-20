@@ -25,7 +25,7 @@ void comp_transaction_init(struct comp_transaction_mgr *mgr,
 	client->data = data;
 }
 
-static void comp_transaction_remove(struct comp_transaction *client) {
+void comp_transaction_remove(struct comp_transaction *client) {
 	if (client->inited) {
 		wl_list_remove(&client->link);
 		client->inited = false;
@@ -44,7 +44,7 @@ void comp_transaction_add(struct comp_transaction_mgr *mgr,
 void comp_transaction_run_now(struct comp_transaction_mgr *mgr,
 							  struct comp_transaction *client) {
 	client->ready = true;
-	if (client->impl->run && client->impl->run(mgr, client)) {
+	if (!client->impl || !client->impl->run || client->impl->run(mgr, client)) {
 		comp_transaction_remove(client);
 	}
 }
@@ -58,7 +58,7 @@ static int timer_func(void *data) {
 	wl_event_source_timer_update(mgr->tick, TRANSACTION_TIME_MS);
 
 	struct comp_transaction *client, *tmp;
-	wl_list_for_each_reverse_safe(client, tmp, &mgr->clients, link) {
+	wl_list_for_each_safe(client, tmp, &mgr->clients, link) {
 		comp_transaction_run_now(mgr, client);
 	}
 

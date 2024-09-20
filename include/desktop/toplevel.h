@@ -93,6 +93,8 @@ struct comp_toplevel {
 		struct comp_toplevel_state state;
 	} txn;
 
+	bool destroying;
+
 	// Effects
 	float opacity;
 	int corner_radius;
