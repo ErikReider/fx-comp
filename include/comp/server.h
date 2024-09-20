@@ -60,6 +60,7 @@ struct comp_server {
 	struct wl_listener layout_change;
 
 	struct comp_animation_mgr *animation_mgr;
+	struct comp_transaction_mgr *transaction_mgr;
 };
 
 extern struct comp_server server;

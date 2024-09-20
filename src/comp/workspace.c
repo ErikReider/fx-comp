@@ -36,6 +36,7 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 		server.output_layout, toplevel->state.workspace->output->wlr_output,
 		&lx, &ly);
 	comp_toplevel_set_position(toplevel, lx, ly);
+	comp_toplevel_mark_dirty(toplevel, false);
 }
 
 struct comp_toplevel *

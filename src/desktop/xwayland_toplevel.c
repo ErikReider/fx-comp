@@ -117,19 +117,16 @@ xway_get_parent_tree(struct comp_toplevel *toplevel) {
 	return xsurface_get_parent_tree(xsurface);
 }
 
-static void xway_configure(struct comp_toplevel *toplevel, int width,
-						   int height, int x, int y) {
+static uint32_t xway_configure(struct comp_toplevel *toplevel, int width,
+							   int height, int x, int y) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 	if (xsurface->x != x || xsurface->y != y || xsurface->width != width ||
 		xsurface->height != height) {
 		wlr_xwayland_surface_configure(xsurface, x, y, width, height);
 	}
-}
 
-static void xway_set_size(struct comp_toplevel *toplevel, int width,
-						  int height) {
-	xway_configure(toplevel, width, height, toplevel->state.x,
-				   toplevel->state.y);
+	// xwayland doesn't give us a serial for the configure
+	return 0;
 }
 
 static void xway_set_resizing(struct comp_toplevel *toplevel, bool state) {
@@ -183,7 +180,6 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.get_always_floating = xway_get_always_floating,
 	.get_parent_tree = xway_get_parent_tree,
 	.configure = xway_configure,
-	.set_size = xway_set_size,
 	.set_resizing = xway_set_resizing,
 	.set_activated = xway_set_activated,
 	.set_fullscreen = xway_set_fullscreen,
@@ -318,7 +314,7 @@ static void xway_toplevel_set_decorations(struct wl_listener *listener,
 	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
 
 	toplevel->using_csd = xway_get_using_csd(xsurface);
-	comp_toplevel_mark_dirty(toplevel);
+	comp_toplevel_mark_dirty(toplevel, false);
 }
 
 static void xway_toplevel_commit(struct wl_listener *listener, void *data) {
@@ -327,6 +323,18 @@ static void xway_toplevel_commit(struct wl_listener *listener, void *data) {
 	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
 
 	comp_toplevel_generic_commit(toplevel);
+
+	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
+	struct wlr_surface_state *state = &xsurface->surface->current;
+	if (toplevel->txn.transaction.inited &&
+		toplevel->txn.state.x == xsurface->x &&
+		toplevel->txn.state.y == xsurface->y &&
+		toplevel->txn.state.width == state->width &&
+		toplevel->txn.state.height == state->height) {
+		toplevel->txn.transaction.ready = true;
+		comp_transaction_run_now(server.transaction_mgr,
+								 &toplevel->txn.transaction);
+	}
 }
 
 static void xway_toplevel_destroy(struct wl_listener *listener, void *data) {
@@ -381,7 +389,7 @@ static void xway_toplevel_request_configure(struct wl_listener *listener,
 								   toplevel->state.height);
 	comp_toplevel_set_size(toplevel_xway->toplevel, toplevel->state.width,
 						   toplevel->state.height);
-	comp_toplevel_mark_dirty(toplevel_xway->toplevel);
+	comp_toplevel_mark_dirty(toplevel_xway->toplevel, false);
 }
 
 static void handle_surface_tree_destroy(struct wl_listener *listener,
@@ -411,9 +419,8 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 
 	comp_toplevel_generic_map(toplevel);
 
-	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
-	comp_toplevel_configure(toplevel_xway->toplevel, xsurface->width,
-							xsurface->height, xsurface->x, xsurface->y);
+	comp_toplevel_refresh_titlebar(toplevel);
+	comp_toplevel_mark_dirty(toplevel, false);
 }
 
 static void xway_toplevel_unmap(struct wl_listener *listener, void *data) {

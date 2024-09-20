@@ -545,7 +545,7 @@ void comp_output_arrange_output(struct comp_output *output) {
 				toplevel->state.workspace->output->geometry;
 			comp_toplevel_set_size(toplevel, output_box.width,
 								   output_box.height);
-			comp_toplevel_mark_dirty(toplevel);
+			comp_toplevel_mark_dirty(toplevel, false);
 		}
 	}
 }

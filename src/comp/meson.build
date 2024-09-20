@@ -6,6 +6,7 @@ sources += files(
 	'toplevel.c',
 	'tiling_node.c',
 	'server.c',
+	'transaction.c',
 	'widget.c',
 	'workspace.c',
 	'xwayland_mgr.c',

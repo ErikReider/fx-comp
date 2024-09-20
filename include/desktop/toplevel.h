@@ -10,6 +10,7 @@
 #include "comp/object.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
+#include "comp/transaction.h"
 #include "seat/cursor.h"
 
 #define NUMBER_OF_RESIZE_TARGETS 8
@@ -85,6 +86,13 @@ struct comp_toplevel {
 	// Used to restore the state when exiting fullscreen
 	struct comp_toplevel_state saved_state;
 
+	struct {
+		struct comp_transaction transaction;
+
+		uint32_t serial;
+		struct comp_toplevel_state state;
+	} txn;
+
 	// Effects
 	float opacity;
 	int corner_radius;
@@ -99,9 +107,8 @@ struct comp_toplevel_impl {
 	char *(*get_title)(struct comp_toplevel *toplevel);
 	bool (*get_always_floating)(struct comp_toplevel *toplevel);
 	struct wlr_scene_tree *(*get_parent_tree)(struct comp_toplevel *toplevel);
-	void (*configure)(struct comp_toplevel *toplevel, int width, int height,
-					  int x, int y);
-	void (*set_size)(struct comp_toplevel *toplevel, int width, int height);
+	uint32_t (*configure)(struct comp_toplevel *toplevel, int width, int height,
+						  int x, int y);
 	void (*set_resizing)(struct comp_toplevel *toplevel, bool state);
 	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
@@ -162,8 +169,8 @@ struct wlr_scene_tree *
 comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel);
 struct wlr_surface *
 comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel);
-void comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
-							 int height, int x, int y);
+uint32_t comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
+								 int height, int x, int y);
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
@@ -176,9 +183,11 @@ void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height);
 void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state);
 
-void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel);
+void comp_toplevel_refresh_titlebar(struct comp_toplevel *toplevel);
 
-void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel);
+void comp_toplevel_send_frame_done(struct comp_toplevel *toplevel);
+
+void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel, bool run_now);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 

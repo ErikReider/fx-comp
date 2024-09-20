@@ -15,6 +15,7 @@
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
+#include "comp/transaction.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
@@ -79,19 +80,10 @@ xdg_get_parent_tree(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
-static void xdg_configure(struct comp_toplevel *toplevel, int width, int height,
-						  int x, int y) {
+static uint32_t xdg_configure(struct comp_toplevel *toplevel, int width,
+							  int height, int x, int y) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
-	struct wlr_box geometry = xdg_get_geometry(toplevel);
-	if (geometry.width != width || geometry.height != height) {
-		wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
-	}
-}
-
-static void xdg_set_size(struct comp_toplevel *toplevel, int width,
-						 int height) {
-	xdg_configure(toplevel, width, height, toplevel->state.x,
-				  toplevel->state.y);
+	return wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
 }
 
 static void xdg_set_resizing(struct comp_toplevel *toplevel, bool state) {
@@ -157,7 +149,6 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.get_always_floating = xdg_get_always_floating,
 	.get_parent_tree = xdg_get_parent_tree,
 	.configure = xdg_configure,
-	.set_size = xdg_set_size,
 	.set_resizing = xdg_set_resizing,
 	.set_activated = xdg_set_activated,
 	.set_fullscreen = xdg_set_fullscreen,
@@ -205,6 +196,13 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	}
 
 	comp_toplevel_generic_commit(toplevel);
+
+	if (toplevel->txn.transaction.inited &&
+		toplevel->txn.serial == xdg_surface->current.configure_serial) {
+		toplevel->txn.transaction.ready = true;
+		comp_transaction_run_now(server.transaction_mgr,
+								 &toplevel->txn.transaction);
+	}
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {
