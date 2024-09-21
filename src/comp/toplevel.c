@@ -26,6 +26,15 @@
 #include "seat/seat.h"
 #include "util.h"
 
+static void add_fade_animation(struct comp_toplevel *toplevel, float from,
+							   float to) {
+	comp_animation_client_cancel(server.animation_mgr,
+								 toplevel->anim.fade.client);
+	toplevel->anim.fade.from = from;
+	toplevel->anim.fade.to = to;
+	comp_animation_client_add(server.animation_mgr, toplevel->anim.fade.client);
+}
+
 static void txn_set_size(struct comp_toplevel *toplevel, int width,
 						 int height) {
 	assert(toplevel->state.workspace);
@@ -897,14 +906,14 @@ void comp_toplevel_close(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	toplevel->destroying = true;
-	if (toplevel->animation->animating) {
+	if (toplevel->anim.fade.client->animating) {
 		wlr_log(WLR_DEBUG, "Delaying destroy until animation finishes");
 		return;
 	}
 
 	comp_transaction_remove(&toplevel->txn.transaction);
 
-	comp_animation_client_destroy(toplevel->animation);
+	comp_animation_client_destroy(toplevel->anim.fade.client);
 
 	// Only destroy if no parent or if the parent hasn't been destroyed yet
 	if (!toplevel->parent_tree ||
@@ -919,22 +928,26 @@ const struct comp_transaction_impl transaction_impl = {
 	.run = run_transaction,
 };
 
-static void animation_update(struct comp_animation_mgr *mgr,
-							 struct comp_animation_client *client) {
+/*
+ * Animations
+ */
+
+static void fade_animation_update(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client) {
 	struct comp_toplevel *toplevel = client->data;
-	if (toplevel->unmapped) {
-		toplevel->opacity = 1 - client->progress;
-		toplevel->titlebar->widget.opacity = 1 - client->progress;
-	} else {
-		toplevel->opacity = client->progress;
-		toplevel->titlebar->widget.opacity = client->progress;
-	}
+
+	const float alpha = lerp(toplevel->anim.fade.from, toplevel->anim.fade.to,
+							 ease_out_cubic(client->progress));
+	toplevel->opacity = alpha;
+	toplevel->titlebar->widget.opacity = alpha;
+
 	comp_toplevel_mark_effects_dirty(toplevel);
 }
 
-static void animation_done(struct comp_animation_mgr *mgr,
-						   struct comp_animation_client *client) {
+static void fade_animation_done(struct comp_animation_mgr *mgr,
+								struct comp_animation_client *client) {
 	struct comp_toplevel *toplevel = client->data;
+	comp_object_remove_buffer(&toplevel->object);
 	if (toplevel->unmapped) {
 		toplevel->opacity = 0.0f;
 		toplevel->titlebar->widget.opacity = 0.0f;
@@ -942,6 +955,7 @@ static void animation_done(struct comp_animation_mgr *mgr,
 		toplevel->opacity = 1.0f;
 		toplevel->titlebar->widget.opacity = 1.0f;
 	}
+
 	comp_toplevel_mark_effects_dirty(toplevel);
 
 	// Continue destroying the toplevel
@@ -950,9 +964,9 @@ static void animation_done(struct comp_animation_mgr *mgr,
 	}
 }
 
-const struct comp_animation_client_impl animation_impl = {
-	.done = animation_done,
-	.update = animation_update,
+const struct comp_animation_client_impl fade_animation_impl = {
+	.done = fade_animation_done,
+	.update = fade_animation_update,
 };
 
 struct comp_toplevel *
@@ -1004,9 +1018,9 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	comp_transaction_init(server.transaction_mgr, &toplevel->txn.transaction,
 						  &transaction_impl, toplevel);
 
-	toplevel->animation = comp_animation_client_init(
-		server.animation_mgr, TOPLEVEL_ANIMATION_DURATION_MS, &animation_impl,
-		toplevel);
+	toplevel->anim.fade.client = comp_animation_client_init(
+		server.animation_mgr, TOPLEVEL_ANIMATION_DURATION_MS,
+		&fade_animation_impl, toplevel);
 
 	/*
 	 * Decorations
@@ -1050,8 +1064,6 @@ static inline void set_natural_size(struct comp_toplevel *toplevel) {
  */
 
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
-	toplevel->unmapped = false;
-
 	struct comp_workspace *ws = toplevel->state.workspace;
 
 	comp_toplevel_set_pid(toplevel);
@@ -1108,11 +1120,8 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 
 	// Don't animate if already destroying
 	if (!toplevel->destroying) {
+		add_fade_animation(toplevel, toplevel->opacity, 0.0);
 		comp_object_save_buffer(&toplevel->object);
-		toplevel->opacity = 1;
-		toplevel->titlebar->widget.opacity = 1;
-		comp_toplevel_mark_effects_dirty(toplevel);
-		comp_animation_client_add(server.animation_mgr, toplevel->animation);
 	}
 
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
@@ -1173,8 +1182,7 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 			toplevel->opacity = 0;
 			toplevel->titlebar->widget.opacity = 0;
 			comp_toplevel_mark_effects_dirty(toplevel);
-			comp_animation_client_add(server.animation_mgr,
-									  toplevel->animation);
+			add_fade_animation(toplevel, 0.0, 1.0);
 			toplevel->unmapped = false;
 		}
 

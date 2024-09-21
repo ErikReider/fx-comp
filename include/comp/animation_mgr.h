@@ -48,6 +48,10 @@ comp_animation_client_init(struct comp_animation_mgr *mgr, int duration_ms,
 
 void comp_animation_client_remove(struct comp_animation_client *client);
 
+/** Removes the client and calls the done function */
+void comp_animation_client_cancel(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client);
+
 void comp_animation_client_destroy(struct comp_animation_client *client);
 
 void comp_animation_client_add(struct comp_animation_mgr *mgr,
