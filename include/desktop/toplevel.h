@@ -95,9 +95,9 @@ struct comp_toplevel {
 	} txn;
 
 	bool destroying;
+	bool unmapped;
 
 	struct comp_animation_client *animation;
-	bool mapped;
 
 	// Effects
 	float opacity;

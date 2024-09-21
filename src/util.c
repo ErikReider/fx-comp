@@ -9,6 +9,7 @@
 #include <sys/wait.h>
 #include <unistd.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_compositor.h>
 #include <wlr/util/log.h>
 
 #include "util.h"
@@ -123,6 +124,95 @@ struct wlr_scene_tree *alloc_tree(struct wlr_scene_tree *parent) {
 		wlr_log(WLR_ERROR, "Could not create scene_tree");
 	}
 	return tree;
+}
+
+static bool scene_node_snapshot(struct wlr_scene_node *node, int lx, int ly,
+								struct wlr_scene_tree *snapshot_tree) {
+	if (!node->enabled && node->type != WLR_SCENE_NODE_TREE) {
+		return true;
+	}
+
+	lx += node->x;
+	ly += node->y;
+
+	struct wlr_scene_node *snapshot_node = NULL;
+	switch (node->type) {
+	case WLR_SCENE_NODE_TREE:;
+		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
+
+		struct wlr_scene_node *child;
+		wl_list_for_each(child, &scene_tree->children, link) {
+			scene_node_snapshot(child, lx, ly, snapshot_tree);
+		}
+		break;
+	case WLR_SCENE_NODE_RECT:;
+		struct wlr_scene_rect *scene_rect = wlr_scene_rect_from_node(node);
+
+		struct wlr_scene_rect *snapshot_rect =
+			wlr_scene_rect_create(snapshot_tree, scene_rect->width,
+								  scene_rect->height, scene_rect->color);
+		if (snapshot_rect == NULL) {
+			return false;
+		}
+		snapshot_node = &snapshot_rect->node;
+		break;
+	case WLR_SCENE_NODE_BUFFER:;
+		struct wlr_scene_buffer *scene_buffer =
+			wlr_scene_buffer_from_node(node);
+
+		struct wlr_scene_buffer *snapshot_buffer =
+			wlr_scene_buffer_create(snapshot_tree, NULL);
+		if (snapshot_buffer == NULL) {
+			return false;
+		}
+		snapshot_node = &snapshot_buffer->node;
+
+		wlr_scene_buffer_set_dest_size(snapshot_buffer, scene_buffer->dst_width,
+									   scene_buffer->dst_height);
+		wlr_scene_buffer_set_opaque_region(snapshot_buffer,
+										   &scene_buffer->opaque_region);
+		wlr_scene_buffer_set_source_box(snapshot_buffer,
+										&scene_buffer->src_box);
+		wlr_scene_buffer_set_transform(snapshot_buffer,
+									   scene_buffer->transform);
+
+		struct wlr_scene_surface *scene_surface =
+			wlr_scene_surface_try_from_buffer(scene_buffer);
+		if (scene_surface != NULL && scene_surface->surface->buffer != NULL) {
+			wlr_scene_buffer_set_buffer(snapshot_buffer,
+										&scene_surface->surface->buffer->base);
+		} else {
+			wlr_scene_buffer_set_buffer(snapshot_buffer, scene_buffer->buffer);
+		}
+		break;
+	}
+
+	if (snapshot_node != NULL) {
+		wlr_scene_node_set_position(snapshot_node, lx, ly);
+	}
+
+	return true;
+}
+
+struct wlr_scene_tree *wlr_scene_tree_snapshot(struct wlr_scene_node *node,
+											   struct wlr_scene_tree *parent) {
+	struct wlr_scene_tree *snapshot = wlr_scene_tree_create(parent);
+	if (snapshot == NULL) {
+		return NULL;
+	}
+
+	// Disable and enable the snapshot tree like so to atomically update
+	// the scene-graph. This will prevent over-damaging or other weirdness.
+	wlr_scene_node_set_enabled(&snapshot->node, false);
+
+	if (!scene_node_snapshot(node, 0, 0, snapshot)) {
+		wlr_scene_node_destroy(&snapshot->node);
+		return NULL;
+	}
+
+	wlr_scene_node_set_enabled(&snapshot->node, true);
+
+	return snapshot;
 }
 
 double hex_red(const uint32_t *const col) {

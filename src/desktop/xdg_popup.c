@@ -142,11 +142,13 @@ struct comp_xdg_popup *xdg_new_xdg_popup(struct wlr_xdg_popup *wlr_popup,
 	popup->parent_object = object;
 	popup->wlr_popup = wlr_popup;
 	popup->object.scene_tree = alloc_tree(parent);
-	if (popup->object.scene_tree == NULL) {
+	popup->object.content_tree = alloc_tree(popup->object.scene_tree);
+	if (popup->object.scene_tree == NULL ||
+		popup->object.content_tree == NULL) {
 		goto error_scene;
 	}
 	popup->xdg_scene_tree =
-		wlr_scene_xdg_surface_create(popup->object.scene_tree, wlr_popup->base);
+		wlr_scene_xdg_surface_create(popup->object.content_tree, wlr_popup->base);
 	if (popup->xdg_scene_tree == NULL) {
 		goto error_xdg;
 	}

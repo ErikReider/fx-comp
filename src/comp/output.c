@@ -131,6 +131,13 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	struct wlr_scene_output *scene_output =
 		wlr_scene_get_scene_output(scene, output->wlr_output);
 
+	// output_configure_scene(output, &server.root_scene->tree.node, NULL);
+	// wlr_scene_optimized_blur_mark_dirty(scene);
+	// wlr_output_layout_get_box(server.output_layout, output->wlr_output,
+	// 						  &output->geometry);
+	// wlr_scene_output_set_position(scene_output, output->geometry.x,
+	// 							  output->geometry.y);
+
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
 
@@ -238,18 +245,19 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->server = server;
 
 	output->object.scene_tree = alloc_tree(&server->root_scene->tree);
+	output->object.content_tree = alloc_tree(output->object.scene_tree);
 	output->object.scene_tree->node.data = &output->object;
 	output->object.data = output;
 	output->object.type = COMP_OBJECT_TYPE_OUTPUT;
 
 	// Initialize layers
-	output->layers.shell_background = alloc_tree(output->object.scene_tree);
-	output->layers.shell_bottom = alloc_tree(output->object.scene_tree);
-	output->layers.workspaces = alloc_tree(output->object.scene_tree);
-	output->layers.shell_top = alloc_tree(output->object.scene_tree);
-	output->layers.shell_overlay = alloc_tree(output->object.scene_tree);
-	output->layers.seat = alloc_tree(output->object.scene_tree);
-	output->layers.session_lock = alloc_tree(output->object.scene_tree);
+	output->layers.shell_background = alloc_tree(output->object.content_tree);
+	output->layers.shell_bottom = alloc_tree(output->object.content_tree);
+	output->layers.workspaces = alloc_tree(output->object.content_tree);
+	output->layers.shell_top = alloc_tree(output->object.content_tree);
+	output->layers.shell_overlay = alloc_tree(output->object.content_tree);
+	output->layers.seat = alloc_tree(output->object.content_tree);
+	output->layers.session_lock = alloc_tree(output->object.content_tree);
 
 	wl_list_init(&output->workspaces);
 
@@ -403,6 +411,12 @@ void comp_output_update_sizes(struct comp_output *output) {
 
 	comp_output_arrange_layers(output);
 	comp_output_arrange_output(output);
+
+	// TODO: Update toplevel positions/tiling/sizes Only enable for actual
+	// outputs
+	// printf("GEO: %i %i %ix%i\n", output->geometry.width,
+	// 	   output->geometry.height, output->geometry.x,
+	// output->geometry.y);
 }
 
 void comp_output_move_workspace_to(struct comp_output *dest_output,

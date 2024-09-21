@@ -32,13 +32,15 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 					  const struct comp_widget_impl *impl) {
 	assert(parent_obj);
 	widget->object.scene_tree = alloc_tree(parent_tree);
-	if (widget->object.scene_tree == NULL) {
+	widget->object.content_tree = alloc_tree(widget->object.scene_tree);
+	if (widget->object.scene_tree == NULL ||
+		widget->object.content_tree == NULL) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar wlr_scene_tree");
 		return false;
 	}
 
 	widget->scene_buffer =
-		wlr_scene_buffer_create(widget->object.scene_tree, NULL);
+		wlr_scene_buffer_create(widget->object.content_tree, NULL);
 	if (widget->scene_buffer == NULL) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar wlr_scene_buffer");
 		wlr_scene_node_destroy(&widget->object.scene_tree->node);

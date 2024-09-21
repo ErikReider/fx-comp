@@ -220,7 +220,10 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 	struct wlr_scene_tree *layer =
 		layer_get_scene_tree(output, wlr_layer_surface->pending.layer);
 	layer_surface->object.scene_tree = alloc_tree(layer);
-	if (layer_surface->object.scene_tree == NULL) {
+	layer_surface->object.content_tree =
+		alloc_tree(layer_surface->object.scene_tree);
+	if (layer_surface->object.scene_tree == NULL ||
+		layer_surface->object.content_tree == NULL) {
 		goto error;
 	}
 
@@ -229,7 +232,7 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 	 */
 
 	layer_surface->scene_layer = wlr_scene_layer_surface_v1_create(
-		layer_surface->object.scene_tree, wlr_layer_surface);
+		layer_surface->object.content_tree, wlr_layer_surface);
 	if (layer_surface->scene_layer == NULL) {
 		wlr_log(WLR_ERROR, "Could not create wlr_scene_layer_surface");
 		goto error;

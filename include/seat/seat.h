@@ -9,6 +9,10 @@
 #include "desktop/layer_shell.h"
 #include "desktop/toplevel.h"
 
+struct gesture_data {
+	float percent;
+};
+
 struct comp_seat {
 	struct comp_server *server;
 

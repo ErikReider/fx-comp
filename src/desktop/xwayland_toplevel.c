@@ -405,7 +405,8 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 
 	// Insert the surface into the scene
 	toplevel->toplevel_scene_tree = wlr_scene_subsurface_tree_create(
-		toplevel->object.scene_tree, toplevel_xway->xwayland_surface->surface);
+		toplevel->object.content_tree,
+		toplevel_xway->xwayland_surface->surface);
 	toplevel->toplevel_scene_tree->node.data = &toplevel->object;
 	if (toplevel->toplevel_scene_tree) {
 		listener_connect(&toplevel->toplevel_scene_tree->node.events.destroy,

@@ -173,7 +173,8 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 
 	// Create workspace tree
 	ws->object.scene_tree = alloc_tree(output->layers.workspaces);
-	if (!ws->object.scene_tree) {
+	ws->object.content_tree = alloc_tree(ws->object.scene_tree);
+	if (!ws->object.scene_tree || !ws->object.content_tree) {
 		return NULL;
 	}
 	ws->object.scene_tree->node.data = &ws->object;
@@ -181,19 +182,19 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 	ws->object.type = COMP_OBJECT_TYPE_WORKSPACE;
 
 	// Create tiled/fullscreen
-	ws->layers.lower = alloc_tree(ws->object.scene_tree);
+	ws->layers.lower = alloc_tree(ws->object.content_tree);
 	if (!ws->layers.lower) {
 		return NULL;
 	}
 	ws->layers.lower->node.data = &ws->object;
 	// Create floating
-	ws->layers.floating = alloc_tree(ws->object.scene_tree);
+	ws->layers.floating = alloc_tree(ws->object.content_tree);
 	if (!ws->layers.floating) {
 		return NULL;
 	}
 	ws->layers.floating->node.data = &ws->object;
 	// Create unmanaged
-	ws->layers.unmanaged = alloc_tree(ws->object.scene_tree);
+	ws->layers.unmanaged = alloc_tree(ws->object.content_tree);
 	if (!ws->layers.unmanaged) {
 		return NULL;
 	}

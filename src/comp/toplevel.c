@@ -444,25 +444,24 @@ struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
 
 static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 											 int sx, int sy, void *user_data) {
+	struct comp_toplevel *toplevel = user_data;
+
 	struct wlr_scene_surface *scene_surface =
 		wlr_scene_surface_try_from_buffer(buffer);
-	if (!scene_surface || !user_data) {
-		return;
-	}
-
-	struct comp_toplevel *toplevel = user_data;
-	switch (toplevel->type) {
-	case COMP_TOPLEVEL_TYPE_XDG:;
-		struct wlr_xdg_surface *xdg_surface;
-		if (!(xdg_surface = wlr_xdg_surface_try_from_wlr_surface(
-				  scene_surface->surface)) ||
-			xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-			return;
+	if (scene_surface) {
+		switch (toplevel->type) {
+		case COMP_TOPLEVEL_TYPE_XDG:;
+			struct wlr_xdg_surface *xdg_surface;
+			if (!(xdg_surface = wlr_xdg_surface_try_from_wlr_surface(
+					  scene_surface->surface)) ||
+				xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+				return;
+			}
+			break;
+		case COMP_TOPLEVEL_TYPE_XWAYLAND:
+			// TODO: Check here
+			break;
 		}
-		break;
-	case COMP_TOPLEVEL_TYPE_XWAYLAND:
-		// TODO: Check here
-		break;
 	}
 
 	bool has_effects = !toplevel->fullscreen;
@@ -488,9 +487,14 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 }
 
 void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
+	if (toplevel->object.saved_tree) {
+		wlr_scene_node_for_each_buffer(&toplevel->object.saved_tree->node,
+									   iter_scene_buffers_apply_effects,
+									   toplevel);
+		return;
+	}
 	wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,
 								   iter_scene_buffers_apply_effects, toplevel);
-	comp_toplevel_commit_transaction(toplevel, false);
 }
 
 void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
@@ -893,6 +897,10 @@ void comp_toplevel_close(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	toplevel->destroying = true;
+	if (toplevel->animation->animating) {
+		wlr_log(WLR_DEBUG, "Delaying destroy until animation finishes");
+		return;
+	}
 
 	comp_transaction_remove(&toplevel->txn.transaction);
 
@@ -914,17 +922,32 @@ const struct comp_transaction_impl transaction_impl = {
 static void animation_update(struct comp_animation_mgr *mgr,
 							 struct comp_animation_client *client) {
 	struct comp_toplevel *toplevel = client->data;
-	toplevel->opacity = client->progress;
-	toplevel->titlebar->widget.opacity = client->progress;
+	if (toplevel->unmapped) {
+		toplevel->opacity = 1 - client->progress;
+		toplevel->titlebar->widget.opacity = 1 - client->progress;
+	} else {
+		toplevel->opacity = client->progress;
+		toplevel->titlebar->widget.opacity = client->progress;
+	}
 	comp_toplevel_mark_effects_dirty(toplevel);
 }
 
 static void animation_done(struct comp_animation_mgr *mgr,
 						   struct comp_animation_client *client) {
 	struct comp_toplevel *toplevel = client->data;
-	toplevel->opacity = 1.0f;
-	toplevel->titlebar->widget.opacity = 1.0f;
+	if (toplevel->unmapped) {
+		toplevel->opacity = 0.0f;
+		toplevel->titlebar->widget.opacity = 0.0f;
+	} else {
+		toplevel->opacity = 1.0f;
+		toplevel->titlebar->widget.opacity = 1.0f;
+	}
 	comp_toplevel_mark_effects_dirty(toplevel);
+
+	// Continue destroying the toplevel
+	if (toplevel->destroying) {
+		comp_toplevel_destroy(toplevel);
+	}
 }
 
 const struct comp_animation_client_impl animation_impl = {
@@ -963,12 +986,13 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->state.workspace = workspace;
 	struct wlr_scene_tree *tree = comp_toplevel_get_layer(toplevel);
 	toplevel->object.scene_tree = alloc_tree(tree);
+	toplevel->object.content_tree = alloc_tree(toplevel->object.scene_tree);
 
 	toplevel->object.scene_tree->node.data = &toplevel->object;
 	toplevel->object.data = toplevel;
 	toplevel->object.type = COMP_OBJECT_TYPE_TOPLEVEL;
 
-	toplevel->decoration_scene_tree = alloc_tree(toplevel->object.scene_tree);
+	toplevel->decoration_scene_tree = alloc_tree(toplevel->object.content_tree);
 
 	// Initialize saved position/size
 	toplevel->saved_state.x = 0;
@@ -1026,6 +1050,8 @@ static inline void set_natural_size(struct comp_toplevel *toplevel) {
  */
 
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
+	toplevel->unmapped = false;
+
 	struct comp_workspace *ws = toplevel->state.workspace;
 
 	comp_toplevel_set_pid(toplevel);
@@ -1064,6 +1090,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
 
 	// Wait until the surface has been configured
+	toplevel->unmapped = true;
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
 
 	comp_seat_surface_focus(&toplevel->object,
@@ -1073,11 +1100,20 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 }
 
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
+	toplevel->unmapped = true;
+
 	if (toplevel->fullscreen) {
 		comp_toplevel_set_fullscreen(toplevel, false);
 	}
 
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
+	// Don't animate if already destroying
+	if (!toplevel->destroying) {
+		comp_object_save_buffer(&toplevel->object);
+		toplevel->opacity = 1;
+		toplevel->titlebar->widget.opacity = 1;
+		comp_toplevel_mark_effects_dirty(toplevel);
+		comp_animation_client_add(server.animation_mgr, toplevel->animation);
+	}
 
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
 	if (toplevel == toplevel->server->seat->grabbed_toplevel) {
@@ -1133,13 +1169,13 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 	if (toplevel->txn.transaction.inited &&
 		toplevel->impl->should_run_transaction &&
 		toplevel->impl->should_run_transaction(toplevel)) {
-		if (!toplevel->mapped) {
+		if (toplevel->unmapped) {
 			toplevel->opacity = 0;
 			toplevel->titlebar->widget.opacity = 0;
 			comp_toplevel_mark_effects_dirty(toplevel);
 			comp_animation_client_add(server.animation_mgr,
 									  toplevel->animation);
-			toplevel->mapped = true;
+			toplevel->unmapped = false;
 		}
 
 		toplevel->txn.transaction.ready = true;

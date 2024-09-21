@@ -1,6 +1,8 @@
 #include <scenefx/types/wlr_scene.h>
+#include <wlr/util/log.h>
 
 #include "comp/object.h"
+#include "util.h"
 
 struct comp_object *comp_object_at(struct comp_server *server, double lx,
 								   double ly, double *sx, double *sy,
@@ -32,4 +34,25 @@ struct comp_object *comp_object_at(struct comp_server *server, double lx,
 		tree = tree->node.parent;
 	}
 	return tree->node.data;
+}
+
+void comp_object_save_buffer(struct comp_object *object) {
+	// Thanks Sway for the simple implementation! :)
+	if (object->saved_tree) {
+		wlr_log(WLR_INFO, "Trying to save already saved buffer...");
+		comp_object_remove_buffer(object);
+	}
+
+	wlr_scene_node_set_enabled(&object->content_tree->node, true);
+	object->saved_tree = wlr_scene_tree_snapshot(&object->content_tree->node,
+												 object->scene_tree);
+
+	wlr_scene_node_set_enabled(&object->content_tree->node, false);
+	wlr_scene_node_set_enabled(&object->saved_tree->node, true);
+}
+
+void comp_object_remove_buffer(struct comp_object *object) {
+	wlr_scene_node_destroy(&object->saved_tree->node);
+	object->saved_tree = NULL;
+	wlr_scene_node_set_enabled(&object->content_tree->node, true);
 }

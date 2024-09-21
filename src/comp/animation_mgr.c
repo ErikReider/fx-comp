@@ -54,6 +54,7 @@ void comp_animation_client_add(struct comp_animation_mgr *mgr,
 							   struct comp_animation_client *client) {
 	comp_animation_client_remove(client);
 	client->inited = true;
+	client->animating = true;
 
 	client->progress = 0.0;
 	wl_list_insert(&mgr->clients, &client->link);

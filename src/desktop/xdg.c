@@ -378,7 +378,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 
 	// TODO: event.output_enter/output_leave for primary output
 	toplevel->toplevel_scene_tree = wlr_scene_xdg_surface_create(
-		toplevel->object.scene_tree, toplevel_xdg->xdg_toplevel->base);
+		toplevel->object.content_tree, toplevel_xdg->xdg_toplevel->base);
 	toplevel->toplevel_scene_tree->node.data = &toplevel->object;
 	xdg_surface->data = toplevel->object.scene_tree;
 

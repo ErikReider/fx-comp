@@ -83,11 +83,12 @@ static void unmanaged_map(struct wl_listener *listener, void *data) {
 	}
 
 	unmanaged->object.scene_tree = alloc_tree(unmanaged->parent_tree);
+	unmanaged->object.content_tree = alloc_tree(unmanaged->object.scene_tree);
 	unmanaged->object.scene_tree->node.data = &unmanaged->object;
 	xsurface->data = unmanaged->object.scene_tree;
 
 	unmanaged->surface_scene = wlr_scene_surface_create(
-		unmanaged->object.scene_tree, xsurface->surface);
+		unmanaged->object.content_tree, xsurface->surface);
 	if (unmanaged->surface_scene) {
 		unmanaged->surface_scene->buffer->node.data = &unmanaged->object;
 
