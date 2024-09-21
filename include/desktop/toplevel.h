@@ -7,6 +7,7 @@
 #include <wayland-util.h>
 #include <wlr/types/wlr_compositor.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/object.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
@@ -94,6 +95,9 @@ struct comp_toplevel {
 	} txn;
 
 	bool destroying;
+
+	struct comp_animation_client *animation;
+	bool mapped;
 
 	// Effects
 	float opacity;

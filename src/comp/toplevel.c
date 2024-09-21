@@ -11,6 +11,7 @@
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
@@ -477,6 +478,8 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	// Titlebar
 	struct comp_widget *titlebar_widget = &toplevel->titlebar->widget;
 	struct wlr_scene_buffer *titlebar_buffer = titlebar_widget->scene_buffer;
+	wlr_scene_buffer_set_opacity(titlebar_buffer,
+								 has_effects ? titlebar_widget->opacity : 1);
 	comp_titlebar_refresh_corner_radii(toplevel->titlebar);
 	wlr_scene_buffer_set_corner_radius(
 		titlebar_buffer, has_effects ? titlebar_widget->corner_radius : 0);
@@ -893,6 +896,8 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 
 	comp_transaction_remove(&toplevel->txn.transaction);
 
+	comp_animation_client_destroy(toplevel->animation);
+
 	// Only destroy if no parent or if the parent hasn't been destroyed yet
 	if (!toplevel->parent_tree ||
 		(toplevel->parent_tree && !toplevel->parent_tree->node.data)) {
@@ -904,6 +909,27 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 
 const struct comp_transaction_impl transaction_impl = {
 	.run = run_transaction,
+};
+
+static void animation_update(struct comp_animation_mgr *mgr,
+							 struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
+	toplevel->opacity = client->progress;
+	toplevel->titlebar->widget.opacity = client->progress;
+	comp_toplevel_mark_effects_dirty(toplevel);
+}
+
+static void animation_done(struct comp_animation_mgr *mgr,
+						   struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
+	toplevel->opacity = 1.0f;
+	toplevel->titlebar->widget.opacity = 1.0f;
+	comp_toplevel_mark_effects_dirty(toplevel);
+}
+
+const struct comp_animation_client_impl animation_impl = {
+	.done = animation_done,
+	.update = animation_update,
 };
 
 struct comp_toplevel *
@@ -953,6 +979,10 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	// Initialize transaction
 	comp_transaction_init(server.transaction_mgr, &toplevel->txn.transaction,
 						  &transaction_impl, toplevel);
+
+	toplevel->animation = comp_animation_client_init(
+		server.animation_mgr, TOPLEVEL_ANIMATION_DURATION_MS, &animation_impl,
+		toplevel);
 
 	/*
 	 * Decorations
@@ -1103,6 +1133,15 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 	if (toplevel->txn.transaction.inited &&
 		toplevel->impl->should_run_transaction &&
 		toplevel->impl->should_run_transaction(toplevel)) {
+		if (!toplevel->mapped) {
+			toplevel->opacity = 0;
+			toplevel->titlebar->widget.opacity = 0;
+			comp_toplevel_mark_effects_dirty(toplevel);
+			comp_animation_client_add(server.animation_mgr,
+									  toplevel->animation);
+			toplevel->mapped = true;
+		}
+
 		toplevel->txn.transaction.ready = true;
 		comp_transaction_run_now(server.transaction_mgr,
 								 &toplevel->txn.transaction);
