@@ -502,6 +502,12 @@ void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
 									   toplevel);
 		return;
 	}
+	if (toplevel->destroying) {
+		wlr_log(WLR_DEBUG,
+				"Skipping setting effects due to toplevel being destroyed");
+		return;
+	}
+
 	wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,
 								   iter_scene_buffers_apply_effects, toplevel);
 }
