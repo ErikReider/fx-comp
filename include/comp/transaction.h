@@ -18,6 +18,8 @@ struct comp_transaction_mgr {
 	struct wl_list clients;
 };
 
+void comp_transaction_set_timeout(struct comp_transaction_mgr *mgr);
+
 struct comp_transaction_mgr *comp_transaction_mgr_init(void);
 
 void comp_transaction_mgr_destroy(struct comp_transaction_mgr *mgr);

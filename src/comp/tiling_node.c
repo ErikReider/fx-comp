@@ -59,7 +59,7 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 		container->box.y + toplevel->decorated_size.top_border_height +
 			TILING_GAPS_INNER);
 
-	comp_toplevel_mark_dirty(toplevel, false);
+	comp_toplevel_commit_transaction(toplevel, false);
 }
 
 static void calc_size_pos_recursive(struct tiling_node *node, bool update) {

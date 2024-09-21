@@ -55,7 +55,6 @@ void comp_transaction_run_now(struct comp_transaction_mgr *mgr,
 
 static int timer_func(void *data) {
 	struct comp_transaction_mgr *mgr = data;
-	wl_event_source_timer_update(mgr->tick, TRANSACTION_TIME_MS);
 
 	struct comp_transaction *client, *tmp;
 	wl_list_for_each_safe(client, tmp, &mgr->clients, link) {
@@ -63,6 +62,10 @@ static int timer_func(void *data) {
 	}
 
 	return 0;
+}
+
+void comp_transaction_set_timeout(struct comp_transaction_mgr *mgr) {
+	wl_event_source_timer_update(mgr->tick, TRANSACTION_TIME_MS);
 }
 
 struct comp_transaction_mgr *comp_transaction_mgr_init(void) {

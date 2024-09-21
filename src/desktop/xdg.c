@@ -15,7 +15,6 @@
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
-#include "comp/transaction.h"
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
@@ -141,6 +140,12 @@ static void xdg_marked_dirty_cb(struct comp_toplevel *toplevel) {
 	}
 }
 
+static bool should_run_transaction(struct comp_toplevel *toplevel) {
+	struct wlr_xdg_surface *xdg_surface =
+		toplevel->toplevel_xdg->xdg_toplevel->base;
+	return toplevel->txn.serial == xdg_surface->current.configure_serial;
+}
+
 static const struct comp_toplevel_impl xdg_impl = {
 	.get_geometry = xdg_get_geometry,
 	.get_constraints = xdg_get_constraints,
@@ -157,6 +162,7 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.set_pid = xdg_set_pid,
 	.marked_dirty_cb = xdg_marked_dirty_cb,
 	.close = xdg_close,
+	.should_run_transaction = should_run_transaction,
 };
 
 /*
@@ -196,13 +202,6 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 	}
 
 	comp_toplevel_generic_commit(toplevel);
-
-	if (toplevel->txn.transaction.inited &&
-		toplevel->txn.serial == xdg_surface->current.configure_serial) {
-		toplevel->txn.transaction.ready = true;
-		comp_transaction_run_now(server.transaction_mgr,
-								 &toplevel->txn.transaction);
-	}
 }
 
 static void xdg_toplevel_destroy(struct wl_listener *listener, void *data) {

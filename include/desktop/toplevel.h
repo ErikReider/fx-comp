@@ -119,6 +119,7 @@ struct comp_toplevel_impl {
 	void (*set_pid)(struct comp_toplevel *toplevel);
 	void (*marked_dirty_cb)(struct comp_toplevel *toplevel);
 	void (*close)(struct comp_toplevel *toplevel);
+	bool (*should_run_transaction)(struct comp_toplevel *toplevel);
 };
 
 struct comp_toplevel *comp_toplevel_init(struct comp_output *output,
@@ -189,7 +190,8 @@ void comp_toplevel_refresh_titlebar(struct comp_toplevel *toplevel);
 
 void comp_toplevel_send_frame_done(struct comp_toplevel *toplevel);
 
-void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel, bool run_now);
+void comp_toplevel_commit_transaction(struct comp_toplevel *toplevel,
+									  bool run_now);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 

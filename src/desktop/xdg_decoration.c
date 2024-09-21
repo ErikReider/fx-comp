@@ -22,7 +22,7 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 		client_mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 
 	comp_toplevel_refresh_titlebar(toplevel);
-	comp_toplevel_mark_dirty(toplevel, false);
+	comp_toplevel_commit_transaction(toplevel, false);
 
 	if (floating && client_mode) {
 		mode = client_mode;
