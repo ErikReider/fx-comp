@@ -1264,11 +1264,11 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 		toplevel->impl->should_run_transaction &&
 		toplevel->impl->should_run_transaction(toplevel)) {
 		if (toplevel->unmapped) {
+			toplevel->unmapped = false;
 			toplevel->opacity = 0;
 			toplevel->titlebar->widget.opacity = 0;
 			comp_toplevel_mark_effects_dirty(toplevel);
 			comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
-			toplevel->unmapped = false;
 		}
 
 		toplevel->txn.transaction.ready = true;
