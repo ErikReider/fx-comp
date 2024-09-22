@@ -455,14 +455,14 @@ void tiling_node_move_start(struct comp_toplevel *toplevel) {
 	toplevel->dragging_tiled = true;
 	toplevel->opacity = TILING_MOVE_TOPLEVEL_OPACITY;
 	comp_toplevel_mark_effects_dirty(toplevel);
-	comp_toplevel_set_tiled(toplevel, false);
+	comp_toplevel_set_tiled(toplevel, false, false);
 }
 
 void tiling_node_move_fini(struct comp_toplevel *toplevel) {
 	toplevel->dragging_tiled = false;
 	toplevel->opacity = 1;
 	comp_toplevel_mark_effects_dirty(toplevel);
-	comp_toplevel_set_tiled(toplevel, true);
+	comp_toplevel_set_tiled(toplevel, true, false);
 }
 
 struct tiling_node *tiling_node_init(struct comp_workspace *ws, bool is_node) {

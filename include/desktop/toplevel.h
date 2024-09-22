@@ -199,7 +199,8 @@ void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel);
 void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel);
-void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state);
+void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
+							 bool skip_remove_animation);
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel);
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height);

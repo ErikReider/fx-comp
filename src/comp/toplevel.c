@@ -45,8 +45,8 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 									  struct comp_toplevel_state to) {
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.resize.client);
-	toplevel->anim.resize.from = toplevel->state;
-	toplevel->anim.resize.to = toplevel->txn.state;
+	toplevel->anim.resize.from = from;
+	toplevel->anim.resize.to = to;
 	comp_animation_client_add(server.animation_mgr,
 							  toplevel->anim.resize.client);
 }
@@ -636,7 +636,7 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 	// HACK: Come up with a way of restoring to tiled state
 	if (state) {
-		comp_toplevel_set_tiled(toplevel, false);
+		comp_toplevel_set_tiled(toplevel, false, true);
 	}
 	toplevel->fullscreen = state;
 
@@ -698,7 +698,8 @@ bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel) {
 	return false;
 }
 
-void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
+void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
+							 bool skip_remove_animation) {
 	if (state && toplevel->fullscreen) {
 		wlr_log(WLR_DEBUG, "Skipping tiling fullscreen toplevel");
 		return;
@@ -746,8 +747,10 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 		center_toplevel(toplevel, toplevel->txn.state.width,
 						toplevel->txn.state.height, toplevel->dragging_tiled);
 
-		comp_toplevel_add_size_animation(toplevel, toplevel->state,
-										 toplevel->txn.state);
+		if (!skip_remove_animation) {
+			comp_toplevel_add_size_animation(toplevel, toplevel->state,
+											 toplevel->txn.state);
+		}
 		comp_toplevel_commit_transaction(toplevel, false);
 	}
 
@@ -757,8 +760,8 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 }
 
 void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel) {
-	comp_toplevel_set_tiled(toplevel,
-							toplevel->tiling_mode == COMP_TILING_MODE_FLOATING);
+	comp_toplevel_set_tiled(
+		toplevel, toplevel->tiling_mode == COMP_TILING_MODE_FLOATING, false);
 }
 
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
@@ -1177,9 +1180,9 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	// Tile/float the new toplevel
 	if (ws->type == COMP_WORKSPACE_TYPE_REGULAR &&
 		toplevel->tiling_mode == COMP_TILING_MODE_TILED) {
-		comp_toplevel_set_tiled(toplevel, true);
+		comp_toplevel_set_tiled(toplevel, true, false);
 	} else {
-		comp_toplevel_set_tiled(toplevel, false);
+		comp_toplevel_set_tiled(toplevel, false, false);
 	}
 
 	wl_list_insert(&ws->toplevels, &toplevel->workspace_link);
