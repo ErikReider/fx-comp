@@ -198,10 +198,8 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 		struct comp_toplevel *focused_toplevel = NULL;
 		if ((focused_toplevel = comp_workspace_get_latest_focused(ws)) &&
 			focused_toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
-			focused_toplevel != toplevel &&
-			focused_toplevel->tiling_node) {
+			focused_toplevel != toplevel && focused_toplevel->tiling_node) {
 			// Attach to focused tree
-			assert(focused_toplevel->tiling_node);
 			parent_node = focused_toplevel->tiling_node;
 		}
 	}

@@ -41,6 +41,9 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 
 struct comp_toplevel *
 comp_workspace_get_latest_focused(struct comp_workspace *ws) {
+	if (wl_list_empty(&ws->toplevels)) {
+		return NULL;
+	}
 	struct comp_toplevel *toplevel =
 		wl_container_of(ws->toplevels.next, toplevel, workspace_link);
 	return toplevel;
@@ -48,12 +51,18 @@ comp_workspace_get_latest_focused(struct comp_workspace *ws) {
 
 struct comp_toplevel *
 comp_workspace_get_next_focused(struct comp_workspace *ws) {
+	if (wl_list_empty(&ws->toplevels)) {
+		return NULL;
+	}
 	struct comp_toplevel *toplevel =
 		wl_container_of(ws->toplevels.prev, toplevel, workspace_link);
 	return toplevel;
 }
 struct comp_toplevel *
 comp_workspace_get_prev_focused(struct comp_workspace *ws) {
+	if (wl_list_empty(&ws->toplevels)) {
+		return NULL;
+	}
 	struct comp_toplevel *toplevel =
 		wl_container_of(ws->toplevels.next->next, toplevel, workspace_link);
 	return toplevel;
