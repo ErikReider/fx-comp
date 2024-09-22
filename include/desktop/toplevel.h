@@ -103,6 +103,11 @@ struct comp_toplevel {
 			float to;
 			float from;
 		} fade;
+		struct {
+			struct comp_animation_client *client;
+			struct comp_toplevel_state to;
+			struct comp_toplevel_state from;
+		} resize;
 	} anim;
 
 	// Effects
@@ -223,5 +228,9 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel);
 
 void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
 									  float from, float to);
+
+void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
+									  struct comp_toplevel_state from,
+									  struct comp_toplevel_state to);
 
 #endif // !FX_COMP_TOPLEVEL_H

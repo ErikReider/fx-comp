@@ -9,6 +9,7 @@
 #include <wlr/util/log.h>
 
 #include "comp/output.h"
+#include "comp/server.h"
 #include "comp/tiling_node.h"
 #include "comp/workspace.h"
 #include "constants.h"
@@ -50,14 +51,24 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	const int HEIGHT_OFFSET =
 		toplevel->decorated_size.height - toplevel->state.height;
 
-	comp_toplevel_set_size(
-		toplevel, container->box.width - WIDTH_OFFSET - TILING_GAPS_INNER * 2,
-		container->box.height - HEIGHT_OFFSET - TILING_GAPS_INNER * 2);
+	const int WIDTH =
+		container->box.width - WIDTH_OFFSET - TILING_GAPS_INNER * 2;
+	const int HEIGHT =
+		container->box.height - HEIGHT_OFFSET - TILING_GAPS_INNER * 2;
+	const int X = container->box.x + BORDER_WIDTH + TILING_GAPS_INNER;
+	const int Y = container->box.y +
+				  toplevel->decorated_size.top_border_height +
+				  TILING_GAPS_INNER;
 
-	comp_toplevel_set_position(
-		toplevel, container->box.x + BORDER_WIDTH + TILING_GAPS_INNER,
-		container->box.y + toplevel->decorated_size.top_border_height +
-			TILING_GAPS_INNER);
+	comp_toplevel_set_size(toplevel, WIDTH, HEIGHT);
+	comp_toplevel_set_position(toplevel, X, Y);
+
+	if (!toplevel->unmapped &&
+		server.seat->cursor->cursor_mode != COMP_CURSOR_RESIZE) {
+		// Only animate if not resizing and the toplevel is mapped
+		comp_toplevel_add_size_animation(toplevel, toplevel->state,
+										 toplevel->txn.state);
+	}
 
 	comp_toplevel_commit_transaction(toplevel, false);
 }

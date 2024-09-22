@@ -35,6 +35,17 @@ void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
 	comp_animation_client_add(server.animation_mgr, toplevel->anim.fade.client);
 }
 
+void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
+									  struct comp_toplevel_state from,
+									  struct comp_toplevel_state to) {
+	comp_animation_client_cancel(server.animation_mgr,
+								 toplevel->anim.resize.client);
+	toplevel->anim.resize.from = toplevel->state;
+	toplevel->anim.resize.to = toplevel->txn.state;
+	comp_animation_client_add(server.animation_mgr,
+							  toplevel->anim.resize.client);
+}
+
 static void txn_set_size(struct comp_toplevel *toplevel, int width,
 						 int height) {
 	assert(toplevel->state.workspace);
@@ -202,9 +213,15 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 		wlr_output_layout_output_coords(
 			server->output_layout,
 			toplevel->state.workspace->output->wlr_output, &lx, &ly);
-		comp_toplevel_set_position(toplevel, lx, ly);
-		comp_toplevel_configure(toplevel, toplevel->state.width,
-								toplevel->state.height, lx, ly);
+		// Let the animation adjust the position
+		if (!toplevel->anim.resize.client->animating) {
+			comp_toplevel_set_position(toplevel, lx, ly);
+			comp_toplevel_configure(toplevel, toplevel->state.width,
+									toplevel->state.height, lx, ly);
+		} else {
+			toplevel->anim.resize.to.x = lx;
+			toplevel->anim.resize.to.y = ly;
+		}
 		comp_toplevel_commit_transaction(toplevel, true);
 
 		// Update floating toplevels current monitor and workspace.
@@ -235,7 +252,8 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	 * size, then commit any movement that was prepared.
 	 */
 	struct comp_toplevel *toplevel = server->seat->grabbed_toplevel;
-	if (toplevel->fullscreen) {
+	// Don't resize while fullscreen or animating
+	if (toplevel->fullscreen || toplevel->anim.resize.client->animating) {
 		return;
 	}
 
@@ -357,6 +375,10 @@ comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
 void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 									 enum comp_cursor_mode mode,
 									 uint32_t edges) {
+	// Don't resize while animating
+	if (mode == COMP_CURSOR_RESIZE && toplevel->anim.resize.client->animating) {
+		return;
+	}
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propegating pointer events to clients and instead
 	 * consumes them itself, to move or resize windows. */
@@ -718,6 +740,9 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 		}
 		center_toplevel(toplevel, toplevel->txn.state.width,
 						toplevel->txn.state.height, toplevel->dragging_tiled);
+
+		comp_toplevel_add_size_animation(toplevel, toplevel->state,
+										 toplevel->txn.state);
 		comp_toplevel_commit_transaction(toplevel, false);
 	}
 
@@ -830,9 +855,19 @@ static bool run_transaction(struct comp_transaction_mgr *mgr,
 		toplevel->impl->marked_dirty_cb(toplevel);
 	}
 
-	if (!toplevel->fullscreen) {
+	if (toplevel->anim.resize.client->animating) {
+		// Get the potentially new clip region, due to
+		// wlr_xdg_toplevel_set_tiled
+		struct wlr_box new_geo = comp_toplevel_get_geometry(toplevel);
+		struct wlr_box original_geo = toplevel->geometry;
+		toplevel->geometry = new_geo;
 		comp_toplevel_center_and_clip(toplevel);
+		toplevel->geometry = original_geo;
+	} else {
+		comp_toplevel_center_and_clip(toplevel);
+	}
 
+	if (!toplevel->fullscreen) {
 		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
 
 		// Only redraw the titlebar if the size has changed
@@ -920,6 +955,7 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	comp_transaction_remove(&toplevel->txn.transaction);
 
 	comp_animation_client_destroy(toplevel->anim.fade.client);
+	comp_animation_client_destroy(toplevel->anim.resize.client);
 
 	// Only destroy if no parent or if the parent hasn't been destroyed yet
 	if (!toplevel->parent_tree ||
@@ -975,6 +1011,44 @@ const struct comp_animation_client_impl fade_animation_impl = {
 	.update = fade_animation_update,
 };
 
+static void resize_animation_update(struct comp_animation_mgr *mgr,
+									struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
+	if (toplevel->unmapped || toplevel->destroying) {
+		return;
+	}
+
+	const float progress = ease_out_cubic(client->progress);
+	int x = lerp(toplevel->anim.resize.from.x, toplevel->anim.resize.to.x,
+				 progress);
+	int y = lerp(toplevel->anim.resize.from.y, toplevel->anim.resize.to.y,
+				 progress);
+	int width = lerp(toplevel->anim.resize.from.width,
+					 toplevel->anim.resize.to.width, progress);
+	int height = lerp(toplevel->anim.resize.from.height,
+					  toplevel->anim.resize.to.height, progress);
+
+	comp_toplevel_set_size(toplevel, width, height);
+	comp_toplevel_set_position(toplevel, x, y);
+
+	comp_toplevel_configure(toplevel, width, height, x, y);
+	comp_toplevel_commit_transaction(toplevel, true);
+}
+
+static void resize_animation_done(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client) {
+	// no-op
+}
+
+const struct comp_animation_client_impl resize_animation_impl = {
+	.done = resize_animation_done,
+	.update = resize_animation_update,
+};
+
+/*
+ * Toplevel
+ */
+
 struct comp_toplevel *
 comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 				   enum comp_toplevel_type type,
@@ -1028,6 +1102,9 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->anim.fade.client = comp_animation_client_init(
 		server.animation_mgr, TOPLEVEL_ANIMATION_FADE_DURATION_MS,
 		&fade_animation_impl, toplevel);
+	toplevel->anim.resize.client = comp_animation_client_init(
+		server.animation_mgr, TOPLEVEL_ANIMATION_RESIZE_DURATION_MS,
+		&resize_animation_impl, toplevel);
 
 	/*
 	 * Decorations
@@ -1168,17 +1245,19 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 					new_geo.x != toplevel->geometry.x ||
 					new_geo.y != toplevel->geometry.y;
 	if (new_size) {
-		toplevel->geometry = new_geo;
-		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-			comp_toplevel_set_size(toplevel, new_geo.width, new_geo.height);
-			if (toplevel->type == COMP_TOPLEVEL_TYPE_XDG) {
-				comp_toplevel_configure(toplevel, new_geo.width, new_geo.height,
-										0, 0);
+		if (!toplevel->anim.resize.client->animating) {
+			toplevel->geometry = new_geo;
+			if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+				comp_toplevel_set_size(toplevel, new_geo.width, new_geo.height);
+				if (toplevel->type == COMP_TOPLEVEL_TYPE_XDG) {
+					comp_toplevel_configure(toplevel, new_geo.width,
+											new_geo.height, 0, 0);
+				}
+				comp_toplevel_commit_transaction(toplevel, true);
 			}
-			comp_toplevel_commit_transaction(toplevel, true);
-		}
 
-		comp_toplevel_center_and_clip(toplevel);
+			comp_toplevel_center_and_clip(toplevel);
+		}
 	}
 
 	if (toplevel->txn.transaction.inited &&

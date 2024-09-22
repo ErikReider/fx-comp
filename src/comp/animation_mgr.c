@@ -105,6 +105,7 @@ static int animation_timer(void *data) {
 		}
 
 		if (client->progress >= 1.0) {
+			client->progress = 1.0;
 			comp_animation_client_cancel(mgr, client);
 		}
 	}
