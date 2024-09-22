@@ -217,4 +217,11 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_commit(struct comp_toplevel *toplevel);
 
+/*
+ * Animation
+ */
+
+void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
+									  float from, float to);
+
 #endif // !FX_COMP_TOPLEVEL_H

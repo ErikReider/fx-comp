@@ -26,8 +26,8 @@
 #include "seat/seat.h"
 #include "util.h"
 
-static void add_fade_animation(struct comp_toplevel *toplevel, float from,
-							   float to) {
+void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
+									  float from, float to) {
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.fade.client);
 	toplevel->anim.fade.from = from;
@@ -989,6 +989,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->type = type;
 	toplevel->using_csd = false;
 	toplevel->fullscreen = fullscreen;
+	toplevel->unmapped = true;
 	toplevel->impl = impl;
 
 	/* Set the scene_nodes decoration data */
@@ -1025,7 +1026,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 						  &transaction_impl, toplevel);
 
 	toplevel->anim.fade.client = comp_animation_client_init(
-		server.animation_mgr, TOPLEVEL_ANIMATION_DURATION_MS,
+		server.animation_mgr, TOPLEVEL_ANIMATION_FADE_DURATION_MS,
 		&fade_animation_impl, toplevel);
 
 	/*
@@ -1108,7 +1109,6 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
 
 	// Wait until the surface has been configured
-	toplevel->unmapped = true;
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
 
 	comp_seat_surface_focus(&toplevel->object,
@@ -1126,7 +1126,7 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 
 	// Don't animate if already destroying
 	if (!toplevel->destroying) {
-		add_fade_animation(toplevel, toplevel->opacity, 0.0);
+		comp_toplevel_add_fade_animation(toplevel, toplevel->opacity, 0.0);
 		comp_object_save_buffer(&toplevel->object);
 	}
 
@@ -1188,7 +1188,7 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 			toplevel->opacity = 0;
 			toplevel->titlebar->widget.opacity = 0;
 			comp_toplevel_mark_effects_dirty(toplevel);
-			add_fade_animation(toplevel, 0.0, 1.0);
+			comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
 			toplevel->unmapped = false;
 		}
 
