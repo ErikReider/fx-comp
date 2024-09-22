@@ -246,6 +246,7 @@ static void xway_toplevel_request_activate(struct wl_listener *listener,
 
 	comp_toplevel_configure(toplevel_xway->toplevel, xsurface->width,
 							xsurface->height, xsurface->x, xsurface->y);
+	comp_toplevel_commit_transaction(toplevel_xway->toplevel, false);
 }
 
 static void xway_toplevel_request_move(struct wl_listener *listener,
