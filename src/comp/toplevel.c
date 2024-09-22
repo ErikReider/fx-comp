@@ -30,6 +30,11 @@ void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
 									  float from, float to) {
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.fade.client);
+
+	toplevel->opacity = from;
+	toplevel->titlebar->widget.opacity = from;
+	comp_toplevel_mark_effects_dirty(toplevel);
+
 	toplevel->anim.fade.from = from;
 	toplevel->anim.fade.to = to;
 	comp_animation_client_add(server.animation_mgr, toplevel->anim.fade.client);
@@ -990,13 +995,8 @@ static void fade_animation_done(struct comp_animation_mgr *mgr,
 								struct comp_animation_client *client) {
 	struct comp_toplevel *toplevel = client->data;
 	comp_object_remove_buffer(&toplevel->object);
-	if (toplevel->unmapped) {
-		toplevel->opacity = 0.0f;
-		toplevel->titlebar->widget.opacity = 0.0f;
-	} else {
-		toplevel->opacity = 1.0f;
-		toplevel->titlebar->widget.opacity = 1.0f;
-	}
+	toplevel->opacity = toplevel->anim.fade.to;
+	toplevel->titlebar->widget.opacity = toplevel->anim.fade.to;
 
 	comp_toplevel_mark_effects_dirty(toplevel);
 
@@ -1185,11 +1185,15 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	wl_list_insert(&ws->toplevels, &toplevel->workspace_link);
 	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
 
-	// Wait until the surface has been configured
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
-
 	comp_seat_surface_focus(&toplevel->object,
 							comp_toplevel_get_wlr_surface(toplevel));
+
+	// We display the toplevel instantly if there isn't a size change.
+	bool configure = should_configure(toplevel);
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, !configure);
+	if (!configure) {
+		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+	}
 
 	comp_toplevel_commit_transaction(toplevel, false);
 }
@@ -1265,9 +1269,6 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 		toplevel->impl->should_run_transaction(toplevel)) {
 		if (toplevel->unmapped) {
 			toplevel->unmapped = false;
-			toplevel->opacity = 0;
-			toplevel->titlebar->widget.opacity = 0;
-			comp_toplevel_mark_effects_dirty(toplevel);
 			comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
 		}
 

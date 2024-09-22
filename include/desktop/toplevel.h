@@ -95,6 +95,10 @@ struct comp_toplevel {
 	} txn;
 
 	bool destroying;
+	/**
+	 * Whether the toplevel is mapped and visible (waiting for size change) or
+	 * unmapped
+	 */
 	bool unmapped;
 
 	struct {
