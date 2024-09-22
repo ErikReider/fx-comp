@@ -8,9 +8,9 @@
 #include "comp/output.h"
 #include "comp/server.h"
 
-static void animation_mgr_run(struct comp_animation_mgr *mgr) {
-	wl_event_source_timer_update(mgr->tick, 1);
-}
+#define MIN_DURATION 100
+
+static void animation_mgr_run(struct comp_animation_mgr *mgr);
 
 /*
  * Animation Client
@@ -69,6 +69,15 @@ void comp_animation_client_add(struct comp_animation_mgr *mgr,
 	client->progress = 0.0;
 	wl_list_insert(&mgr->clients, &client->link);
 
+	if (client->duration_ms < MIN_DURATION) {
+		client->progress = 1.0;
+		if (client->impl->update) {
+			client->impl->update(mgr, client);
+		}
+		comp_animation_client_cancel(mgr, client);
+		return;
+	}
+
 	// Run now
 	animation_mgr_run(mgr);
 }
@@ -97,7 +106,6 @@ static int animation_timer(void *data) {
 	struct comp_animation_client *client, *tmp;
 	wl_list_for_each_reverse_safe(client, tmp, &mgr->clients, link) {
 		client->progress += fastest_output_refresh_s / client->duration_ms;
-
 		client->animating = true;
 
 		if (client->impl->update) {
@@ -115,6 +123,10 @@ static int animation_timer(void *data) {
 	}
 
 	return 0;
+}
+
+static void animation_mgr_run(struct comp_animation_mgr *mgr) {
+	animation_timer(mgr);
 }
 
 struct comp_animation_mgr *comp_animation_mgr_init(void) {
