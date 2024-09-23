@@ -333,7 +333,18 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		case COMP_OBJECT_TYPE_OUTPUT:
 		case COMP_OBJECT_TYPE_WORKSPACE:
 		// Don't focus unmanaged. TODO: Check if popup?
-		case COMP_OBJECT_TYPE_UNMANAGED:
+		case COMP_OBJECT_TYPE_UNMANAGED:;
+			struct wlr_xwayland_surface *xsurface;
+			if (surface &&
+				(xsurface =
+					 wlr_xwayland_surface_try_from_wlr_surface(surface)) &&
+				xsurface->override_redirect &&
+				wlr_xwayland_or_surface_wants_focus(xsurface)) {
+				struct wlr_xwayland *xwayland =
+					server->xwayland_mgr.wlr_xwayland;
+				wlr_xwayland_set_seat(xwayland, cursor->seat->wlr_seat);
+				comp_seat_surface_focus(object, surface);
+			}
 			break;
 		}
 	}

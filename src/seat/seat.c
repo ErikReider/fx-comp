@@ -378,6 +378,12 @@ void comp_seat_surface_focus(struct comp_object *object,
 		// Seat
 		wl_list_remove(&toplevel->focus_link);
 		wl_list_insert(&server.seat->focus_order, &toplevel->focus_link);
+
+		// Set XWayland seat
+		if (toplevel->type == COMP_TOPLEVEL_TYPE_XWAYLAND) {
+			struct wlr_xwayland *xwayland = server.xwayland_mgr.wlr_xwayland;
+			wlr_xwayland_set_seat(xwayland, seat->wlr_seat);
+		}
 		break;
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 		seat->focused_layer_surface = layer_surface;
