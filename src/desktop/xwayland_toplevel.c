@@ -434,11 +434,6 @@ static void xway_toplevel_unmap(struct wl_listener *listener, void *data) {
 	listener_remove(&toplevel_xway->surface_tree_destroy);
 
 	comp_toplevel_generic_unmap(toplevel);
-
-	if (toplevel->toplevel_scene_tree) {
-		wlr_scene_node_destroy(&toplevel->toplevel_scene_tree->node);
-		toplevel->toplevel_scene_tree = NULL;
-	}
 }
 
 static void xway_toplevel_associate(struct wl_listener *listener, void *data) {
