@@ -26,6 +26,12 @@
 #include "seat/seat.h"
 #include "util.h"
 
+/*
+ * Animations
+ */
+
+/* Fade Animation */
+
 void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
 									  float from, float to) {
 	comp_animation_client_cancel(server.animation_mgr,
@@ -40,6 +46,40 @@ void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
 	comp_animation_client_add(server.animation_mgr, toplevel->anim.fade.client);
 }
 
+static void fade_animation_update(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
+
+	const float alpha = lerp(toplevel->anim.fade.from, toplevel->anim.fade.to,
+							 ease_out_cubic(client->progress));
+	toplevel->opacity = alpha;
+	toplevel->titlebar->widget.opacity = alpha;
+
+	comp_toplevel_mark_effects_dirty(toplevel);
+}
+
+static void fade_animation_done(struct comp_animation_mgr *mgr,
+								struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
+	comp_object_remove_buffer(&toplevel->object);
+	toplevel->opacity = toplevel->anim.fade.to;
+	toplevel->titlebar->widget.opacity = toplevel->anim.fade.to;
+
+	comp_toplevel_mark_effects_dirty(toplevel);
+
+	// Continue destroying the toplevel
+	if (toplevel->object.destroying) {
+		comp_toplevel_destroy(toplevel);
+	}
+}
+
+const struct comp_animation_client_impl fade_animation_impl = {
+	.done = fade_animation_done,
+	.update = fade_animation_update,
+};
+
+/* Resize Animation */
+
 void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 									  struct comp_toplevel_state from,
 									  struct comp_toplevel_state to) {
@@ -50,6 +90,40 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 	comp_animation_client_add(server.animation_mgr,
 							  toplevel->anim.resize.client);
 }
+
+static void resize_animation_update(struct comp_animation_mgr *mgr,
+									struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
+	if (toplevel->unmapped || toplevel->object.destroying) {
+		return;
+	}
+
+	const float progress = ease_out_cubic(client->progress);
+	int x = lerp(toplevel->anim.resize.from.x, toplevel->anim.resize.to.x,
+				 progress);
+	int y = lerp(toplevel->anim.resize.from.y, toplevel->anim.resize.to.y,
+				 progress);
+	int width = lerp(toplevel->anim.resize.from.width,
+					 toplevel->anim.resize.to.width, progress);
+	int height = lerp(toplevel->anim.resize.from.height,
+					  toplevel->anim.resize.to.height, progress);
+
+	comp_toplevel_set_size(toplevel, width, height);
+	comp_toplevel_set_position(toplevel, x, y);
+
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
+}
+
+static void resize_animation_done(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client) {
+	// no-op
+}
+
+const struct comp_animation_client_impl resize_animation_impl = {
+	.done = resize_animation_done,
+	.update = resize_animation_update,
+};
 
 static void save_state(struct comp_toplevel *toplevel,
 					   struct comp_toplevel_state *state) {
@@ -536,84 +610,6 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 	comp_toplevel_set_position(toplevel, x, y);
 }
 
-char *comp_toplevel_get_title(struct comp_toplevel *toplevel) {
-	if (toplevel->object.destroying || toplevel->unmapped) {
-		return NULL;
-	}
-	if (toplevel->impl && toplevel->impl->get_title) {
-		return toplevel->impl->get_title(toplevel);
-	}
-
-	return NULL;
-}
-
-bool comp_toplevel_get_always_floating(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_always_floating) {
-		return toplevel->impl->get_always_floating(toplevel);
-	}
-
-	return false;
-}
-
-struct wlr_scene_tree *
-comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_parent_tree) {
-		return toplevel->impl->get_parent_tree(toplevel);
-	}
-
-	return NULL;
-}
-
-struct wlr_surface *
-comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_wlr_surface) {
-		return toplevel->impl->get_wlr_surface(toplevel);
-	}
-
-	return NULL;
-}
-
-struct wlr_box comp_toplevel_get_geometry(struct comp_toplevel *toplevel) {
-	struct wlr_box box = {0};
-	if (toplevel->impl && toplevel->impl->get_geometry) {
-		box = toplevel->impl->get_geometry(toplevel);
-	}
-
-	return box;
-}
-
-void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
-								   int *min_width, int *max_width,
-								   int *min_height, int *max_height) {
-	if (toplevel->impl && toplevel->impl->get_constraints) {
-		toplevel->impl->get_constraints(toplevel, min_width, max_width,
-										min_height, max_height);
-	}
-}
-
-uint32_t comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
-								 int height, int x, int y) {
-	// Offset the configure events coordinates to be relative to the workspace,
-	// not the parent
-	if (toplevel->parent_tree) {
-		int lx, ly;
-		wlr_scene_node_coords(&toplevel->parent_tree->node, &lx, &ly);
-		x += lx;
-		y += ly;
-	}
-
-	if (toplevel->impl && toplevel->impl->configure) {
-		return toplevel->impl->configure(toplevel, width, height, x, y);
-	}
-	return 0;
-}
-
-void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state) {
-	if (toplevel->impl && toplevel->impl->set_activated) {
-		toplevel->impl->set_activated(toplevel, state);
-	}
-}
-
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	if (toplevel->fullscreen == state ||
 		!comp_toplevel_can_fullscreen(toplevel)) {
@@ -658,31 +654,6 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 	// Update the output
 	comp_output_arrange_output(toplevel->state.workspace->output);
-}
-
-void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel) {
-	comp_toplevel_set_fullscreen(toplevel, !toplevel->fullscreen);
-}
-
-bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel) {
-	// Don't allow resizing fixed sized toplevels
-	int max_width, max_height, min_width, min_height;
-	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
-								  &max_height);
-	if (min_width != 0 && min_height != 0 &&
-		(min_width == max_width || min_height == max_height)) {
-		return false;
-	}
-
-	return true;
-}
-
-bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_is_fullscreen) {
-		return toplevel->impl->get_is_fullscreen(toplevel);
-	}
-
-	return false;
 }
 
 void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
@@ -742,36 +713,6 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
 
 	if (toplevel->impl && toplevel->impl->set_tiled) {
 		toplevel->impl->set_tiled(toplevel, state);
-	}
-}
-
-void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel) {
-	comp_toplevel_set_tiled(
-		toplevel, toplevel->tiling_mode == COMP_TILING_MODE_FLOATING, false);
-	comp_transaction_commit_dirty(true);
-}
-
-void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->set_pid) {
-		toplevel->impl->set_pid(toplevel);
-	}
-}
-
-void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
-							int height) {
-	// Fixes the size sometimes being negative when resizing tiled toplevels
-	toplevel->pending_state.width = MAX(0, width);
-	toplevel->pending_state.height = MAX(0, height);
-}
-
-void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y) {
-	toplevel->pending_state.x = x;
-	toplevel->pending_state.y = y;
-}
-
-void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state) {
-	if (toplevel && toplevel->impl && toplevel->impl->set_resizing) {
-		toplevel->impl->set_resizing(toplevel, state);
 	}
 }
 
@@ -884,12 +825,6 @@ void comp_toplevel_run_transaction(struct comp_toplevel *toplevel) {
 	}
 }
 
-void comp_toplevel_close(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->close) {
-		toplevel->impl->close(toplevel);
-	}
-}
-
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	toplevel->object.destroying = true;
 	if (toplevel->anim.fade.client->animating) {
@@ -908,76 +843,6 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 
 	free(toplevel);
 }
-
-/*
- * Animations
- */
-
-static void fade_animation_update(struct comp_animation_mgr *mgr,
-								  struct comp_animation_client *client) {
-	struct comp_toplevel *toplevel = client->data;
-
-	const float alpha = lerp(toplevel->anim.fade.from, toplevel->anim.fade.to,
-							 ease_out_cubic(client->progress));
-	toplevel->opacity = alpha;
-	toplevel->titlebar->widget.opacity = alpha;
-
-	comp_toplevel_mark_effects_dirty(toplevel);
-}
-
-static void fade_animation_done(struct comp_animation_mgr *mgr,
-								struct comp_animation_client *client) {
-	struct comp_toplevel *toplevel = client->data;
-	comp_object_remove_buffer(&toplevel->object);
-	toplevel->opacity = toplevel->anim.fade.to;
-	toplevel->titlebar->widget.opacity = toplevel->anim.fade.to;
-
-	comp_toplevel_mark_effects_dirty(toplevel);
-
-	// Continue destroying the toplevel
-	if (toplevel->object.destroying) {
-		comp_toplevel_destroy(toplevel);
-	}
-}
-
-const struct comp_animation_client_impl fade_animation_impl = {
-	.done = fade_animation_done,
-	.update = fade_animation_update,
-};
-
-static void resize_animation_update(struct comp_animation_mgr *mgr,
-									struct comp_animation_client *client) {
-	struct comp_toplevel *toplevel = client->data;
-	if (toplevel->unmapped || toplevel->object.destroying) {
-		return;
-	}
-
-	const float progress = ease_out_cubic(client->progress);
-	int x = lerp(toplevel->anim.resize.from.x, toplevel->anim.resize.to.x,
-				 progress);
-	int y = lerp(toplevel->anim.resize.from.y, toplevel->anim.resize.to.y,
-				 progress);
-	int width = lerp(toplevel->anim.resize.from.width,
-					 toplevel->anim.resize.to.width, progress);
-	int height = lerp(toplevel->anim.resize.from.height,
-					  toplevel->anim.resize.to.height, progress);
-
-	comp_toplevel_set_size(toplevel, width, height);
-	comp_toplevel_set_position(toplevel, x, y);
-
-	comp_object_mark_dirty(&toplevel->object);
-	comp_transaction_commit_dirty(true);
-}
-
-static void resize_animation_done(struct comp_animation_mgr *mgr,
-								  struct comp_animation_client *client) {
-	// no-op
-}
-
-const struct comp_animation_client_impl resize_animation_impl = {
-	.done = resize_animation_done,
-	.update = resize_animation_update,
-};
 
 /*
  * Toplevel

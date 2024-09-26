@@ -4,6 +4,7 @@ sources += files(
 	'object.c',
 	'output.c',
 	'toplevel.c',
+	'toplevel_impl.c',
 	'tiling_node.c',
 	'server.c',
 	'transaction.c',
