@@ -350,7 +350,11 @@ void tiling_node_resize_fini(struct comp_toplevel *toplevel) {
 static bool can_update(struct comp_toplevel *toplevel) {
 	struct tiling_node *node = toplevel->tiling_node;
 
-	const float MS = 16.667;
+	float ms = 16.667;
+	struct comp_workspace *ws = toplevel->state.workspace;
+	if (ws && ws->output && ws->output != server.fallback_output) {
+		ms = ws->output->refresh_sec * 1000;
+	}
 
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
@@ -359,7 +363,7 @@ static bool can_update(struct comp_toplevel *toplevel) {
 	const float DELTA = (now.tv_sec - start->tv_sec) * 1000 +
 						(now.tv_nsec - start->tv_nsec) / 1000000.0;
 
-	if (DELTA < MS) {
+	if (DELTA < ms) {
 		return false;
 	}
 
