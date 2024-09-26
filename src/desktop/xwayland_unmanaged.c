@@ -214,6 +214,7 @@ xway_create_unmanaged(struct wlr_xwayland_surface *xsurface) {
 	unmanaged->object.scene_tree = NULL;
 	unmanaged->object.data = unmanaged;
 	unmanaged->object.type = COMP_OBJECT_TYPE_UNMANAGED;
+	unmanaged->object.destroying = false;
 
 	/*
 	 * Initialize listeners

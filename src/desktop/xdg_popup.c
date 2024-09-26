@@ -156,6 +156,7 @@ struct comp_xdg_popup *xdg_new_xdg_popup(struct wlr_xdg_popup *wlr_popup,
 	popup->object.scene_tree->node.data = &popup->object;
 	popup->object.type = COMP_OBJECT_TYPE_XDG_POPUP;
 	popup->object.data = popup;
+	popup->object.destroying = false;
 
 	popup->wlr_popup->base->data = popup;
 

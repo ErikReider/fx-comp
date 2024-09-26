@@ -56,3 +56,11 @@ void comp_object_remove_buffer(struct comp_object *object) {
 	object->saved_tree = NULL;
 	wlr_scene_node_set_enabled(&object->content_tree->node, true);
 }
+
+void comp_object_mark_dirty(struct comp_object *object) {
+	if (object->dirty) {
+		return;
+	}
+	object->dirty = true;
+	wl_list_insert(&server.dirty_objects, &object->dirty_link);
+}

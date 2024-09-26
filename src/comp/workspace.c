@@ -36,7 +36,8 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 		server.output_layout, toplevel->state.workspace->output->wlr_output,
 		&lx, &ly);
 	comp_toplevel_set_position(toplevel, lx, ly);
-	comp_toplevel_commit_transaction(toplevel, false);
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
 }
 
 struct comp_toplevel *
@@ -189,6 +190,7 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 	ws->object.scene_tree->node.data = &ws->object;
 	ws->object.data = ws;
 	ws->object.type = COMP_OBJECT_TYPE_WORKSPACE;
+	ws->object.destroying = false;
 
 	// Create tiled/fullscreen
 	ws->layers.lower = alloc_tree(ws->object.content_tree);

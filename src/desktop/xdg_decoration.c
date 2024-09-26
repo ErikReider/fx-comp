@@ -12,6 +12,10 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	struct comp_xdg_toplevel *toplevel_xdg = deco->toplevel;
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
+	if (toplevel->object.destroying) {
+		return;
+	}
+
 	enum wlr_xdg_toplevel_decoration_v1_mode mode =
 		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 	enum wlr_xdg_toplevel_decoration_v1_mode client_mode =
@@ -22,7 +26,8 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 		client_mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 
 	comp_toplevel_refresh_titlebar(toplevel);
-	comp_toplevel_commit_transaction(toplevel, false);
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
 
 	if (floating && client_mode) {
 		mode = client_mode;

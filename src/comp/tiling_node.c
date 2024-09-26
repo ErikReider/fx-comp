@@ -11,6 +11,7 @@
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
+#include "comp/transaction.h"
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
@@ -67,10 +68,10 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 		server.seat->cursor->cursor_mode != COMP_CURSOR_RESIZE) {
 		// Only animate if not resizing and the toplevel is mapped
 		comp_toplevel_add_size_animation(toplevel, toplevel->state,
-										 toplevel->txn.state);
+										 toplevel->pending_state);
 	}
 
-	comp_toplevel_commit_transaction(toplevel, false);
+	comp_object_mark_dirty(&toplevel->object);
 }
 
 static void calc_size_pos_recursive(struct tiling_node *node, bool update) {
@@ -453,14 +454,14 @@ void tiling_node_move_start(struct comp_toplevel *toplevel) {
 	}
 
 	toplevel->dragging_tiled = true;
-	toplevel->opacity = TILING_MOVE_TOPLEVEL_OPACITY;
+	toplevel->tiling_drag_opacity = TILING_MOVE_TOPLEVEL_OPACITY;
 	comp_toplevel_mark_effects_dirty(toplevel);
 	comp_toplevel_set_tiled(toplevel, false, false);
 }
 
 void tiling_node_move_fini(struct comp_toplevel *toplevel) {
 	toplevel->dragging_tiled = false;
-	toplevel->opacity = 1;
+	toplevel->tiling_drag_opacity = 1;
 	comp_toplevel_mark_effects_dirty(toplevel);
 	comp_toplevel_set_tiled(toplevel, true, false);
 }

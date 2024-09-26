@@ -143,7 +143,8 @@ static void xdg_marked_dirty_cb(struct comp_toplevel *toplevel) {
 static bool should_run_transaction(struct comp_toplevel *toplevel) {
 	struct wlr_xdg_surface *xdg_surface =
 		toplevel->toplevel_xdg->xdg_toplevel->base;
-	return toplevel->txn.serial == xdg_surface->current.configure_serial;
+	return toplevel->object.instruction->serial ==
+		   xdg_surface->current.configure_serial;
 }
 
 static const struct comp_toplevel_impl xdg_impl = {

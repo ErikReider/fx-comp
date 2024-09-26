@@ -175,10 +175,12 @@ static bool should_run_transaction(struct comp_toplevel *toplevel) {
 	struct wlr_xwayland_surface *xsurface =
 		toplevel->toplevel_xway->xwayland_surface;
 	struct wlr_surface_state *state = &xsurface->surface->current;
-	return toplevel->txn.state.x == xsurface->x &&
-		   toplevel->txn.state.y == xsurface->y &&
-		   toplevel->txn.state.width == state->width &&
-		   toplevel->txn.state.height == state->height;
+	struct comp_transaction_instruction *instruction =
+		toplevel->object.instruction;
+	return instruction && instruction->state.x == xsurface->x &&
+		   instruction->state.y == xsurface->y &&
+		   instruction->state.width == state->width &&
+		   instruction->state.height == state->height;
 }
 
 // Handles both regular and unmanaged XWayland
@@ -246,7 +248,8 @@ static void xway_toplevel_request_activate(struct wl_listener *listener,
 
 	comp_toplevel_configure(toplevel_xway->toplevel, xsurface->width,
 							xsurface->height, xsurface->x, xsurface->y);
-	comp_toplevel_commit_transaction(toplevel_xway->toplevel, false);
+	comp_object_mark_dirty(&toplevel_xway->toplevel->object);
+	comp_transaction_commit_dirty(true);
 }
 
 static void xway_toplevel_request_move(struct wl_listener *listener,
@@ -326,7 +329,6 @@ static void xway_toplevel_set_decorations(struct wl_listener *listener,
 	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
 
 	toplevel->using_csd = xway_get_using_csd(xsurface);
-	comp_toplevel_commit_transaction(toplevel, false);
 }
 
 static void xway_toplevel_commit(struct wl_listener *listener, void *data) {
@@ -389,7 +391,21 @@ static void xway_toplevel_request_configure(struct wl_listener *listener,
 								   toplevel->state.height);
 	comp_toplevel_set_size(toplevel_xway->toplevel, toplevel->state.width,
 						   toplevel->state.height);
-	comp_toplevel_commit_transaction(toplevel_xway->toplevel, false);
+	comp_object_mark_dirty(&toplevel->object);
+
+	if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+		toplevel->natural_width = event->width;
+		toplevel->natural_height = event->height;
+		comp_toplevel_center(toplevel, toplevel->natural_width,
+							 toplevel->natural_height, false);
+		xway_configure(toplevel, toplevel->pending_state.width,
+					   toplevel->pending_state.width, toplevel->pending_state.x,
+					   toplevel->pending_state.y);
+		comp_object_mark_dirty(&toplevel->object);
+	} else {
+		xway_configure(toplevel, toplevel->state.width, toplevel->state.width,
+					   toplevel->state.x, toplevel->state.y);
+	}
 }
 
 static void handle_surface_tree_destroy(struct wl_listener *listener,
@@ -419,9 +435,6 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 					 &toplevel_xway->commit, xway_toplevel_commit);
 
 	comp_toplevel_generic_map(toplevel);
-
-	comp_toplevel_refresh_titlebar(toplevel);
-	comp_toplevel_commit_transaction(toplevel, false);
 }
 
 static void xway_toplevel_unmap(struct wl_listener *listener, void *data) {

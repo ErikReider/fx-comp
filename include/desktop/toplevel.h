@@ -29,14 +29,6 @@ enum comp_toplevel_type {
 	COMP_TOPLEVEL_TYPE_XWAYLAND,
 };
 
-struct comp_toplevel_state {
-	int x;
-	int y;
-	int width;
-	int height;
-	struct comp_workspace *workspace;
-};
-
 // TODO: Make more generic for XWayland and others...
 struct comp_toplevel {
 	struct wl_list workspace_link;
@@ -84,17 +76,11 @@ struct comp_toplevel {
 	struct wlr_box geometry;
 	// The current state
 	struct comp_toplevel_state state;
+	// The pending state for the transaction
+	struct comp_toplevel_state pending_state;
 	// Used to restore the state when exiting fullscreen
 	struct comp_toplevel_state saved_state;
 
-	struct {
-		struct comp_transaction transaction;
-
-		uint32_t serial;
-		struct comp_toplevel_state state;
-	} txn;
-
-	bool destroying;
 	/**
 	 * Whether the toplevel is mapped and visible (waiting for size change) or
 	 * unmapped
@@ -115,6 +101,7 @@ struct comp_toplevel {
 	} anim;
 
 	// Effects
+	float tiling_drag_opacity;
 	float opacity;
 	int corner_radius;
 	struct shadow_data shadow_data;
@@ -173,6 +160,9 @@ void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel);
 void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
 										 struct wlr_scene_tree *parent);
 
+void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
+						  bool center_on_cursor);
+
 /*
  * Implementation functions
  */
@@ -210,14 +200,16 @@ void comp_toplevel_refresh_titlebar(struct comp_toplevel *toplevel);
 
 void comp_toplevel_send_frame_done(struct comp_toplevel *toplevel);
 
-void comp_toplevel_commit_transaction(struct comp_toplevel *toplevel,
-									  bool run_now);
+// void comp_toplevel_commit_transaction(struct comp_toplevel *toplevel,
+// 									  bool run_now);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 
 void comp_toplevel_close(struct comp_toplevel *toplevel);
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel);
+
+void comp_toplevel_run_transaction(struct comp_toplevel *toplevel);
 
 /*
  * Implementation generic functions

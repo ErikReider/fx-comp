@@ -175,6 +175,11 @@ static bool scene_node_snapshot(struct wlr_scene_node *node, int lx, int ly,
 										&scene_buffer->src_box);
 		wlr_scene_buffer_set_transform(snapshot_buffer,
 									   scene_buffer->transform);
+		wlr_scene_buffer_set_corner_radius(snapshot_buffer,
+										   scene_buffer->corner_radius);
+		wlr_scene_buffer_set_opacity(snapshot_buffer, scene_buffer->opacity);
+		wlr_scene_buffer_set_shadow_data(snapshot_buffer,
+										 scene_buffer->shadow_data);
 
 		struct wlr_scene_surface *scene_surface =
 			wlr_scene_surface_try_from_buffer(scene_buffer);

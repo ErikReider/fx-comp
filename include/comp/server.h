@@ -60,7 +60,24 @@ struct comp_server {
 	struct wl_listener layout_change;
 
 	struct comp_animation_mgr *animation_mgr;
-	struct comp_transaction_mgr *transaction_mgr;
+
+	/*
+	 * Transaction
+	 */
+
+	// Stores a transaction after it has been committed, but is waiting for
+	// views to ack the new dimensions before being applied. A queued
+	// transaction is frozen and must not have new instructions added to it.
+	struct comp_transaction *queued_transaction;
+
+	// Stores a pending transaction that will be committed once the existing
+	// queued transaction is applied and freed. The pending transaction can be
+	// updated with new instructions as needed.
+	struct comp_transaction *pending_transaction;
+
+	// Stores the nodes that have been marked as "dirty" and will be put into
+	// the pending transaction.
+	struct wl_list dirty_objects;
 };
 
 extern struct comp_server server;

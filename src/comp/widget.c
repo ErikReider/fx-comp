@@ -55,6 +55,7 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 	widget->object.scene_tree->node.data = &widget->object;
 	widget->object.type = COMP_OBJECT_TYPE_WIDGET;
 	widget->object.data = widget;
+	widget->object.destroying = false;
 
 	widget->parent_object = parent_obj;
 

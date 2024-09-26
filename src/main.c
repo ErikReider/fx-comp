@@ -10,6 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
+#include <wayland-util.h>
 #include <wlr/backend.h>
 #include <wlr/backend/headless.h>
 #include <wlr/backend/multi.h>
@@ -45,7 +46,6 @@
 #include "comp/animation_mgr.h"
 #include "comp/output.h"
 #include "comp/server.h"
-#include "comp/transaction.h"
 #include "constants.h"
 #include "desktop/layer_shell.h"
 #include "desktop/xdg.h"
@@ -144,7 +144,9 @@ int main(int argc, char *argv[]) {
 	server.wl_event_loop = wl_display_get_event_loop(server.wl_display);
 	// Initialize animation manager
 	server.animation_mgr = comp_animation_mgr_init();
-	server.transaction_mgr = comp_transaction_mgr_init();
+
+	// Transactions
+	wl_list_init(&server.dirty_objects);
 
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
@@ -429,7 +431,6 @@ int main(int argc, char *argv[]) {
 	comp_cursor_destroy(server.seat->cursor);
 	wlr_output_layout_destroy(server.output_layout);
 	comp_animation_mgr_destroy(server.animation_mgr);
-	comp_transaction_mgr_destroy(server.transaction_mgr);
 	wl_display_destroy(server.wl_display);
 	wlr_scene_node_destroy(&server.root_scene->tree.node);
 

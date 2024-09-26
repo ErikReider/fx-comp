@@ -3,6 +3,7 @@
 
 #include <scenefx/types/wlr_scene.h>
 #include <wayland-server-core.h>
+#include <wayland-util.h>
 #include <wlr/types/wlr_subcompositor.h>
 
 #include "comp/server.h"
@@ -28,6 +29,14 @@ struct comp_object {
 	enum comp_object_type type;
 	// The pointer to the ancestor which is type of `comp_object_type`
 	void *data;
+
+	bool destroying;
+
+	struct wl_list transaction_link;
+	struct comp_transaction_instruction *instruction;
+	size_t num_txn_refs;
+	struct wl_list dirty_link;
+	bool dirty;
 };
 
 struct comp_object *comp_object_at(struct comp_server *server, double lx,
@@ -37,5 +46,7 @@ struct comp_object *comp_object_at(struct comp_server *server, double lx,
 
 void comp_object_save_buffer(struct comp_object *object);
 void comp_object_remove_buffer(struct comp_object *object);
+
+void comp_object_mark_dirty(struct comp_object *object);
 
 #endif // !FX_COMP_OBJECT_H

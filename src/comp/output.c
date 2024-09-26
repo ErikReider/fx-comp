@@ -249,6 +249,7 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->object.scene_tree->node.data = &output->object;
 	output->object.data = output;
 	output->object.type = COMP_OBJECT_TYPE_OUTPUT;
+	output->object.destroying = false;
 
 	// Initialize layers
 	output->layers.shell_background = alloc_tree(output->object.content_tree);
@@ -559,7 +560,8 @@ void comp_output_arrange_output(struct comp_output *output) {
 				toplevel->state.workspace->output->geometry;
 			comp_toplevel_set_size(toplevel, output_box.width,
 								   output_box.height);
-			comp_toplevel_commit_transaction(toplevel, false);
+			comp_object_mark_dirty(&toplevel->object);
+			comp_transaction_commit_dirty(true);
 		}
 	}
 }
