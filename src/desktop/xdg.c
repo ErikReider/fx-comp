@@ -82,6 +82,9 @@ xdg_get_parent_tree(struct comp_toplevel *toplevel) {
 static uint32_t xdg_configure(struct comp_toplevel *toplevel, int width,
 							  int height, int x, int y) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	if (!toplevel_xdg) {
+		return 0;
+	}
 	return wlr_xdg_toplevel_set_size(toplevel_xdg->xdg_toplevel, width, height);
 }
 
@@ -130,6 +133,7 @@ static void xdg_close(struct comp_toplevel *toplevel) {
 
 static void xdg_marked_dirty_cb(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	// TODO: Remove?
 	if (toplevel_xdg->xdg_toplevel->base->client->shell->version >=
 			XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION &&
 		toplevel->decorated_size.width >= 0 &&

@@ -209,7 +209,7 @@ void comp_toplevel_close(struct comp_toplevel *toplevel);
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel);
 
-void comp_toplevel_run_transaction(struct comp_toplevel *toplevel);
+void comp_toplevel_refresh(struct comp_toplevel *toplevel);
 
 /*
  * Implementation generic functions

@@ -744,12 +744,16 @@ void comp_toplevel_send_frame_done(struct comp_toplevel *toplevel) {
 	clock_gettime(CLOCK_MONOTONIC, &when);
 
 	struct wlr_scene_node *node;
-	wl_list_for_each(node, &toplevel->object.scene_tree->children, link) {
+	wl_list_for_each(node, &toplevel->toplevel_scene_tree->children, link) {
 		wlr_scene_node_for_each_buffer(node, send_frame_done_iterator, &when);
 	}
 }
 
 static void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
+	if (toplevel->unmapped || !toplevel->toplevel_scene_tree) {
+		return;
+	}
+
 	wlr_scene_node_set_position(&toplevel->toplevel_scene_tree->node, 0, 0);
 
 	struct wlr_box clip = {
@@ -762,21 +766,16 @@ static void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
 									   toplevel->fullscreen ? NULL : &clip);
 }
 
-void comp_toplevel_run_transaction(struct comp_toplevel *toplevel) {
-	toplevel->pending_state = toplevel->state;
-
+void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
 	// Set decoration size
 	comp_toplevel_refresh_titlebar(toplevel);
 
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
-
-	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
-								toplevel->state.x, toplevel->state.y);
-
 	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
 							   !toplevel->fullscreen);
 
-	struct comp_titlebar *titlebar = toplevel->titlebar;
+	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
+								toplevel->state.x, toplevel->state.y);
 
 	if (toplevel->impl && toplevel->impl->marked_dirty_cb) {
 		toplevel->impl->marked_dirty_cb(toplevel);
@@ -794,33 +793,36 @@ void comp_toplevel_run_transaction(struct comp_toplevel *toplevel) {
 		comp_toplevel_center_and_clip(toplevel);
 	}
 
-	if (!toplevel->fullscreen) {
+	if (toplevel->fullscreen) {
+		return;
+	}
+
+	struct comp_titlebar *titlebar = toplevel->titlebar;
+	if (titlebar &&
+		// Only redraw the titlebar if the size has changed
+		(titlebar->widget.width != toplevel->decorated_size.width ||
+		 titlebar->widget.height != toplevel->decorated_size.height)) {
 		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
 
-		// Only redraw the titlebar if the size has changed
-		if (titlebar &&
-			(titlebar->widget.width != toplevel->decorated_size.width ||
-			 titlebar->widget.height != toplevel->decorated_size.height)) {
-			comp_widget_draw_resize(&titlebar->widget,
-									toplevel->decorated_size.width,
-									toplevel->decorated_size.height);
-			// Position the titlebar above the window
-			wlr_scene_node_set_position(
-				&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
-				-toplevel->decorated_size.top_border_height);
+		comp_widget_draw_resize(&titlebar->widget,
+								toplevel->decorated_size.width,
+								toplevel->decorated_size.height);
+		// Position the titlebar above the window
+		wlr_scene_node_set_position(
+			&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
+			-toplevel->decorated_size.top_border_height);
 
-			// Adjust edges
-			for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
-				struct comp_resize_edge *edge = toplevel->edges[i];
-				wlr_scene_node_set_enabled(
-					&edge->widget.object.scene_tree->node, show_full_titlebar);
-				int width, height, x, y;
-				comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
+		// Adjust edges
+		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
+			struct comp_resize_edge *edge = toplevel->edges[i];
+			wlr_scene_node_set_enabled(&edge->widget.object.scene_tree->node,
+									   show_full_titlebar);
+			int width, height, x, y;
+			comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
 
-				comp_widget_draw_resize(&edge->widget, width, height);
-				wlr_scene_node_set_position(
-					&edge->widget.object.scene_tree->node, x, y);
-			}
+			comp_widget_draw_resize(&edge->widget, width, height);
+			wlr_scene_node_set_position(&edge->widget.object.scene_tree->node,
+										x, y);
 		}
 	}
 }
@@ -1022,6 +1024,8 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED) {
 		tiling_node_remove_toplevel(toplevel);
+		comp_object_mark_dirty(&toplevel->object);
+		comp_transaction_commit_dirty(true);
 	}
 
 	// Focus parent toplevel if applicable

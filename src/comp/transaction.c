@@ -146,7 +146,7 @@ static void transaction_apply(struct comp_transaction *transaction) {
 
 			toplevel->pending_state = toplevel->state;
 
-			comp_toplevel_run_transaction(toplevel);
+			comp_toplevel_refresh(toplevel);
 			break;
 		}
 

@@ -126,8 +126,11 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	struct comp_output *output = wl_container_of(listener, output, frame);
-	struct wlr_scene *scene = output->server->root_scene;
+	if (!output->wlr_output->enabled) {
+		return;
+	}
 
+	struct wlr_scene *scene = output->server->root_scene;
 	struct wlr_scene_output *scene_output =
 		wlr_scene_get_scene_output(scene, output->wlr_output);
 
