@@ -22,9 +22,13 @@ static void unmanaged_set_position(struct comp_xwayland_unmanaged *unmanaged,
 								   int16_t x, int16_t y) {
 	struct wlr_scene_tree *parent_tree = unmanaged->parent_tree;
 
-	wlr_scene_node_set_position(&unmanaged->surface_scene->buffer->node,
-								x - parent_tree->node.x,
-								y - parent_tree->node.y);
+	// Make the scene root relative coords into parent node relative coords
+	int lx = 0;
+	int ly = 0;
+	wlr_scene_node_coords(&parent_tree->node, &lx, &ly);
+
+	wlr_scene_node_set_position(&unmanaged->surface_scene->buffer->node, x - lx,
+								y - ly);
 }
 
 /*
