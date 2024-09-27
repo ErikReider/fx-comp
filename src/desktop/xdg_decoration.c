@@ -28,6 +28,15 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	comp_toplevel_refresh_titlebar(toplevel);
 	comp_object_mark_dirty(&toplevel->object);
 	comp_transaction_commit_dirty(true);
+	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
+		toplevel->tiling_node) {
+		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	}
+
+	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
+		toplevel->tiling_node) {
+		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	}
 
 	if (floating && client_mode) {
 		mode = client_mode;

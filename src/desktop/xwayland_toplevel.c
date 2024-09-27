@@ -7,6 +7,8 @@
 #include <wlr/util/log.h>
 
 #include "comp/output.h"
+#include "comp/tiling_node.h"
+#include "comp/transaction.h"
 #include "comp/xwayland_mgr.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
@@ -329,6 +331,11 @@ static void xway_toplevel_set_decorations(struct wl_listener *listener,
 	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
 
 	toplevel->using_csd = xway_get_using_csd(xsurface);
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
+	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED && toplevel->tiling_node) {
+		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	}
 }
 
 static void xway_toplevel_commit(struct wl_listener *listener, void *data) {
