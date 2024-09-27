@@ -139,6 +139,14 @@ static void transaction_apply(struct comp_transaction *transaction) {
 			if (!toplevel || object->destroying) {
 				break;
 			}
+
+			if (toplevel->saved_scene_tree) {
+				if (!object->destroying || object->num_txn_refs == 1) {
+					comp_toplevel_remove_buffer(toplevel);
+					comp_toplevel_mark_effects_dirty(toplevel);
+				}
+			}
+
 			toplevel->state.width = instruction->state.width;
 			toplevel->state.height = instruction->state.height;
 			toplevel->state.x = instruction->state.x;
@@ -214,21 +222,27 @@ static void transaction_commit(struct comp_transaction *transaction) {
 	wl_list_for_each_reverse(instruction, &transaction->instructions,
 							 transaction_link) {
 		struct comp_object *object = instruction->object;
-		if (object->type == COMP_OBJECT_TYPE_TOPLEVEL &&
-			should_configure(object->data, instruction)) {
+		if (object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
 			struct comp_toplevel *toplevel = object->data;
-			instruction->serial = comp_toplevel_configure(
-				toplevel, instruction->state.width, instruction->state.height,
-				instruction->state.x, instruction->state.y);
-
 			bool hidden =
 				object->destroying && !object->scene_tree->node.enabled;
-			if (!hidden) {
-				instruction->ready = false;
-				++transaction->num_waiting;
-			}
+			if (should_configure(object->data, instruction)) {
+				instruction->serial = comp_toplevel_configure(
+					toplevel, instruction->state.width,
+					instruction->state.height, instruction->state.x,
+					instruction->state.y);
 
-			comp_toplevel_send_frame_done(toplevel);
+				if (!hidden) {
+					instruction->ready = false;
+					++transaction->num_waiting;
+				}
+
+				comp_toplevel_send_frame_done(toplevel);
+			}
+			if (!hidden && !toplevel->unmapped && !toplevel->saved_scene_tree) {
+				comp_toplevel_mark_effects_dirty(toplevel);
+				comp_toplevel_save_buffer(toplevel);
+			}
 		}
 		object->instruction = instruction;
 	}

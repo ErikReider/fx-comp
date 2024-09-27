@@ -41,6 +41,8 @@ struct comp_toplevel {
 	struct wlr_scene_tree *parent_tree;
 	struct wlr_scene_tree *decoration_scene_tree;
 	struct wlr_scene_tree *toplevel_scene_tree;
+	// The saved buffer tree used for animations
+	struct wlr_scene_tree *saved_scene_tree;
 
 	// Type
 	enum comp_toplevel_type type;
@@ -162,6 +164,9 @@ void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
 
 void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 						  bool center_on_cursor);
+
+void comp_toplevel_save_buffer(struct comp_toplevel *toplevel);
+void comp_toplevel_remove_buffer(struct comp_toplevel *toplevel);
 
 /*
  * Implementation functions

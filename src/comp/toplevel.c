@@ -610,6 +610,26 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 	comp_toplevel_set_position(toplevel, x, y);
 }
 
+void comp_toplevel_save_buffer(struct comp_toplevel *toplevel) {
+	if (toplevel->saved_scene_tree) {
+		wlr_log(WLR_INFO, "Trying to save already saved buffer...");
+		comp_toplevel_remove_buffer(toplevel);
+	}
+
+	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, true);
+	toplevel->saved_scene_tree = wlr_scene_tree_snapshot(
+		&toplevel->toplevel_scene_tree->node, toplevel->object.content_tree);
+
+	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, false);
+	wlr_scene_node_set_enabled(&toplevel->saved_scene_tree->node, true);
+}
+
+void comp_toplevel_remove_buffer(struct comp_toplevel *toplevel) {
+	wlr_scene_node_destroy(&toplevel->saved_scene_tree->node);
+	toplevel->saved_scene_tree = NULL;
+	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, true);
+}
+
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	if (toplevel->fullscreen == state ||
 		!comp_toplevel_can_fullscreen(toplevel)) {
@@ -1073,15 +1093,18 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 		}
 	}
 
-	if (toplevel->object.instruction &&
-		toplevel->impl->should_run_transaction(toplevel)) {
-		if (toplevel->unmapped) {
-			toplevel->unmapped = false;
-			comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
-		}
+	if (toplevel->object.instruction) {
+		if (toplevel->impl->should_run_transaction(toplevel)) {
+			if (toplevel->unmapped) {
+				toplevel->unmapped = false;
+				comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+			}
 
-		struct comp_transaction_instruction *instruction =
-			toplevel->object.instruction;
-		comp_transaction_instruction_mark_ready(instruction);
+			struct comp_transaction_instruction *instruction =
+				toplevel->object.instruction;
+			comp_transaction_instruction_mark_ready(instruction);
+		} else if (toplevel->saved_scene_tree) {
+			comp_toplevel_send_frame_done(toplevel);
+		}
 	}
 }
