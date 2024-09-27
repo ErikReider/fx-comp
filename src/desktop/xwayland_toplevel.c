@@ -529,9 +529,8 @@ xway_create_toplevel(struct wlr_xwayland_surface *xsurface) {
 	toplevel_xway->toplevel = toplevel;
 	toplevel_xway->xwayland_surface->data = toplevel->object.scene_tree;
 
-	// Move into parent tree if there's a parent
-	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
-	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
+	// Move into the predefined layer
+	comp_toplevel_move_into_parent_tree(toplevel, NULL);
 
 	/*
 	 * Initialize listeners

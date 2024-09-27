@@ -64,15 +64,6 @@ void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
 
 uint32_t comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
 								 int height, int x, int y) {
-	// Offset the configure events coordinates to be relative to the workspace,
-	// not the parent
-	if (toplevel->parent_tree) {
-		int lx, ly;
-		wlr_scene_node_coords(&toplevel->parent_tree->node, &lx, &ly);
-		x += lx;
-		y += ly;
-	}
-
 	if (toplevel->impl && toplevel->impl->configure) {
 		return toplevel->impl->configure(toplevel, width, height, x, y);
 	}

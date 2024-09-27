@@ -600,17 +600,10 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 										ws->output->wlr_output, &x, &y);
 		// TODO: Center on titlebar when dragging from tiled?
 	} else {
-		struct comp_object *parent_object = NULL;
 		struct wlr_box relative_box = {0};
 
-		if (toplevel->parent_tree &&
-			(parent_object = toplevel->parent_tree->node.data) &&
-			parent_object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			relative_box = comp_toplevel_get_geometry(parent_object->data);
-		} else {
-			wlr_output_layout_get_box(toplevel->server->output_layout,
-									  ws->output->wlr_output, &relative_box);
-		}
+		wlr_output_layout_get_box(toplevel->server->output_layout,
+								  ws->output->wlr_output, &relative_box);
 		x = (relative_box.width - toplevel->decorated_size.width) * 0.5;
 		y = (relative_box.height - toplevel->decorated_size.height) * 0.5;
 	}
@@ -872,11 +865,7 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	comp_animation_client_destroy(toplevel->anim.fade.client);
 	comp_animation_client_destroy(toplevel->anim.resize.client);
 
-	// Only destroy if no parent or if the parent hasn't been destroyed yet
-	if (!toplevel->parent_tree ||
-		(toplevel->parent_tree && !toplevel->parent_tree->node.data)) {
-		wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
-	}
+	wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
 
 	free(toplevel);
 }
@@ -996,9 +985,8 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 		toplevel->tiling_mode = COMP_TILING_MODE_FLOATING;
 	}
 
-	// Move into parent tree if there's a parent
-	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
-	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
+	// Move into the predefined layer
+	comp_toplevel_move_into_parent_tree(toplevel, NULL);
 
 	comp_toplevel_mark_effects_dirty(toplevel);
 
@@ -1065,10 +1053,16 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 
 	// Focus parent toplevel if applicable
 	struct comp_toplevel *parent_toplevel = NULL;
-	if (toplevel->parent_tree) {
-		struct comp_object *parent = toplevel->parent_tree->node.data;
-		if (parent && parent->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			parent_toplevel = parent->data;
+	struct wlr_scene_tree *parent_tree =
+		comp_toplevel_get_parent_tree(toplevel);
+	if (parent_tree) {
+		struct comp_object *parent = parent_tree->node.data;
+		if (parent && parent->type == COMP_OBJECT_TYPE_TOPLEVEL &&
+			parent->data) {
+			struct comp_toplevel *toplevel = parent->data;
+			if (!parent->destroying && !toplevel->unmapped) {
+				parent_toplevel = parent->data;
+			}
 		}
 	}
 	// Only focus the previous toplevel if the unmapped toplevel doesn't have a

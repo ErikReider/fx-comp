@@ -373,9 +373,8 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	toplevel->toplevel_xdg = toplevel_xdg;
 	toplevel_xdg->toplevel = toplevel;
 
-	// Move into parent tree if there's a parent
-	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
-	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
+	// Move into the predefined layer
+	comp_toplevel_move_into_parent_tree(toplevel, NULL);
 
 	/*
 	 * Scene
