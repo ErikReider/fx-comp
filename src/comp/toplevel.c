@@ -579,15 +579,19 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 	toplevel->state.height = height;
 	comp_toplevel_refresh_titlebar(toplevel);
 
+	struct comp_workspace *ws = toplevel->state.workspace;
+
 	double x = 0;
 	double y = 0;
 	if (center_on_cursor) {
+		// Adjust for the output position
 		x = server.seat->cursor->wlr_cursor->x -
 			toplevel->decorated_size.width * 0.5;
 		y = server.seat->cursor->wlr_cursor->y -
 			toplevel->decorated_size.height * 0.5;
+		wlr_output_layout_output_coords(server.output_layout,
+										ws->output->wlr_output, &x, &y);
 	} else {
-		struct comp_workspace *ws = toplevel->state.workspace;
 		struct comp_object *parent_object = NULL;
 		struct wlr_box relative_box = {0};
 
