@@ -786,6 +786,14 @@ static void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
 									   toplevel->fullscreen ? NULL : &clip);
 }
 
+void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel) {
+	// Run the fade-in animation if the first visible commit timed out
+	if (toplevel->unmapped) {
+		toplevel->unmapped = false;
+		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+	}
+}
+
 void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
 	// Set decoration size
 	comp_toplevel_refresh_titlebar(toplevel);

@@ -186,6 +186,30 @@ static int timed_out_func(void *data) {
 	struct comp_transaction *transaction = data;
 	wlr_log(WLR_DEBUG, "Transaction %p timed out (%zi waiting)", transaction,
 			transaction->num_waiting);
+
+	struct comp_transaction_instruction *instruction;
+	wl_list_for_each_reverse(instruction, &transaction->instructions,
+							 transaction_link) {
+		struct comp_object *object = instruction->object;
+
+		switch (object->type) {
+		case COMP_OBJECT_TYPE_OUTPUT:
+		case COMP_OBJECT_TYPE_WORKSPACE:
+		case COMP_OBJECT_TYPE_UNMANAGED:
+		case COMP_OBJECT_TYPE_XDG_POPUP:
+		case COMP_OBJECT_TYPE_LAYER_SURFACE:
+		case COMP_OBJECT_TYPE_WIDGET:
+			break;
+		case COMP_OBJECT_TYPE_TOPLEVEL:;
+			struct comp_toplevel *toplevel = object->data;
+			if (!toplevel || object->destroying) {
+				break;
+			}
+			comp_toplevel_transaction_timed_out(toplevel);
+			break;
+		}
+	}
+
 	transaction->num_waiting = 0;
 	transaction_progress();
 	return 0;
