@@ -113,8 +113,8 @@ static void popup_unconstrain(struct comp_xdg_popup *popup) {
 	struct wlr_box output_box;
 	wlr_output_layout_get_box(server.output_layout,
 							  workspace->output->wlr_output, &output_box);
-	output_box.x -= toplevel->state.x;
-	output_box.y -= toplevel->state.y;
+	output_box.x = -toplevel->state.x + toplevel->geometry.x;
+	output_box.y = -toplevel->state.y + toplevel->geometry.y;
 
 	wlr_xdg_popup_unconstrain_from_box(wlr_popup, &output_box);
 }
@@ -147,8 +147,8 @@ struct comp_xdg_popup *xdg_new_xdg_popup(struct wlr_xdg_popup *wlr_popup,
 		popup->object.content_tree == NULL) {
 		goto error_scene;
 	}
-	popup->xdg_scene_tree =
-		wlr_scene_xdg_surface_create(popup->object.content_tree, wlr_popup->base);
+	popup->xdg_scene_tree = wlr_scene_xdg_surface_create(
+		popup->object.content_tree, wlr_popup->base);
 	if (popup->xdg_scene_tree == NULL) {
 		goto error_xdg;
 	}
