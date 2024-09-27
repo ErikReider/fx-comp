@@ -540,31 +540,39 @@ void comp_output_arrange_output(struct comp_output *output) {
 		comp_widget_center_on_output(&output->ws_indicator->widget, output);
 	}
 
-	// TODO: Update all toplevels/widgets on workspace
+	// Arrange workspaces
+	struct comp_workspace *ws;
+	wl_list_for_each_reverse(ws, &output->workspaces, output_link) {
+		tiling_node_mark_workspace_dirty(ws);
+		comp_transaction_commit_dirty(true);
 
-	// Disable unneeded layers when fullscreen
-	struct comp_workspace *ws = output->active_workspace;
-	bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
-						 !wl_list_empty(&ws->toplevels);
-	wlr_scene_node_set_enabled(&output->layers.shell_background->node,
-							   !is_fullscreen);
-	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
-							   !is_fullscreen);
-	wlr_scene_node_set_enabled(&output->layers.shell_top->node, !is_fullscreen);
-
-	if (is_fullscreen) {
-		// Update the position and size of the fullscreen toplevel
-		struct comp_toplevel *toplevel;
-		wl_list_for_each_reverse(toplevel, &ws->toplevels, workspace_link) {
-			if (!toplevel->fullscreen) {
-				continue;
+		bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
+							 !wl_list_empty(&ws->toplevels);
+		if (is_fullscreen) {
+			// Update the position and size of the fullscreen toplevel
+			struct comp_toplevel *toplevel;
+			wl_list_for_each_reverse(toplevel, &ws->toplevels, workspace_link) {
+				if (!toplevel->fullscreen) {
+					continue;
+				}
+				struct wlr_box output_box =
+					toplevel->state.workspace->output->geometry;
+				comp_toplevel_set_position(toplevel, 0, 0);
+				comp_toplevel_set_size(toplevel, output_box.width,
+									   output_box.height);
+				comp_object_mark_dirty(&toplevel->object);
+				comp_transaction_commit_dirty(true);
 			}
-			struct wlr_box output_box =
-				toplevel->state.workspace->output->geometry;
-			comp_toplevel_set_size(toplevel, output_box.width,
-								   output_box.height);
-			comp_object_mark_dirty(&toplevel->object);
-			comp_transaction_commit_dirty(true);
+		}
+
+		if (ws == output->active_workspace) {
+			// Disable unneeded layers when fullscreen
+			wlr_scene_node_set_enabled(&output->layers.shell_background->node,
+									   !is_fullscreen);
+			wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
+									   !is_fullscreen);
+			wlr_scene_node_set_enabled(&output->layers.shell_top->node,
+									   !is_fullscreen);
 		}
 	}
 }
