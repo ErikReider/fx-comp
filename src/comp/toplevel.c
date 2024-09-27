@@ -159,6 +159,11 @@ static void restore_state(struct comp_toplevel *toplevel) {
 		wl_list_for_each_reverse_safe(toplevel_pos, tmp, &fs_ws->toplevels,
 									  workspace_link) {
 			comp_workspace_move_toplevel_to(ws, toplevel_pos);
+			// Mark as dirty later
+			if (toplevel_pos != toplevel) {
+				comp_object_mark_dirty(&toplevel->object);
+				comp_transaction_commit_dirty(true);
+			}
 		}
 		comp_output_remove_workspace(output, fs_ws);
 		comp_output_focus_workspace(output, ws);
@@ -249,6 +254,8 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 		if (new_output && (ws = comp_output_get_active_ws(
 							   new_output, toplevel->fullscreen))) {
 			comp_workspace_move_toplevel_to(ws, toplevel);
+			comp_object_mark_dirty(&toplevel->object);
+			comp_transaction_commit_dirty(true);
 			// Update the active output
 			server->active_output = new_output;
 			wlr_scene_node_raise_to_top(&new_output->object.scene_tree->node);
@@ -591,6 +598,7 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 			toplevel->decorated_size.height * 0.5;
 		wlr_output_layout_output_coords(server.output_layout,
 										ws->output->wlr_output, &x, &y);
+		// TODO: Center on titlebar when dragging from tiled?
 	} else {
 		struct comp_object *parent_object = NULL;
 		struct wlr_box relative_box = {0};
@@ -662,11 +670,6 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 		fs_ws->fullscreen_toplevel = toplevel;
 
 		comp_workspace_move_toplevel_to(fs_ws, toplevel);
-
-		comp_toplevel_set_position(toplevel, 0, 0);
-
-		comp_object_mark_dirty(&toplevel->object);
-		comp_transaction_commit_dirty(true);
 	} else {
 		if (toplevel->state.workspace->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
 			toplevel->state.workspace->fullscreen_toplevel = NULL;
