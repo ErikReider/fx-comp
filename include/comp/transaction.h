@@ -2,6 +2,7 @@
 #define FX_COMP_TRANSACTION_H
 
 #include <stdbool.h>
+#include <time.h>
 #include <wayland-server-core.h>
 #include <wayland-util.h>
 #include <wlr/util/box.h>
@@ -26,6 +27,9 @@ struct comp_transaction {
 
 	struct wl_list instructions;
 	size_t num_waiting;
+
+	size_t num_configures;
+	struct timespec commit_time;
 };
 
 struct comp_transaction_instruction {

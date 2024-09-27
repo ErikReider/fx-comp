@@ -78,6 +78,11 @@ struct comp_server {
 	// Stores the nodes that have been marked as "dirty" and will be put into
 	// the pending transaction.
 	struct wl_list dirty_objects;
+
+	// Debugging
+	struct {
+		bool log_txn_timings;
+	} debug;
 };
 
 extern struct comp_server server;

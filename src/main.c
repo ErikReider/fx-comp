@@ -60,6 +60,7 @@ static void print_help(void) {
 	printf("Usage:\n");
 	printf("\t-s <cmd>\tStartup command\n");
 	printf("\t-l <DEBUG|INFO>\tLog level\n");
+	printf("\t-D <log-txn-timings>\tLog level\n");
 	printf("\t-o <int>\tNumber of additional testing outputs\n");
 }
 
@@ -100,7 +101,7 @@ int main(int argc, char *argv[]) {
 	int num_test_outputs = 1;
 
 	int c;
-	while ((c = getopt(argc, argv, "s:o:l:h")) != -1) {
+	while ((c = getopt(argc, argv, "s:o:l:D:h")) != -1) {
 		switch (c) {
 		case 's':
 			startup_cmd = optarg;
@@ -110,6 +111,11 @@ int main(int argc, char *argv[]) {
 				log_importance = WLR_DEBUG;
 			} else if (strcmp(optarg, "INFO") == 0) {
 				log_importance = WLR_INFO;
+			}
+			break;
+		case 'D':
+			if (strcmp(optarg, "log-txn-timings") == 0) {
+				server.debug.log_txn_timings = true;
 			}
 			break;
 		case 'o':;

@@ -108,6 +108,18 @@ static void transaction_add_node(struct comp_transaction *transaction,
 static void transaction_apply(struct comp_transaction *transaction) {
 	wlr_log(WLR_DEBUG, "Applying transaction %p", transaction);
 
+	if (server.debug.log_txn_timings) {
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		struct timespec *commit = &transaction->commit_time;
+		float ms = (now.tv_sec - commit->tv_sec) * 1000 +
+				   (now.tv_nsec - commit->tv_nsec) / 1000000.0;
+		wlr_log(WLR_DEBUG,
+				"Transaction %p: %.1fms waiting "
+				"(%.1f frames if 60Hz)",
+				transaction, ms, ms / (1000.0f / 60));
+	}
+
 	// Apply the instruction state to the object's current state
 	struct comp_transaction_instruction *instruction;
 	wl_list_for_each_reverse(instruction, &transaction->instructions,
@@ -164,6 +176,8 @@ static void transaction_progress(void) {
 
 static int timed_out_func(void *data) {
 	struct comp_transaction *transaction = data;
+	wlr_log(WLR_DEBUG, "Transaction %p timed out (%zi waiting)", transaction,
+			transaction->num_waiting);
 	transaction->num_waiting = 0;
 	transaction_progress();
 	return 0;
@@ -193,6 +207,8 @@ static bool should_configure(struct comp_toplevel *toplevel,
 }
 
 static void transaction_commit(struct comp_transaction *transaction) {
+	wlr_log(WLR_DEBUG, "Transaction %p committing with %i instructions",
+			transaction, wl_list_length(&transaction->instructions));
 	transaction->num_waiting = 0;
 	struct comp_transaction_instruction *instruction;
 	wl_list_for_each_reverse(instruction, &transaction->instructions,
@@ -215,6 +231,11 @@ static void transaction_commit(struct comp_transaction *transaction) {
 			comp_toplevel_send_frame_done(toplevel);
 		}
 		object->instruction = instruction;
+	}
+
+	transaction->num_configures = transaction->num_waiting;
+	if (server.debug.log_txn_timings) {
+		clock_gettime(CLOCK_MONOTONIC, &transaction->commit_time);
 	}
 
 	if (transaction->num_waiting) {
@@ -273,6 +294,20 @@ void comp_transaction_commit_dirty(bool server_request) {
 void comp_transaction_instruction_mark_ready(
 	struct comp_transaction_instruction *instruction) {
 	struct comp_transaction *transaction = instruction->transaction;
+
+	if (server.debug.log_txn_timings) {
+		struct timespec now;
+		clock_gettime(CLOCK_MONOTONIC, &now);
+		struct timespec *start = &transaction->commit_time;
+		float ms = (now.tv_sec - start->tv_sec) * 1000 +
+				   (now.tv_nsec - start->tv_nsec) / 1000000.0;
+		wlr_log(WLR_DEBUG, "Transaction %p: %zi/%zi ready in %.1fms (%s)",
+				transaction,
+				transaction->num_configures - transaction->num_waiting + 1,
+				transaction->num_configures, ms,
+				comp_toplevel_get_title(instruction->object->data));
+	}
+
 	// If the transaction has timed out then its num_waiting will be 0 already.
 	if (!instruction->ready && transaction->num_waiting > 0 &&
 		--transaction->num_waiting == 0) {
