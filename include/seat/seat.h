@@ -46,6 +46,8 @@ struct comp_seat *comp_seat_create(struct comp_server *server);
 bool comp_seat_object_is_focus(struct comp_seat *seat,
 							   struct comp_object *object);
 
+void comp_seat_unfocus_unless_client(struct wl_client *client);
+
 void comp_seat_surface_unfocus(struct wlr_surface *surface,
 							   bool focus_previous);
 

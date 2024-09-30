@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <wayland-server-core.h>
 #include <wayland-util.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -139,8 +140,6 @@ static void layer_surface_node_destroy(struct wl_listener *listener,
 									   void *data) {
 	struct comp_layer_surface *layer_surface =
 		wl_container_of(listener, layer_surface, node_destroy);
-
-	// TODO: Session lock handling
 
 	// Don't iterate through this tree
 	layer_surface->object.scene_tree->node.data = NULL;

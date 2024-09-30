@@ -2,7 +2,7 @@
 
 My compositor built primarily for testing [SceneFX](https://github.com/wlrfx/scenefx)
 
-Use at your own degression...
+Use at your own discretion...
 
 Todo:
 
@@ -20,7 +20,7 @@ Todo:
 - [ ] ext_workspace_unstable_v1
 - [ ] foreign toplevel for ironbar support
 - [x] Tiling
-- [ ] Lock support
+- [x] Lock support
 - [x] Fullscreen
 - [ ] Fullscreen titlebar on top hover
     - [ ] Delay

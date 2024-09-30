@@ -44,6 +44,7 @@
 #include <wlr/xwayland.h>
 
 #include "comp/animation_mgr.h"
+#include "comp/lock.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "constants.h"
@@ -374,6 +375,8 @@ int main(int argc, char *argv[]) {
 	server.new_xdg_decoration.notify = handle_xdg_decoration;
 	wl_signal_add(&xdg_decoration_manager->events.new_toplevel_decoration,
 				  &server.new_xdg_decoration);
+
+	comp_session_lock_create();
 
 	/*
 	 * Wayland socket

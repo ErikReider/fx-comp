@@ -13,6 +13,7 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/util/log.h>
 
+#include "comp/lock.h"
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
@@ -372,6 +373,10 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 		wlr_output_layout_add_auto(server->output_layout, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output,
 									   scene_output);
+
+	if (server->comp_session_lock.locked) {
+		comp_session_lock_add_output(wlr_output);
+	}
 }
 
 void comp_output_disable(struct comp_output *output) {
@@ -621,9 +626,42 @@ void comp_output_arrange_layers(struct comp_output *output) {
 		comp_output_arrange_output(output);
 	}
 
-	// Update all usable spaces for all workspaces
-	struct comp_workspace *workspace;
-	wl_list_for_each(workspace, &output->workspaces, output_link) {
-		tiling_node_mark_workspace_dirty(workspace);
+	// Update and focus the topmost layer surface
+	struct comp_seat *seat = server.seat;
+	seat->exclusive_layer = false;
+
+	const struct wlr_scene_tree *layers_above_shell[] = {
+		output->layers.shell_overlay,
+		output->layers.shell_top,
+	};
+	for (size_t i = 0; i < 2; i++) {
+		const struct wlr_scene_tree *layer = layers_above_shell[i];
+		struct wlr_scene_node *node;
+		wl_list_for_each_reverse(node, &layer->children, link) {
+			struct comp_object *obj = node->data;
+			if (!obj || obj->type != COMP_OBJECT_TYPE_LAYER_SURFACE) {
+				continue;
+			}
+			struct comp_layer_surface *surface = obj->data;
+			if (surface &&
+				surface->wlr_layer_surface->current.keyboard_interactive ==
+					ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE &&
+				surface->wlr_layer_surface->surface &&
+				surface->wlr_layer_surface->surface->mapped) {
+				comp_seat_surface_focus(&surface->object,
+										surface->wlr_layer_surface->surface);
+				return;
+			}
+		}
+	}
+
+	// Not found
+	if (seat->focused_layer_surface &&
+		seat->focused_layer_surface->wlr_layer_surface->current
+				.keyboard_interactive !=
+			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE) {
+		comp_seat_surface_focus(
+			&seat->focused_layer_surface->object,
+			seat->focused_layer_surface->wlr_layer_surface->surface);
 	}
 }

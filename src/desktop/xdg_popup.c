@@ -29,6 +29,7 @@ static struct comp_toplevel *get_root_toplevel(struct comp_xdg_popup *popup) {
 	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_WIDGET:
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 		return get_root_toplevel(parent_object->data);

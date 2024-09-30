@@ -15,6 +15,25 @@ enum comp_cursor_mode {
 	COMP_CURSOR_RESIZE,
 };
 
+struct comp_session_lock {
+	struct wlr_session_lock_manager_v1 *mgr;
+	struct wl_listener new_lock;
+	struct wl_listener manager_destroy;
+
+	bool locked;
+
+	struct {
+		struct wlr_surface *focused;
+		bool abandoned;
+
+		struct wl_list outputs;
+
+		struct wl_listener new_surface;
+		struct wl_listener unlock;
+		struct wl_listener destroy;
+	} current;
+};
+
 struct comp_server {
 	struct wl_display *wl_display;
 	struct wlr_backend *headless_backend; // used for creating virtual outputs
@@ -78,6 +97,9 @@ struct comp_server {
 	// Stores the nodes that have been marked as "dirty" and will be put into
 	// the pending transaction.
 	struct wl_list dirty_objects;
+
+	/* ext-session-lock-v1 */
+	struct comp_session_lock comp_session_lock;
 
 	// Debugging
 	struct {

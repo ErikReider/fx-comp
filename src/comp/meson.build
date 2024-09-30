@@ -1,6 +1,7 @@
 sources += files(
 	'animation_mgr.c',
 	'cairo_buffer.c',
+	'lock.c',
 	'object.c',
 	'output.c',
 	'toplevel.c',

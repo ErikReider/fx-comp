@@ -16,6 +16,7 @@ enum comp_object_type {
 	COMP_OBJECT_TYPE_XDG_POPUP,
 	COMP_OBJECT_TYPE_LAYER_SURFACE,
 	COMP_OBJECT_TYPE_WIDGET,
+	COMP_OBJECT_TYPE_LOCK_OUTPUT, // ext-session-lock-v1 output
 };
 
 struct comp_object {

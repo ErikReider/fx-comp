@@ -92,8 +92,8 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 				comp_workspace_get_toplevel_direction(workspace,
 													  WLR_DIRECTION_LEFT);
 			if (toplevel) {
-				comp_seat_surface_focus(&toplevel->object,
-										comp_toplevel_get_wlr_surface(toplevel));
+				comp_seat_surface_focus(
+					&toplevel->object, comp_toplevel_get_wlr_surface(toplevel));
 			}
 			// struct comp_workspace *ws =
 			// 	comp_output_prev_workspace(output, true);
@@ -105,8 +105,8 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 				comp_workspace_get_toplevel_direction(workspace,
 													  WLR_DIRECTION_RIGHT);
 			if (toplevel) {
-				comp_seat_surface_focus(&toplevel->object,
-										comp_toplevel_get_wlr_surface(toplevel));
+				comp_seat_surface_focus(
+					&toplevel->object, comp_toplevel_get_wlr_surface(toplevel));
 			}
 			// struct comp_workspace *ws =
 			// 	comp_output_next_workspace(output, true);
@@ -118,8 +118,8 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 				comp_workspace_get_toplevel_direction(workspace,
 													  WLR_DIRECTION_UP);
 			if (toplevel) {
-				comp_seat_surface_focus(&toplevel->object,
-										comp_toplevel_get_wlr_surface(toplevel));
+				comp_seat_surface_focus(
+					&toplevel->object, comp_toplevel_get_wlr_surface(toplevel));
 			}
 			break;
 		}
@@ -128,8 +128,8 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 				comp_workspace_get_toplevel_direction(workspace,
 													  WLR_DIRECTION_DOWN);
 			if (toplevel) {
-				comp_seat_surface_focus(&toplevel->object,
-										comp_toplevel_get_wlr_surface(toplevel));
+				comp_seat_surface_focus(
+					&toplevel->object, comp_toplevel_get_wlr_surface(toplevel));
 			}
 			break;
 		}
@@ -185,7 +185,8 @@ static void keyboard_handle_key(struct wl_listener *listener, void *data) {
 	bool handled = false;
 	uint32_t modifiers = wlr_keyboard_get_modifiers(keyboard->wlr_keyboard);
 
-	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
+	if (!server->comp_session_lock.locked &&
+		event->state == WL_KEYBOARD_KEY_STATE_PRESSED) {
 		int bitmask = 1 << (WLR_MODIFIER_COUNT - 1);
 		int mask = 1;
 		while (bitmask) {

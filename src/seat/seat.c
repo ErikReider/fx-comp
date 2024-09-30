@@ -1,16 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <wayland-server-core.h>
 #include <wayland-util.h>
 #include <wlr/backend.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_session_lock_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "comp/lock.h"
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
@@ -61,6 +64,9 @@ bool comp_seat_object_is_focus(struct comp_seat *seat,
 			break;
 		}
 		return comp_seat_object_is_focus(seat, popup->parent_object);
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		// TODO: Handle this?
+		break;
 	}
 	return false;
 }
@@ -162,8 +168,13 @@ static void seat_request_set_selection(struct wl_listener *listener,
 
 static void seat_focus_previous_toplevel(struct comp_workspace *ws,
 										 struct wlr_surface *surface) {
+	if (!ws) {
+		wlr_log(WLR_ERROR,
+				"Tried to focus previous toplevel on NULL workspace!");
+		return;
+	}
 	struct comp_toplevel *toplevels[2] = {};
-	if (wl_list_length(&ws->toplevels) > 1) {
+	if (!wl_list_empty(&ws->toplevels)) {
 		// Workspace focus order
 		struct comp_toplevel *toplevel;
 		wl_list_for_each(toplevel, &ws->toplevels, workspace_link) {
@@ -175,7 +186,7 @@ static void seat_focus_previous_toplevel(struct comp_workspace *ws,
 			}
 		}
 	}
-	if (wl_list_length(&server.seat->focus_order) > 1) {
+	if (!wl_list_empty(&ws->toplevels)) {
 		// Use seat focus order as fallback
 		struct comp_toplevel *seat_toplevel = wl_container_of(
 			server.seat->focus_order.next, seat_toplevel, focus_link);
@@ -196,8 +207,66 @@ static void seat_focus_previous_toplevel(struct comp_workspace *ws,
 	}
 }
 
+void comp_seat_unfocus_unless_client(struct wl_client *client) {
+	struct comp_layer_surface *focused_layer =
+		server.seat->focused_layer_surface;
+	if (focused_layer && focused_layer->wlr_layer_surface) {
+		if (wl_resource_get_client(
+				focused_layer->wlr_layer_surface->resource) != client) {
+			comp_seat_surface_unfocus(focused_layer->wlr_layer_surface->surface,
+									  false);
+		}
+	}
+
+	struct comp_toplevel *focused_toplevel = server.seat->focused_toplevel;
+	if (focused_toplevel) {
+		struct wlr_surface *surface =
+			comp_toplevel_get_wlr_surface(focused_toplevel);
+		if (surface && wl_resource_get_client(surface->resource) != client) {
+			comp_seat_surface_unfocus(surface, false);
+		}
+	}
+
+	if (server.seat->wlr_seat->pointer_state.focused_client) {
+		if (server.seat->wlr_seat->pointer_state.focused_client->client !=
+			client) {
+			wlr_seat_pointer_notify_clear_focus(server.seat->wlr_seat);
+		}
+	}
+}
+
 void comp_seat_surface_unfocus(struct wlr_surface *surface,
 							   bool focus_previous) {
+	// Lock:
+	if (server.comp_session_lock.locked) {
+		// Trying to unfocus non locked surface, refocusing locked
+		// surface...
+		comp_session_lock_refocus();
+		return;
+	}
+	// Unlock:
+	// Refocus previous focus on unlock
+	if (surface == server.comp_session_lock.current.focused) {
+		wlr_seat_keyboard_notify_clear_focus(server.seat->wlr_seat);
+		wlr_seat_pointer_notify_clear_focus(server.seat->wlr_seat);
+
+		// Focus previous toplevel in focus order
+		struct comp_object *object = surface->data;
+		struct comp_session_lock_output *lock_output = object->data;
+		struct comp_output *focused_output = NULL;
+		if (lock_output) {
+			focused_output = lock_output->output;
+		}
+		if (!focused_output) {
+			focused_output = get_active_output(&server);
+		}
+		if (focused_output) {
+			seat_focus_previous_toplevel(focused_output->active_workspace,
+										 surface);
+		}
+		return;
+	}
+
 	if (surface == NULL) {
 		wlr_log(WLR_ERROR, "Tried to unfocus NULL surface");
 		return;
@@ -307,6 +376,13 @@ void comp_seat_surface_focus(struct comp_object *object,
 		return;
 	}
 
+	// Refocus the locked output focus if locked
+	if (object->type != COMP_OBJECT_TYPE_LOCK_OUTPUT &&
+		server.comp_session_lock.locked) {
+		comp_session_lock_refocus();
+		return;
+	}
+
 	struct comp_seat *seat = server.seat;
 	struct comp_toplevel *toplevel = object->data;
 	struct comp_layer_surface *layer_surface = object->data;
@@ -314,6 +390,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
+		// Check for locked is checked above, so not needed here
 		if (seat->exclusive_layer && focused_layer) {
 			// Hacky... Some toplevels like kitty needs to be focused then
 			// unfocused
@@ -341,6 +418,8 @@ void comp_seat_surface_focus(struct comp_object *object,
 			break;
 		}
 		break;
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		break;
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_OUTPUT:
@@ -355,7 +434,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 		/* Don't re-focus an already focused surface. */
 		return;
 	}
-	if (prev_surface) {
+	if (prev_surface && !server.comp_session_lock.locked) {
 		/*
 		 * Deactivate the previously focused surface. This lets the client know
 		 * it no longer has focus and the client will repaint accordingly, e.g.
@@ -388,6 +467,8 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 		seat->focused_layer_surface = layer_surface;
 		break;
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		break;
 	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
@@ -415,6 +496,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		return;
 	}
 }
