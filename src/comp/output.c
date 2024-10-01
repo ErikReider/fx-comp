@@ -569,17 +569,24 @@ void comp_output_arrange_output(struct comp_output *output) {
 				comp_transaction_commit_dirty(true);
 			}
 		}
-
-		if (ws == output->active_workspace) {
-			// Disable unneeded layers when fullscreen
-			wlr_scene_node_set_enabled(&output->layers.shell_background->node,
-									   !is_fullscreen);
-			wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
-									   !is_fullscreen);
-			wlr_scene_node_set_enabled(&output->layers.shell_top->node,
-									   !is_fullscreen);
-		}
 	}
+
+	ws = output->active_workspace;
+	bool is_locked = server.comp_session_lock.locked;
+	bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
+						 !wl_list_empty(&ws->toplevels);
+
+	// Disable all layers when locked but also disable background, bottom,
+	// and top layers when fullscreen
+	wlr_scene_node_set_enabled(&output->layers.shell_background->node,
+							   !is_fullscreen && !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
+							   !is_fullscreen && !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.workspaces->node, !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.shell_top->node,
+							   !is_fullscreen && !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.shell_overlay->node, !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.seat->node, !is_locked);
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,

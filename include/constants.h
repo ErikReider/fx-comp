@@ -40,6 +40,12 @@
 #define WORKSPACE_SWITCHER_ITEM_HEIGHT 100
 
 /*
+ * Lock
+ */
+
+#define LOCK_ANIMATION_FADE_DURATION_MS 400
+
+/*
  * Toplevel
  */
 

@@ -246,7 +246,7 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 	}
 	// Unlock:
 	// Refocus previous focus on unlock
-	if (surface == server.comp_session_lock.current.focused) {
+	if (surface == server.comp_session_lock.focused) {
 		wlr_seat_keyboard_notify_clear_focus(server.seat->wlr_seat);
 		wlr_seat_pointer_notify_clear_focus(server.seat->wlr_seat);
 

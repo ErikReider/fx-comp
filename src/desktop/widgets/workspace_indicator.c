@@ -192,7 +192,8 @@ static void animation_update(struct comp_animation_mgr *mgr,
 }
 
 static void animation_done(struct comp_animation_mgr *mgr,
-						   struct comp_animation_client *client) {
+						   struct comp_animation_client *client,
+						   bool cancelled) {
 	struct comp_ws_indicator *indicator = client->data;
 
 	indicator->force_update = true;

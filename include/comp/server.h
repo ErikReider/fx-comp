@@ -21,17 +21,15 @@ struct comp_session_lock {
 	struct wl_listener manager_destroy;
 
 	bool locked;
+	bool abandoned;
 
-	struct {
-		struct wlr_surface *focused;
-		bool abandoned;
+	struct wlr_surface *focused;
 
-		struct wl_list outputs;
+	struct wl_list outputs;
 
-		struct wl_listener new_surface;
-		struct wl_listener unlock;
-		struct wl_listener destroy;
-	} current;
+	struct wl_listener new_surface;
+	struct wl_listener unlock;
+	struct wl_listener destroy;
 };
 
 struct comp_server {

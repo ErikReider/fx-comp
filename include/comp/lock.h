@@ -13,6 +13,8 @@ struct comp_session_lock_output {
 	struct comp_object object;
 
 	struct comp_output *output;
+
+	// Fallback background
 	struct wlr_scene_rect *background;
 
 	struct wlr_session_lock_surface_v1 *surface;
@@ -21,6 +23,14 @@ struct comp_session_lock_output {
 	// invalid if surface is NULL
 	struct wl_listener surface_destroy;
 	struct wl_listener surface_map;
+
+	struct {
+		struct comp_animation_client *client;
+		float to;
+		float from;
+	} fade_animation;
+
+	float opacity;
 };
 
 void comp_session_lock_arrange(void);

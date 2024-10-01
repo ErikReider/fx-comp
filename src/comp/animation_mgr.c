@@ -45,14 +45,19 @@ void comp_animation_client_remove(struct comp_animation_client *client) {
 	client->animating = false;
 }
 
-void comp_animation_client_cancel(struct comp_animation_mgr *mgr,
-								  struct comp_animation_client *client) {
+static void run(struct comp_animation_mgr *mgr,
+				struct comp_animation_client *client, bool cancel) {
 	comp_animation_client_remove(client);
 
 	client->progress = 1.0;
 	if (client->impl->done) {
-		client->impl->done(mgr, client);
+		client->impl->done(mgr, client, cancel);
 	}
+}
+
+void comp_animation_client_cancel(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client) {
+	run(mgr, client, true);
 }
 
 void comp_animation_client_destroy(struct comp_animation_client *client) {
@@ -74,7 +79,7 @@ void comp_animation_client_add(struct comp_animation_mgr *mgr,
 		if (client->impl->update) {
 			client->impl->update(mgr, client);
 		}
-		comp_animation_client_cancel(mgr, client);
+		run(mgr, client, false);
 		return;
 	}
 
@@ -114,7 +119,7 @@ static int animation_timer(void *data) {
 
 		if (client->progress >= 1.0) {
 			client->progress = 1.0;
-			comp_animation_client_cancel(mgr, client);
+			run(mgr, client, false);
 		}
 	}
 

@@ -38,7 +38,7 @@ struct comp_animation_client_impl {
 	void (*update)(struct comp_animation_mgr *mgr,
 				   struct comp_animation_client *client);
 	void (*done)(struct comp_animation_mgr *mgr,
-				 struct comp_animation_client *client);
+				 struct comp_animation_client *client, bool cancelled);
 };
 
 struct comp_animation_client *

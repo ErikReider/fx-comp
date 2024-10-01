@@ -59,7 +59,8 @@ static void fade_animation_update(struct comp_animation_mgr *mgr,
 }
 
 static void fade_animation_done(struct comp_animation_mgr *mgr,
-								struct comp_animation_client *client) {
+								struct comp_animation_client *client,
+								bool cancelled) {
 	struct comp_toplevel *toplevel = client->data;
 	comp_object_remove_buffer(&toplevel->object);
 	toplevel->opacity = toplevel->anim.fade.to;
@@ -116,7 +117,8 @@ static void resize_animation_update(struct comp_animation_mgr *mgr,
 }
 
 static void resize_animation_done(struct comp_animation_mgr *mgr,
-								  struct comp_animation_client *client) {
+								  struct comp_animation_client *client,
+								  bool cancelled) {
 	// no-op
 }
 
