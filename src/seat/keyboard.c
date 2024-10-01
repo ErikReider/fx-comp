@@ -73,6 +73,10 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			exec(TERM);
 			return true;
 
+		case XKB_KEY_O:
+			comp_create_extra_output();
+			return true;
+
 		case XKB_KEY_f:
 			// Toggle between tiling and floating
 			if (focused_toplevel) {

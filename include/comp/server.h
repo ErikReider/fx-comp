@@ -113,4 +113,6 @@ void comp_server_output_manager_test(struct wl_listener *listener, void *data);
 
 struct comp_output *get_active_output(struct comp_server *server);
 
+void comp_create_extra_output(void);
+
 #endif // !FX_COMP_SERVER_H

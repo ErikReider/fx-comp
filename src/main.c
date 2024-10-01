@@ -86,6 +86,17 @@ static void create_output(struct wlr_backend *backend, void *data) {
 #endif
 }
 
+void comp_create_extra_output(void) {
+	bool done = false;
+	wlr_multi_for_each_backend(server.backend, create_output, &done);
+	if (!done) {
+		wlr_log(WLR_ERROR, "Could not create virtual output for backend!");
+		wlr_backend_destroy(server.backend);
+		wl_display_destroy(server.wl_display);
+		exit(1);
+	}
+}
+
 /** Initialize GTK */
 static void *init_gtk(void *attr) {
 	wlr_log(WLR_INFO, "Initializing GTK");
@@ -409,15 +420,7 @@ int main(int argc, char *argv[]) {
 	// Create additional outputs
 	if (num_test_outputs > 1) {
 		for (int i = 0; i < num_test_outputs - 1; i++) {
-			bool done = false;
-			wlr_multi_for_each_backend(server.backend, create_output, &done);
-			if (!done) {
-				wlr_log(WLR_ERROR,
-						"Could not create virtual output for backend!");
-				wlr_backend_destroy(server.backend);
-				wl_display_destroy(server.wl_display);
-				return 1;
-			}
+			comp_create_extra_output();
 		}
 	}
 
