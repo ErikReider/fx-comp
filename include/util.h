@@ -3,6 +3,7 @@
 
 #include <cairo.h>
 #include <gtk-3.0/gtk/gtk.h>
+#include <scenefx/types/wlr_scene.h>
 #include <wlr/util/box.h>
 
 /*
@@ -26,6 +27,19 @@ void listener_emit(struct wl_listener *listener, void *data);
 void scale_box(struct wlr_box *box, float scale);
 
 struct wlr_scene_tree *alloc_tree(struct wlr_scene_tree *parent);
+
+/**
+ * Modified version of:
+ * https://gitlab.freedesktop.org/wlroots/wlroots/-/merge_requests/4558
+ *
+ * Create a new scene node which represents a snapshot of another node.
+ *
+ * The snapshot displays the same contents as the source node at the time of
+ * its creation. The snapshot is completely independent from the source node:
+ * when the source node is updated, the snapshot will stay as-is.
+ */
+struct wlr_scene_tree *wlr_scene_tree_snapshot(struct wlr_scene_node *node,
+											   struct wlr_scene_tree *parent);
 
 /** Get red component from HEX color */
 double hex_red(const uint32_t *const col);

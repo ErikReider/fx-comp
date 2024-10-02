@@ -38,7 +38,7 @@ struct comp_animation_client_impl {
 	void (*update)(struct comp_animation_mgr *mgr,
 				   struct comp_animation_client *client);
 	void (*done)(struct comp_animation_mgr *mgr,
-				 struct comp_animation_client *client);
+				 struct comp_animation_client *client, bool cancelled);
 };
 
 struct comp_animation_client *
@@ -47,6 +47,10 @@ comp_animation_client_init(struct comp_animation_mgr *mgr, int duration_ms,
 						   void *data);
 
 void comp_animation_client_remove(struct comp_animation_client *client);
+
+/** Removes the client and calls the done function */
+void comp_animation_client_cancel(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client);
 
 void comp_animation_client_destroy(struct comp_animation_client *client);
 

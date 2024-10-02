@@ -25,6 +25,11 @@
 #include "seat/seat.h"
 #include "util.h"
 
+void comp_titlebar_refresh_corner_radii(struct comp_titlebar *titlebar) {
+	titlebar->widget.corner_radius =
+		titlebar->toplevel->corner_radius + BORDER_WIDTH * 0.5;
+}
+
 void comp_titlebar_change_title(struct comp_titlebar *titlebar) {
 	if (comp_titlebar_should_be_shown(titlebar->toplevel)) {
 		pixman_region32_union_rect(
@@ -147,12 +152,13 @@ static void titlebar_pointer_button(struct comp_widget *widget, double x,
 			bool has_focus = server.seat->focused_toplevel == toplevel;
 			if (!has_focus) {
 				// Focus the titlebars toplevel
-				comp_seat_surface_focus(&toplevel->object,
-										comp_toplevel_get_wlr_surface(toplevel));
+				comp_seat_surface_focus(
+					&toplevel->object, comp_toplevel_get_wlr_surface(toplevel));
 			}
 
 			// Don't move tiled directly, require focus first
-			if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING || has_focus) {
+			if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING ||
+				has_focus) {
 				comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
 			}
 		}
@@ -266,8 +272,8 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	// Draw background
 	if (!toplevel->using_csd) {
 		cairo_set_rgba32(cr, &background_color);
-		cairo_draw_rounded_rect(cr, surface_width, surface_height, 0, 0,
-								titlebar_radii);
+		cairo_draw_rounded_rect(cr, surface_width - x * 2,
+								surface_height - y * 2, x, y, titlebar_radii);
 		cairo_close_path(cr);
 		cairo_fill(cr);
 	}
@@ -491,7 +497,7 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 
 	// Set the titlebar decoration data
 	titlebar->widget.opacity = 1;
-	titlebar->widget.corner_radius = toplevel->corner_radius + BORDER_WIDTH;
+	comp_titlebar_refresh_corner_radii(titlebar);
 	if (toplevel->corner_radius == 0) {
 		titlebar->widget.corner_radius = 0;
 	}

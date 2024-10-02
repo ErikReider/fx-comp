@@ -40,6 +40,9 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 
 struct comp_toplevel *
 comp_workspace_get_latest_focused(struct comp_workspace *ws) {
+	if (wl_list_empty(&ws->toplevels)) {
+		return NULL;
+	}
 	struct comp_toplevel *toplevel =
 		wl_container_of(ws->toplevels.next, toplevel, workspace_link);
 	return toplevel;
@@ -47,12 +50,18 @@ comp_workspace_get_latest_focused(struct comp_workspace *ws) {
 
 struct comp_toplevel *
 comp_workspace_get_next_focused(struct comp_workspace *ws) {
+	if (wl_list_empty(&ws->toplevels)) {
+		return NULL;
+	}
 	struct comp_toplevel *toplevel =
 		wl_container_of(ws->toplevels.prev, toplevel, workspace_link);
 	return toplevel;
 }
 struct comp_toplevel *
 comp_workspace_get_prev_focused(struct comp_workspace *ws) {
+	if (wl_list_empty(&ws->toplevels)) {
+		return NULL;
+	}
 	struct comp_toplevel *toplevel =
 		wl_container_of(ws->toplevels.next->next, toplevel, workspace_link);
 	return toplevel;
@@ -172,27 +181,29 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 
 	// Create workspace tree
 	ws->object.scene_tree = alloc_tree(output->layers.workspaces);
-	if (!ws->object.scene_tree) {
+	ws->object.content_tree = alloc_tree(ws->object.scene_tree);
+	if (!ws->object.scene_tree || !ws->object.content_tree) {
 		return NULL;
 	}
 	ws->object.scene_tree->node.data = &ws->object;
 	ws->object.data = ws;
 	ws->object.type = COMP_OBJECT_TYPE_WORKSPACE;
+	ws->object.destroying = false;
 
 	// Create tiled/fullscreen
-	ws->layers.lower = alloc_tree(ws->object.scene_tree);
+	ws->layers.lower = alloc_tree(ws->object.content_tree);
 	if (!ws->layers.lower) {
 		return NULL;
 	}
 	ws->layers.lower->node.data = &ws->object;
 	// Create floating
-	ws->layers.floating = alloc_tree(ws->object.scene_tree);
+	ws->layers.floating = alloc_tree(ws->object.content_tree);
 	if (!ws->layers.floating) {
 		return NULL;
 	}
 	ws->layers.floating->node.data = &ws->object;
 	// Create unmanaged
-	ws->layers.unmanaged = alloc_tree(ws->object.scene_tree);
+	ws->layers.unmanaged = alloc_tree(ws->object.content_tree);
 	if (!ws->layers.unmanaged) {
 		return NULL;
 	}

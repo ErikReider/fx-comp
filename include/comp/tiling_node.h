@@ -2,6 +2,7 @@
 #define FX_COMP_TILING_CONTAINER_H
 
 #include <stdbool.h>
+#include <time.h>
 #include <wayland-util.h>
 #include <wlr/util/box.h>
 
@@ -12,6 +13,8 @@ struct tiling_node {
 	struct tiling_node *children[2];
 
 	struct comp_workspace *ws;
+
+	struct timespec time;
 
 	bool is_node;
 	// NODE: Gapless size and position
@@ -33,7 +36,10 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 							  const bool insert_floating);
 void tiling_node_remove_toplevel(struct comp_toplevel *toplevel);
 
+void tiling_node_resize_start(struct comp_toplevel *toplevel);
+void tiling_node_resize_fini(struct comp_toplevel *toplevel);
 void tiling_node_resize(struct comp_toplevel *toplevel);
+
 void tiling_node_move_start(struct comp_toplevel *toplevel);
 void tiling_node_move_fini(struct comp_toplevel *toplevel);
 

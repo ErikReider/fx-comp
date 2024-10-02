@@ -7,9 +7,11 @@
 #include <wayland-util.h>
 #include <wlr/types/wlr_compositor.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/object.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
+#include "comp/transaction.h"
 #include "seat/cursor.h"
 
 #define NUMBER_OF_RESIZE_TARGETS 8
@@ -27,14 +29,6 @@ enum comp_toplevel_type {
 	COMP_TOPLEVEL_TYPE_XWAYLAND,
 };
 
-struct comp_toplevel_state {
-	int x;
-	int y;
-	int width;
-	int height;
-	struct comp_workspace *workspace;
-};
-
 // TODO: Make more generic for XWayland and others...
 struct comp_toplevel {
 	struct wl_list workspace_link;
@@ -44,9 +38,10 @@ struct comp_toplevel {
 
 	struct comp_object object;
 
-	struct wlr_scene_tree *parent_tree;
 	struct wlr_scene_tree *decoration_scene_tree;
 	struct wlr_scene_tree *toplevel_scene_tree;
+	// The saved buffer tree used for animations
+	struct wlr_scene_tree *saved_scene_tree;
 
 	// Type
 	enum comp_toplevel_type type;
@@ -82,10 +77,32 @@ struct comp_toplevel {
 	struct wlr_box geometry;
 	// The current state
 	struct comp_toplevel_state state;
+	// The pending state for the transaction
+	struct comp_toplevel_state pending_state;
 	// Used to restore the state when exiting fullscreen
 	struct comp_toplevel_state saved_state;
 
+	/**
+	 * Whether the toplevel is mapped and visible (waiting for size change) or
+	 * unmapped
+	 */
+	bool unmapped;
+
+	struct {
+		struct {
+			struct comp_animation_client *client;
+			float to;
+			float from;
+		} fade;
+		struct {
+			struct comp_animation_client *client;
+			struct comp_toplevel_state to;
+			struct comp_toplevel_state from;
+		} resize;
+	} anim;
+
 	// Effects
+	float tiling_drag_opacity;
 	float opacity;
 	int corner_radius;
 	struct shadow_data shadow_data;
@@ -99,9 +116,8 @@ struct comp_toplevel_impl {
 	char *(*get_title)(struct comp_toplevel *toplevel);
 	bool (*get_always_floating)(struct comp_toplevel *toplevel);
 	struct wlr_scene_tree *(*get_parent_tree)(struct comp_toplevel *toplevel);
-	void (*configure)(struct comp_toplevel *toplevel, int width, int height,
-					  int x, int y);
-	void (*set_size)(struct comp_toplevel *toplevel, int width, int height);
+	uint32_t (*configure)(struct comp_toplevel *toplevel, int width, int height,
+						  int x, int y);
 	void (*set_resizing)(struct comp_toplevel *toplevel, bool state);
 	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
@@ -110,6 +126,7 @@ struct comp_toplevel_impl {
 	void (*set_pid)(struct comp_toplevel *toplevel);
 	void (*marked_dirty_cb)(struct comp_toplevel *toplevel);
 	void (*close)(struct comp_toplevel *toplevel);
+	bool (*should_run_transaction)(struct comp_toplevel *toplevel);
 };
 
 struct comp_toplevel *comp_toplevel_init(struct comp_output *output,
@@ -144,6 +161,12 @@ void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel);
 void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
 										 struct wlr_scene_tree *parent);
 
+void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
+						  bool center_on_cursor);
+
+void comp_toplevel_save_buffer(struct comp_toplevel *toplevel);
+void comp_toplevel_remove_buffer(struct comp_toplevel *toplevel);
+
 /*
  * Implementation functions
  */
@@ -162,29 +185,37 @@ struct wlr_scene_tree *
 comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel);
 struct wlr_surface *
 comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel);
-void comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
-							 int height, int x, int y);
+uint32_t comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
+								 int height, int x, int y);
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel);
 void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel);
-void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state);
+void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
+							 bool skip_remove_animation);
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel);
 void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 							int height);
 void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state);
 
-void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel);
+void comp_toplevel_refresh_titlebar(struct comp_toplevel *toplevel);
 
-void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel);
+void comp_toplevel_send_frame_done(struct comp_toplevel *toplevel);
+
+// void comp_toplevel_commit_transaction(struct comp_toplevel *toplevel,
+// 									  bool run_now);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 
 void comp_toplevel_close(struct comp_toplevel *toplevel);
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel);
+
+void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel);
+
+void comp_toplevel_refresh(struct comp_toplevel *toplevel);
 
 /*
  * Implementation generic functions
@@ -193,5 +224,16 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_commit(struct comp_toplevel *toplevel);
+
+/*
+ * Animation
+ */
+
+void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
+									  float from, float to);
+
+void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
+									  struct comp_toplevel_state from,
+									  struct comp_toplevel_state to);
 
 #endif // !FX_COMP_TOPLEVEL_H

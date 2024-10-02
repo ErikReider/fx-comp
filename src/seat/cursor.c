@@ -82,6 +82,8 @@ static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 		}
 	} else {
 		switch (object->type) {
+		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+			break;
 		case COMP_OBJECT_TYPE_TOPLEVEL:
 		case COMP_OBJECT_TYPE_XDG_POPUP:
 		case COMP_OBJECT_TYPE_LAYER_SURFACE:
@@ -98,8 +100,10 @@ static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 				 * events if the surface has already has pointer focus or if the
 				 * client is already aware of the coordinates passed.
 				 */
-				wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
-				wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+				if (!server->comp_session_lock.locked) {
+					wlr_seat_pointer_notify_enter(seat, surface, sx, sy);
+					wlr_seat_pointer_notify_motion(seat, time, sx, sy);
+				}
 			} else {
 				wlr_seat_pointer_notify_clear_focus(seat);
 			}
@@ -222,7 +226,7 @@ static void comp_server_cursor_motion_absolute(struct wl_listener *listener,
 static bool try_resize_or_move_toplevel(struct comp_object *object,
 										struct wlr_pointer_button_event *event,
 										struct comp_cursor *cursor) {
-	if (object == NULL) {
+	if (object == NULL || server.comp_session_lock.locked) {
 		return false;
 	}
 
@@ -241,6 +245,7 @@ static bool try_resize_or_move_toplevel(struct comp_object *object,
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_UNMANAGED:
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		return false;
 	}
 
@@ -276,6 +281,10 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 	struct wlr_pointer_button_event *event = data;
 	struct comp_server *server = cursor->server;
 
+	if (server->comp_session_lock.locked) {
+		goto notify;
+	}
+
 	double sx, sy;
 	struct wlr_scene_buffer *scene_buffer = NULL;
 	struct wlr_surface *surface = NULL;
@@ -288,6 +297,9 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			server->seat->grabbed_toplevel &&
 			server->seat->grabbed_toplevel->dragging_tiled) {
 			tiling_node_move_fini(server->seat->grabbed_toplevel);
+		} else if (cursor->cursor_mode == COMP_CURSOR_RESIZE &&
+				   server->seat->grabbed_toplevel) {
+			tiling_node_resize_fini(server->seat->grabbed_toplevel);
 		}
 
 		if (object) {
@@ -301,6 +313,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 			case COMP_OBJECT_TYPE_OUTPUT:
 			case COMP_OBJECT_TYPE_WORKSPACE:
+			case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 				break;
 			}
 		}
@@ -327,14 +340,28 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			}
 			comp_widget_pointer_button(object->data, sx, sy, event);
 			break;
+		// Don't focus unmanaged. TODO: Check if popup?
+		case COMP_OBJECT_TYPE_UNMANAGED:;
+			struct wlr_xwayland_surface *xsurface;
+			if (surface &&
+				(xsurface =
+					 wlr_xwayland_surface_try_from_wlr_surface(surface)) &&
+				xsurface->override_redirect &&
+				wlr_xwayland_or_surface_wants_focus(xsurface)) {
+				struct wlr_xwayland *xwayland =
+					server->xwayland_mgr.wlr_xwayland;
+				wlr_xwayland_set_seat(xwayland, cursor->seat->wlr_seat);
+				comp_seat_surface_focus(object, surface);
+			}
+			break;
 		case COMP_OBJECT_TYPE_OUTPUT:
 		case COMP_OBJECT_TYPE_WORKSPACE:
-		// Don't focus unmanaged. TODO: Check if popup?
-		case COMP_OBJECT_TYPE_UNMANAGED:
+		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 			break;
 		}
 	}
 
+notify:
 	/* Notify the client with pointer focus that a button press has occurred */
 	wlr_seat_pointer_notify_button(server->seat->wlr_seat, event->time_msec,
 								   event->button, event->state);

@@ -9,6 +9,10 @@
 #include "desktop/layer_shell.h"
 #include "desktop/toplevel.h"
 
+struct gesture_data {
+	float percent;
+};
+
 struct comp_seat {
 	struct comp_server *server;
 
@@ -41,6 +45,8 @@ struct comp_seat *comp_seat_create(struct comp_server *server);
 
 bool comp_seat_object_is_focus(struct comp_seat *seat,
 							   struct comp_object *object);
+
+void comp_seat_unfocus_unless_client(struct wl_client *client);
 
 void comp_seat_surface_unfocus(struct wlr_surface *surface,
 							   bool focus_previous);

@@ -13,6 +13,10 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	struct comp_xdg_toplevel *toplevel_xdg = deco->toplevel;
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
+	if (toplevel->object.destroying) {
+		return;
+	}
+
 	enum wlr_xdg_toplevel_decoration_v1_mode mode =
 		WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_SERVER_SIDE;
 	enum wlr_xdg_toplevel_decoration_v1_mode client_mode =
@@ -22,9 +26,18 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	toplevel->using_csd =
 		client_mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 
-	comp_toplevel_set_size(toplevel, toplevel->state.width,
-						   toplevel->state.height);
-	comp_toplevel_mark_dirty(toplevel);
+	comp_toplevel_refresh_titlebar(toplevel);
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
+	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
+		toplevel->tiling_node) {
+		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	}
+
+	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
+		toplevel->tiling_node) {
+		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	}
 
 	if (floating && client_mode) {
 		mode = client_mode;

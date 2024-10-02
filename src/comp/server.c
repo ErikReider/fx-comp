@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/util/log.h>
 
+#include "comp/lock.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "seat/cursor.h"
@@ -63,6 +64,8 @@ static void server_update_monitors(struct comp_server *server) {
 			}
 		}
 	}
+
+	comp_session_lock_arrange();
 
 	wlr_output_manager_v1_set_configuration(server->output_manager,
 											output_config);

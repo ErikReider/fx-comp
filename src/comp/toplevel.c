@@ -11,10 +11,12 @@
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
+#include "comp/transaction.h"
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
@@ -24,51 +26,114 @@
 #include "seat/seat.h"
 #include "util.h"
 
-static void center_toplevel(struct comp_toplevel *toplevel,
-							bool center_on_cursor) {
-	double x = 0;
-	double y = 0;
-	if (center_on_cursor) {
-		x = server.seat->cursor->wlr_cursor->x -
-			toplevel->decorated_size.width * 0.5;
-		y = server.seat->cursor->wlr_cursor->y -
-			toplevel->decorated_size.height * 0.5;
-	} else {
-		struct comp_workspace *ws = toplevel->state.workspace;
-		struct comp_object *parent_object = NULL;
-		struct wlr_box relative_box = {0};
+/*
+ * Animations
+ */
 
-		if (toplevel->parent_tree &&
-			(parent_object = toplevel->parent_tree->node.data) &&
-			parent_object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			relative_box = comp_toplevel_get_geometry(parent_object->data);
-		} else {
-			wlr_output_layout_get_box(toplevel->server->output_layout,
-									  ws->output->wlr_output, &relative_box);
-		}
-		x = (relative_box.width - toplevel->decorated_size.width) * 0.5;
-		y = (relative_box.height - toplevel->decorated_size.height) * 0.5;
-	}
-	comp_toplevel_set_position(toplevel, x, y);
+/* Fade Animation */
+
+void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
+									  float from, float to) {
+	comp_animation_client_cancel(server.animation_mgr,
+								 toplevel->anim.fade.client);
+
+	toplevel->opacity = from;
+	toplevel->titlebar->widget.opacity = from;
+	comp_toplevel_mark_effects_dirty(toplevel);
+
+	toplevel->anim.fade.from = from;
+	toplevel->anim.fade.to = to;
+	comp_animation_client_add(server.animation_mgr, toplevel->anim.fade.client);
 }
 
-static void save_state(struct comp_toplevel *toplevel) {
-	// Position
-	int x, y;
-	wlr_scene_node_coords(&toplevel->object.scene_tree->node, &x, &y);
-	// Adjust the node coordinates to be output-relative
-	double lx = x;
-	double ly = y;
-	wlr_output_layout_output_coords(
-		server.output_layout, toplevel->state.workspace->output->wlr_output,
-		&lx, &ly);
-	toplevel->saved_state.x = lx;
-	toplevel->saved_state.y = ly;
-	// Size
-	toplevel->saved_state.width = toplevel->state.width;
-	toplevel->saved_state.height = toplevel->state.height;
+static void fade_animation_update(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
 
-	toplevel->saved_state.workspace = toplevel->state.workspace;
+	const float alpha = lerp(toplevel->anim.fade.from, toplevel->anim.fade.to,
+							 ease_out_cubic(client->progress));
+	toplevel->opacity = alpha;
+	toplevel->titlebar->widget.opacity = alpha;
+
+	comp_toplevel_mark_effects_dirty(toplevel);
+}
+
+static void fade_animation_done(struct comp_animation_mgr *mgr,
+								struct comp_animation_client *client,
+								bool cancelled) {
+	struct comp_toplevel *toplevel = client->data;
+	comp_object_remove_buffer(&toplevel->object);
+	toplevel->opacity = toplevel->anim.fade.to;
+	toplevel->titlebar->widget.opacity = toplevel->anim.fade.to;
+
+	comp_toplevel_mark_effects_dirty(toplevel);
+
+	// Continue destroying the toplevel
+	if (toplevel->object.destroying) {
+		comp_toplevel_destroy(toplevel);
+	}
+}
+
+const struct comp_animation_client_impl fade_animation_impl = {
+	.done = fade_animation_done,
+	.update = fade_animation_update,
+};
+
+/* Resize Animation */
+
+void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
+									  struct comp_toplevel_state from,
+									  struct comp_toplevel_state to) {
+	comp_animation_client_cancel(server.animation_mgr,
+								 toplevel->anim.resize.client);
+	toplevel->anim.resize.from = from;
+	toplevel->anim.resize.to = to;
+	comp_animation_client_add(server.animation_mgr,
+							  toplevel->anim.resize.client);
+}
+
+static void resize_animation_update(struct comp_animation_mgr *mgr,
+									struct comp_animation_client *client) {
+	struct comp_toplevel *toplevel = client->data;
+	if (toplevel->unmapped || toplevel->object.destroying) {
+		return;
+	}
+
+	const float progress = ease_out_cubic(client->progress);
+	int x = lerp(toplevel->anim.resize.from.x, toplevel->anim.resize.to.x,
+				 progress);
+	int y = lerp(toplevel->anim.resize.from.y, toplevel->anim.resize.to.y,
+				 progress);
+	int width = lerp(toplevel->anim.resize.from.width,
+					 toplevel->anim.resize.to.width, progress);
+	int height = lerp(toplevel->anim.resize.from.height,
+					  toplevel->anim.resize.to.height, progress);
+
+	comp_toplevel_set_size(toplevel, width, height);
+	comp_toplevel_set_position(toplevel, x, y);
+
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
+}
+
+static void resize_animation_done(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client,
+								  bool cancelled) {
+	// no-op
+}
+
+const struct comp_animation_client_impl resize_animation_impl = {
+	.done = resize_animation_done,
+	.update = resize_animation_update,
+};
+
+static void save_state(struct comp_toplevel *toplevel,
+					   struct comp_toplevel_state *state) {
+	toplevel->saved_state.x = state->x;
+	toplevel->saved_state.y = state->y;
+	toplevel->saved_state.width = state->width;
+	toplevel->saved_state.height = state->height;
+	toplevel->saved_state.workspace = state->workspace;
 }
 
 static void restore_state(struct comp_toplevel *toplevel) {
@@ -96,16 +161,23 @@ static void restore_state(struct comp_toplevel *toplevel) {
 		wl_list_for_each_reverse_safe(toplevel_pos, tmp, &fs_ws->toplevels,
 									  workspace_link) {
 			comp_workspace_move_toplevel_to(ws, toplevel_pos);
+			// Mark as dirty later
+			if (toplevel_pos != toplevel) {
+				comp_object_mark_dirty(&toplevel->object);
+				comp_transaction_commit_dirty(true);
+			}
 		}
 		comp_output_remove_workspace(output, fs_ws);
 		comp_output_focus_workspace(output, ws);
 	}
 
+	comp_toplevel_state_print(&toplevel->saved_state, "LOAD:");
 	comp_toplevel_set_position(toplevel, toplevel->saved_state.x,
 							   toplevel->saved_state.y);
 	comp_toplevel_set_size(toplevel, toplevel->saved_state.width,
 						   toplevel->saved_state.height);
-	comp_toplevel_mark_dirty(toplevel);
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
 
 	toplevel->saved_state.x = 0;
 	toplevel->saved_state.y = 0;
@@ -166,7 +238,15 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 		wlr_output_layout_output_coords(
 			server->output_layout,
 			toplevel->state.workspace->output->wlr_output, &lx, &ly);
-		comp_toplevel_set_position(toplevel, lx, ly);
+		// Let the animation adjust the position
+		if (!toplevel->anim.resize.client->animating) {
+			comp_toplevel_set_position(toplevel, lx, ly);
+		} else {
+			toplevel->anim.resize.to.x = lx;
+			toplevel->anim.resize.to.y = ly;
+		}
+		comp_object_mark_dirty(&toplevel->object);
+		comp_transaction_commit_dirty(true);
 
 		// Update floating toplevels current monitor and workspace.
 		// Also raise the output node to the top so that it's floating toplevels
@@ -176,6 +256,8 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 		if (new_output && (ws = comp_output_get_active_ws(
 							   new_output, toplevel->fullscreen))) {
 			comp_workspace_move_toplevel_to(ws, toplevel);
+			comp_object_mark_dirty(&toplevel->object);
+			comp_transaction_commit_dirty(true);
 			// Update the active output
 			server->active_output = new_output;
 			wlr_scene_node_raise_to_top(&new_output->object.scene_tree->node);
@@ -196,13 +278,15 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	 * size, then commit any movement that was prepared.
 	 */
 	struct comp_toplevel *toplevel = server->seat->grabbed_toplevel;
-	if (toplevel->fullscreen) {
+	// Don't resize while fullscreen or animating
+	if (toplevel->fullscreen || toplevel->anim.resize.client->animating) {
 		return;
 	}
 
 	switch (toplevel->tiling_mode) {
 	case COMP_TILING_MODE_TILED:
 		tiling_node_resize(toplevel);
+		comp_transaction_commit_dirty(true);
 		return;
 	case COMP_TILING_MODE_FLOATING:
 		break;
@@ -245,8 +329,11 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 	int new_height = new_bottom - new_top;
 
 	struct wlr_box geo_box = comp_toplevel_get_geometry(toplevel);
-	comp_toplevel_set_position(toplevel, new_left - geo_box.x,
-							   new_top - geo_box.y);
+	int x = new_left - geo_box.x;
+	int y = new_top - geo_box.y;
+	int width = toplevel->state.width;
+	int height = toplevel->state.height;
+	comp_toplevel_set_position(toplevel, x, y);
 
 	// Don't allow resizing fixed sized toplevels
 	int max_width, max_height, min_width, min_height;
@@ -254,7 +341,7 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 								  &max_height);
 	if (min_width != 0 && min_height != 0 &&
 		(min_width == max_width || min_height == max_height)) {
-		return;
+		goto done;
 	}
 
 	// Respect minimum and maximum sizes
@@ -271,8 +358,13 @@ void comp_toplevel_process_cursor_resize(struct comp_server *server,
 		new_height = MAX(min_height, new_height);
 	}
 
-	comp_toplevel_set_size(toplevel, new_width, new_height);
-	comp_toplevel_mark_dirty(toplevel);
+	width = new_width;
+	height = new_height;
+	comp_toplevel_set_size(toplevel, width, height);
+
+done:
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
 }
 
 uint32_t
@@ -309,6 +401,10 @@ comp_toplevel_get_edge_from_cursor_coords(struct comp_toplevel *toplevel,
 void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 									 enum comp_cursor_mode mode,
 									 uint32_t edges) {
+	// Don't resize while animating
+	if (mode == COMP_CURSOR_RESIZE && toplevel->anim.resize.client->animating) {
+		return;
+	}
 	/* This function sets up an interactive move or resize operation, where the
 	 * compositor stops propegating pointer events to clients and instead
 	 * consumes them itself, to move or resize windows. */
@@ -373,7 +469,10 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 		comp_toplevel_set_resizing(toplevel, true);
 		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
 			comp_toplevel_set_size(toplevel, geo_box.width, geo_box.height);
-			comp_toplevel_mark_dirty(toplevel);
+			comp_object_mark_dirty(&toplevel->object);
+			comp_transaction_commit_dirty(true);
+		} else {
+			tiling_node_resize_start(toplevel);
 		}
 		break;
 	}
@@ -403,25 +502,24 @@ struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
 
 static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 											 int sx, int sy, void *user_data) {
+	struct comp_toplevel *toplevel = user_data;
+
 	struct wlr_scene_surface *scene_surface =
 		wlr_scene_surface_try_from_buffer(buffer);
-	if (!scene_surface || !user_data) {
-		return;
-	}
-
-	struct comp_toplevel *toplevel = user_data;
-	switch (toplevel->type) {
-	case COMP_TOPLEVEL_TYPE_XDG:;
-		struct wlr_xdg_surface *xdg_surface;
-		if (!(xdg_surface = wlr_xdg_surface_try_from_wlr_surface(
-				  scene_surface->surface)) ||
-			xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-			return;
+	if (scene_surface) {
+		switch (toplevel->type) {
+		case COMP_TOPLEVEL_TYPE_XDG:;
+			struct wlr_xdg_surface *xdg_surface;
+			if (!(xdg_surface = wlr_xdg_surface_try_from_wlr_surface(
+					  scene_surface->surface)) ||
+				xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
+				return;
+			}
+			break;
+		case COMP_TOPLEVEL_TYPE_XWAYLAND:
+			// TODO: Check here
+			break;
 		}
-		break;
-	case COMP_TOPLEVEL_TYPE_XWAYLAND:
-		// TODO: Check here
-		break;
 	}
 
 	bool has_effects = !toplevel->fullscreen;
@@ -430,13 +528,22 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	// each individually?
 
 	// Toplevel
-	wlr_scene_buffer_set_opacity(buffer, has_effects ? toplevel->opacity : 1);
+	if (toplevel->tiling_drag_opacity < 1) {
+		wlr_scene_buffer_set_opacity(
+			buffer, has_effects ? toplevel->tiling_drag_opacity : 1);
+	} else {
+		wlr_scene_buffer_set_opacity(buffer,
+									 has_effects ? toplevel->opacity : 1);
+	}
 	wlr_scene_buffer_set_corner_radius(
 		buffer, has_effects ? toplevel->corner_radius : 0);
 
 	// Titlebar
 	struct comp_widget *titlebar_widget = &toplevel->titlebar->widget;
 	struct wlr_scene_buffer *titlebar_buffer = titlebar_widget->scene_buffer;
+	wlr_scene_buffer_set_opacity(titlebar_buffer,
+								 has_effects ? titlebar_widget->opacity : 1);
+	comp_titlebar_refresh_corner_radii(toplevel->titlebar);
 	wlr_scene_buffer_set_corner_radius(
 		titlebar_buffer, has_effects ? titlebar_widget->corner_radius : 0);
 	wlr_scene_buffer_set_shadow_data(titlebar_buffer,
@@ -444,9 +551,20 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 }
 
 void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
+	if (toplevel->object.saved_tree) {
+		wlr_scene_node_for_each_buffer(&toplevel->object.saved_tree->node,
+									   iter_scene_buffers_apply_effects,
+									   toplevel);
+		return;
+	}
+	if (toplevel->object.destroying) {
+		wlr_log(WLR_DEBUG,
+				"Skipping setting effects due to toplevel being destroyed");
+		return;
+	}
+
 	wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,
 								   iter_scene_buffers_apply_effects, toplevel);
-	comp_toplevel_mark_dirty(toplevel);
 }
 
 void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
@@ -463,78 +581,60 @@ void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
 	wlr_scene_node_reparent(&toplevel->object.scene_tree->node, parent);
 }
 
-char *comp_toplevel_get_title(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_title) {
-		return toplevel->impl->get_title(toplevel);
+void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
+						  bool center_on_cursor) {
+	struct comp_toplevel_state original_state = toplevel->state;
+	toplevel->state.width = width;
+	toplevel->state.height = height;
+	comp_toplevel_refresh_titlebar(toplevel);
+
+	struct comp_workspace *ws = toplevel->state.workspace;
+
+	double x = 0;
+	double y = 0;
+	if (center_on_cursor) {
+		// Adjust for the output position
+		x = server.seat->cursor->wlr_cursor->x -
+			toplevel->decorated_size.width * 0.5;
+		y = server.seat->cursor->wlr_cursor->y -
+			toplevel->decorated_size.height * 0.5;
+		wlr_output_layout_output_coords(server.output_layout,
+										ws->output->wlr_output, &x, &y);
+		// TODO: Center on titlebar when dragging from tiled?
+	} else {
+		struct wlr_box relative_box = {0};
+
+		wlr_output_layout_get_box(toplevel->server->output_layout,
+								  ws->output->wlr_output, &relative_box);
+		x = (relative_box.width - toplevel->decorated_size.width) * 0.5;
+		y = (relative_box.height - toplevel->decorated_size.height) * 0.5;
 	}
 
-	return NULL;
+	// Restore the original state
+	toplevel->state = original_state;
+	comp_toplevel_refresh_titlebar(toplevel);
+
+	comp_toplevel_set_position(toplevel, x, y);
 }
 
-bool comp_toplevel_get_always_floating(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_always_floating) {
-		return toplevel->impl->get_always_floating(toplevel);
+void comp_toplevel_save_buffer(struct comp_toplevel *toplevel) {
+	if (toplevel->saved_scene_tree) {
+		wlr_log(WLR_INFO, "Trying to save already saved buffer...");
+		comp_toplevel_remove_buffer(toplevel);
 	}
 
-	return false;
+	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, true);
+	toplevel->saved_scene_tree = wlr_scene_tree_snapshot(
+		&toplevel->toplevel_scene_tree->node, toplevel->object.content_tree);
+
+	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, false);
+	wlr_scene_node_set_enabled(&toplevel->saved_scene_tree->node, true);
 }
 
-struct wlr_scene_tree *
-comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_parent_tree) {
-		return toplevel->impl->get_parent_tree(toplevel);
-	}
-
-	return NULL;
-}
-
-struct wlr_surface *
-comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_wlr_surface) {
-		return toplevel->impl->get_wlr_surface(toplevel);
-	}
-
-	return NULL;
-}
-
-struct wlr_box comp_toplevel_get_geometry(struct comp_toplevel *toplevel) {
-	struct wlr_box box = {0};
-	if (toplevel->impl && toplevel->impl->get_geometry) {
-		box = toplevel->impl->get_geometry(toplevel);
-	}
-
-	return box;
-}
-
-void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
-								   int *min_width, int *max_width,
-								   int *min_height, int *max_height) {
-	if (toplevel->impl && toplevel->impl->get_constraints) {
-		toplevel->impl->get_constraints(toplevel, min_width, max_width,
-										min_height, max_height);
-	}
-}
-
-void comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
-							 int height, int x, int y) {
-	// Offset the configure events coordinates to be relative to the workspace,
-	// not the parent
-	if (toplevel->parent_tree) {
-		int lx, ly;
-		wlr_scene_node_coords(&toplevel->parent_tree->node, &lx, &ly);
-		x += lx;
-		y += ly;
-	}
-
-	if (toplevel->impl && toplevel->impl->configure) {
-		toplevel->impl->configure(toplevel, width, height, x, y);
-	}
-}
-
-void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state) {
-	if (toplevel->impl && toplevel->impl->set_activated) {
-		toplevel->impl->set_activated(toplevel, state);
-	}
+void comp_toplevel_remove_buffer(struct comp_toplevel *toplevel) {
+	wlr_scene_node_destroy(&toplevel->saved_scene_tree->node);
+	toplevel->saved_scene_tree = NULL;
+	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, true);
 }
 
 void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
@@ -545,7 +645,7 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 	// HACK: Come up with a way of restoring to tiled state
 	if (state) {
-		comp_toplevel_set_tiled(toplevel, false);
+		comp_toplevel_set_tiled(toplevel, false, true);
 	}
 	toplevel->fullscreen = state;
 
@@ -556,7 +656,7 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 	if (state) {
 		// Save the floating state
-		save_state(toplevel);
+		save_state(toplevel, &toplevel->pending_state);
 
 		// Create a new neighbouring fullscreen workspace
 		struct comp_workspace *fs_ws = comp_output_new_workspace(
@@ -578,32 +678,8 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	comp_output_arrange_output(toplevel->state.workspace->output);
 }
 
-void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel) {
-	comp_toplevel_set_fullscreen(toplevel, !toplevel->fullscreen);
-}
-
-bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel) {
-	// Don't allow resizing fixed sized toplevels
-	int max_width, max_height, min_width, min_height;
-	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
-								  &max_height);
-	if (min_width != 0 && min_height != 0 &&
-		(min_width == max_width || min_height == max_height)) {
-		return false;
-	}
-
-	return true;
-}
-
-bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->get_is_fullscreen) {
-		return toplevel->impl->get_is_fullscreen(toplevel);
-	}
-
-	return false;
-}
-
-void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
+void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
+							 bool skip_remove_animation) {
 	if (state && toplevel->fullscreen) {
 		wlr_log(WLR_DEBUG, "Skipping tiling fullscreen toplevel");
 		return;
@@ -617,8 +693,8 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 	if (comp_toplevel_get_always_floating(toplevel)) {
 		comp_toplevel_set_size(toplevel, toplevel->natural_width,
 							   toplevel->natural_height);
-		center_toplevel(toplevel, false);
-		comp_toplevel_mark_dirty(toplevel);
+		comp_toplevel_center(toplevel, toplevel->pending_state.width,
+							 toplevel->pending_state.height, false);
 		return;
 	}
 
@@ -647,8 +723,14 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 			comp_toplevel_set_size(toplevel, toplevel->natural_width,
 								   toplevel->natural_height);
 		}
-		center_toplevel(toplevel, toplevel->dragging_tiled);
-		comp_toplevel_mark_dirty(toplevel);
+		comp_toplevel_center(toplevel, toplevel->pending_state.width,
+							 toplevel->pending_state.height,
+							 toplevel->dragging_tiled);
+
+		if (!skip_remove_animation) {
+			comp_toplevel_add_size_animation(toplevel, toplevel->state,
+											 toplevel->pending_state);
+		}
 	}
 
 	if (toplevel->impl && toplevel->impl->set_tiled) {
@@ -656,27 +738,14 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state) {
 	}
 }
 
-void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel) {
-	comp_toplevel_set_tiled(toplevel,
-							toplevel->tiling_mode == COMP_TILING_MODE_FLOATING);
-}
-
-void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->set_pid) {
-		toplevel->impl->set_pid(toplevel);
-	}
-}
-
-void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
-							int height) {
-	toplevel->state.width = width;
-	toplevel->state.height = height;
-
-	// Set decoration size
-	toplevel->decorated_size.width = width + 2 * BORDER_WIDTH;
-	toplevel->decorated_size.height = height + 2 * BORDER_WIDTH;
+void comp_toplevel_refresh_titlebar(struct comp_toplevel *toplevel) {
+	toplevel->decorated_size.width = toplevel->state.width + 2 * BORDER_WIDTH;
+	toplevel->decorated_size.height = toplevel->state.height + 2 * BORDER_WIDTH;
 
 	struct comp_titlebar *titlebar = toplevel->titlebar;
+	if (!titlebar) {
+		return;
+	}
 	comp_titlebar_calculate_bar_height(titlebar);
 	toplevel->decorated_size.top_border_height = BORDER_WIDTH;
 	if (comp_titlebar_should_be_shown(toplevel)) {
@@ -684,64 +753,29 @@ void comp_toplevel_set_size(struct comp_toplevel *toplevel, int width,
 		toplevel->decorated_size.top_border_height +=
 			toplevel->titlebar->bar_height;
 	}
-
-	if (toplevel->impl && toplevel->impl->set_size) {
-		toplevel->impl->set_size(toplevel, width, height);
-	}
-
-	comp_toplevel_center_and_clip(toplevel);
 }
 
-void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state) {
-	if (toplevel && toplevel->impl && toplevel->impl->set_resizing) {
-		toplevel->impl->set_resizing(toplevel, state);
-	}
+static void send_frame_done_iterator(struct wlr_scene_buffer *scene_buffer,
+									 int x, int y, void *data) {
+	struct timespec *when = data;
+	wl_signal_emit_mutable(&scene_buffer->events.frame_done, when);
 }
 
-void comp_toplevel_mark_dirty(struct comp_toplevel *toplevel) {
-	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
-							   !toplevel->fullscreen);
+void comp_toplevel_send_frame_done(struct comp_toplevel *toplevel) {
+	struct timespec when;
+	clock_gettime(CLOCK_MONOTONIC, &when);
 
-	struct comp_titlebar *titlebar = toplevel->titlebar;
-
-	if (toplevel->impl && toplevel->impl->marked_dirty_cb) {
-		toplevel->impl->marked_dirty_cb(toplevel);
-	}
-
-	if (!toplevel->fullscreen) {
-		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
-
-		// Only redraw the titlebar if the size has changed
-		if (toplevel->titlebar &&
-			(titlebar->widget.width != toplevel->decorated_size.width ||
-			 titlebar->widget.height != toplevel->decorated_size.height)) {
-			comp_widget_draw_resize(&titlebar->widget,
-									toplevel->decorated_size.width,
-									toplevel->decorated_size.height);
-			// Position the titlebar above the window
-			wlr_scene_node_set_position(
-				&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
-				-toplevel->decorated_size.top_border_height);
-
-			// Adjust edges
-			for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
-				struct comp_resize_edge *edge = toplevel->edges[i];
-				wlr_scene_node_set_enabled(
-					&edge->widget.object.scene_tree->node, show_full_titlebar);
-				int width, height, x, y;
-				comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
-
-				comp_widget_draw_resize(&edge->widget, width, height);
-				wlr_scene_node_set_position(
-					&edge->widget.object.scene_tree->node, x, y);
-			}
-		}
-	} else {
-		comp_toplevel_set_position(toplevel, 0, 0);
+	struct wlr_scene_node *node;
+	wl_list_for_each(node, &toplevel->toplevel_scene_tree->children, link) {
+		wlr_scene_node_for_each_buffer(node, send_frame_done_iterator, &when);
 	}
 }
 
-void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
+static void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
+	if (toplevel->unmapped || !toplevel->toplevel_scene_tree) {
+		return;
+	}
+
 	wlr_scene_node_set_position(&toplevel->toplevel_scene_tree->node, 0, 0);
 
 	struct wlr_box clip = {
@@ -754,30 +788,93 @@ void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
 									   toplevel->fullscreen ? NULL : &clip);
 }
 
-void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y) {
-	toplevel->state.x = x;
-	toplevel->state.y = y;
-	wlr_scene_node_set_position(&toplevel->object.scene_tree->node, x, y);
-
-	comp_toplevel_configure(toplevel, toplevel->state.width,
-							toplevel->state.height, x, y);
+void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel) {
+	// Run the fade-in animation if the first visible commit timed out
+	if (toplevel->unmapped) {
+		toplevel->unmapped = false;
+		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+	}
 }
 
-void comp_toplevel_close(struct comp_toplevel *toplevel) {
-	if (toplevel->impl && toplevel->impl->close) {
-		toplevel->impl->close(toplevel);
+void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
+	// Set decoration size
+	comp_toplevel_refresh_titlebar(toplevel);
+
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
+	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
+							   !toplevel->fullscreen);
+
+	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
+								toplevel->state.x, toplevel->state.y);
+
+	if (toplevel->impl && toplevel->impl->marked_dirty_cb) {
+		toplevel->impl->marked_dirty_cb(toplevel);
+	}
+
+	if (toplevel->anim.resize.client->animating) {
+		// Get the potentially new clip region, due to
+		// wlr_xdg_toplevel_set_tiled
+		struct wlr_box new_geo = comp_toplevel_get_geometry(toplevel);
+		struct wlr_box original_geo = toplevel->geometry;
+		toplevel->geometry = new_geo;
+		comp_toplevel_center_and_clip(toplevel);
+		toplevel->geometry = original_geo;
+	} else {
+		comp_toplevel_center_and_clip(toplevel);
+	}
+
+	if (toplevel->fullscreen) {
+		return;
+	}
+
+	struct comp_titlebar *titlebar = toplevel->titlebar;
+	if (titlebar &&
+		// Only redraw the titlebar if the size has changed
+		(titlebar->widget.width != toplevel->decorated_size.width ||
+		 titlebar->widget.height != toplevel->decorated_size.height)) {
+		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
+
+		comp_widget_draw_resize(&titlebar->widget,
+								toplevel->decorated_size.width,
+								toplevel->decorated_size.height);
+		// Position the titlebar above the window
+		wlr_scene_node_set_position(
+			&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
+			-toplevel->decorated_size.top_border_height);
+
+		// Adjust edges
+		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
+			struct comp_resize_edge *edge = toplevel->edges[i];
+			wlr_scene_node_set_enabled(&edge->widget.object.scene_tree->node,
+									   show_full_titlebar);
+			int width, height, x, y;
+			comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
+
+			comp_widget_draw_resize(&edge->widget, width, height);
+			wlr_scene_node_set_position(&edge->widget.object.scene_tree->node,
+										x, y);
+		}
 	}
 }
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
-	// Only destroy if no parent or if the parent hasn't been destroyed yet
-	if (!toplevel->parent_tree ||
-		(toplevel->parent_tree && !toplevel->parent_tree->node.data)) {
-		wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
+	toplevel->object.destroying = true;
+	if (toplevel->anim.fade.client->animating) {
+		wlr_log(WLR_DEBUG, "Delaying destroy until animation finishes");
+		return;
 	}
+
+	comp_animation_client_destroy(toplevel->anim.fade.client);
+	comp_animation_client_destroy(toplevel->anim.resize.client);
+
+	wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
 
 	free(toplevel);
 }
+
+/*
+ * Toplevel
+ */
 
 struct comp_toplevel *
 comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
@@ -793,9 +890,11 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->type = type;
 	toplevel->using_csd = false;
 	toplevel->fullscreen = fullscreen;
+	toplevel->unmapped = true;
 	toplevel->impl = impl;
 
 	/* Set the scene_nodes decoration data */
+	toplevel->tiling_drag_opacity = 1;
 	toplevel->opacity = 1;
 	toplevel->corner_radius = EFFECTS_CORNER_RADII;
 	toplevel->shadow_data.enabled = true;
@@ -810,18 +909,29 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->state.workspace = workspace;
 	struct wlr_scene_tree *tree = comp_toplevel_get_layer(toplevel);
 	toplevel->object.scene_tree = alloc_tree(tree);
+	toplevel->object.content_tree = alloc_tree(toplevel->object.scene_tree);
 
 	toplevel->object.scene_tree->node.data = &toplevel->object;
 	toplevel->object.data = toplevel;
 	toplevel->object.type = COMP_OBJECT_TYPE_TOPLEVEL;
+	toplevel->object.destroying = false;
 
-	toplevel->decoration_scene_tree = alloc_tree(toplevel->object.scene_tree);
+	toplevel->decoration_scene_tree = alloc_tree(toplevel->object.content_tree);
 
 	// Initialize saved position/size
 	toplevel->saved_state.x = 0;
 	toplevel->saved_state.y = 0;
 	toplevel->saved_state.width = 0;
 	toplevel->saved_state.height = 0;
+
+	toplevel->pending_state = toplevel->state;
+
+	toplevel->anim.fade.client = comp_animation_client_init(
+		server.animation_mgr, TOPLEVEL_ANIMATION_FADE_DURATION_MS,
+		&fade_animation_impl, toplevel);
+	toplevel->anim.resize.client = comp_animation_client_init(
+		server.animation_mgr, TOPLEVEL_ANIMATION_RESIZE_DURATION_MS,
+		&resize_animation_impl, toplevel);
 
 	/*
 	 * Decorations
@@ -869,8 +979,6 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 	comp_toplevel_set_pid(toplevel);
 
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
-
 	toplevel->fullscreen = comp_toplevel_get_is_fullscreen(toplevel);
 	if (toplevel->fullscreen) {
 		toplevel->tiling_mode = COMP_TILING_MODE_TILED;
@@ -879,40 +987,60 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 		toplevel->tiling_mode = COMP_TILING_MODE_FLOATING;
 	}
 
-	// Move into parent tree if there's a parent
-	toplevel->parent_tree = comp_toplevel_get_parent_tree(toplevel);
-	comp_toplevel_move_into_parent_tree(toplevel, toplevel->parent_tree);
+	// Move into the predefined layer
+	comp_toplevel_move_into_parent_tree(toplevel, NULL);
 
 	comp_toplevel_mark_effects_dirty(toplevel);
 
 	// Open new floating toplevels in the center of the output/parent
 	// If tiling, save the centered state so untiling would center
 	set_natural_size(toplevel);
-	center_toplevel(toplevel, false);
-	save_state(toplevel);
+	comp_toplevel_center(toplevel, toplevel->natural_width,
+						 toplevel->natural_height, false);
+	save_state(toplevel, &toplevel->pending_state);
 
 	// Tile/float the new toplevel
 	if (ws->type == COMP_WORKSPACE_TYPE_REGULAR &&
 		toplevel->tiling_mode == COMP_TILING_MODE_TILED) {
-		comp_toplevel_set_tiled(toplevel, true);
+		comp_toplevel_set_tiled(toplevel, true, false);
 	} else {
-		comp_toplevel_set_tiled(toplevel, false);
+		comp_toplevel_set_tiled(toplevel, false, false);
 	}
+	comp_object_mark_dirty(&toplevel->object);
 
 	wl_list_insert(&ws->toplevels, &toplevel->workspace_link);
 	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
 
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
 	comp_seat_surface_focus(&toplevel->object,
 							comp_toplevel_get_wlr_surface(toplevel));
+
+	// We display the toplevel instantly if there isn't a size change.
+	bool pending_size_change =
+		toplevel->state.width != toplevel->pending_state.width ||
+		toplevel->state.height != toplevel->pending_state.height ||
+		toplevel->state.x != toplevel->pending_state.x ||
+		toplevel->state.y != toplevel->pending_state.y;
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node,
+							   !pending_size_change);
+	if (!pending_size_change) {
+		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+	}
+
+	comp_transaction_commit_dirty(true);
 }
 
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
+	toplevel->unmapped = true;
+
 	if (toplevel->fullscreen) {
 		comp_toplevel_set_fullscreen(toplevel, false);
 	}
 
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, false);
+	// Don't animate if already destroying
+	if (!toplevel->object.destroying) {
+		comp_toplevel_add_fade_animation(toplevel, toplevel->opacity, 0.0);
+		comp_object_save_buffer(&toplevel->object);
+	}
 
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
 	if (toplevel == toplevel->server->seat->grabbed_toplevel) {
@@ -921,14 +1049,22 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED) {
 		tiling_node_remove_toplevel(toplevel);
+		comp_object_mark_dirty(&toplevel->object);
+		comp_transaction_commit_dirty(true);
 	}
 
 	// Focus parent toplevel if applicable
 	struct comp_toplevel *parent_toplevel = NULL;
-	if (toplevel->parent_tree) {
-		struct comp_object *parent = toplevel->parent_tree->node.data;
-		if (parent && parent->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			parent_toplevel = parent->data;
+	struct wlr_scene_tree *parent_tree =
+		comp_toplevel_get_parent_tree(toplevel);
+	if (parent_tree) {
+		struct comp_object *parent = parent_tree->node.data;
+		if (parent && parent->type == COMP_OBJECT_TYPE_TOPLEVEL &&
+			parent->data) {
+			struct comp_toplevel *toplevel = parent->data;
+			if (!parent->destroying && !toplevel->unmapped) {
+				parent_toplevel = parent->data;
+			}
 		}
 	}
 	// Only focus the previous toplevel if the unmapped toplevel doesn't have a
@@ -947,17 +1083,39 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 	struct wlr_box new_geo = comp_toplevel_get_geometry(toplevel);
 
-	bool new_size = new_geo.width != toplevel->state.width ||
-					new_geo.height != toplevel->state.height ||
+	bool new_size = new_geo.width != toplevel->geometry.width ||
+					new_geo.height != toplevel->geometry.height ||
 					new_geo.x != toplevel->geometry.x ||
 					new_geo.y != toplevel->geometry.y;
 	if (new_size) {
-		toplevel->geometry = new_geo;
-		if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
-			comp_toplevel_set_size(toplevel, new_geo.width, new_geo.height);
-			comp_toplevel_mark_dirty(toplevel);
-		}
+		if (!toplevel->anim.resize.client->animating) {
+			toplevel->geometry = new_geo;
+			if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+				comp_toplevel_set_size(toplevel, new_geo.width, new_geo.height);
+				if (toplevel->type == COMP_TOPLEVEL_TYPE_XDG) {
+					comp_toplevel_configure(toplevel, new_geo.width,
+											new_geo.height, 0, 0);
+				}
+				comp_object_mark_dirty(&toplevel->object);
+				comp_transaction_commit_dirty(false);
+			}
 
-		comp_toplevel_center_and_clip(toplevel);
+			comp_toplevel_center_and_clip(toplevel);
+		}
+	}
+
+	if (toplevel->object.instruction) {
+		if (toplevel->impl->should_run_transaction(toplevel)) {
+			if (toplevel->unmapped) {
+				toplevel->unmapped = false;
+				comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+			}
+
+			struct comp_transaction_instruction *instruction =
+				toplevel->object.instruction;
+			comp_transaction_instruction_mark_ready(instruction);
+		} else if (toplevel->saved_scene_tree) {
+			comp_toplevel_send_frame_done(toplevel);
+		}
 	}
 }

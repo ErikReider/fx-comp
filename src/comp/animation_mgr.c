@@ -8,6 +8,10 @@
 #include "comp/output.h"
 #include "comp/server.h"
 
+#define MIN_DURATION 100
+
+static void animation_mgr_run(struct comp_animation_mgr *mgr);
+
 /*
  * Animation Client
  */
@@ -41,6 +45,21 @@ void comp_animation_client_remove(struct comp_animation_client *client) {
 	client->animating = false;
 }
 
+static void run(struct comp_animation_mgr *mgr,
+				struct comp_animation_client *client, bool cancel) {
+	comp_animation_client_remove(client);
+
+	client->progress = 1.0;
+	if (client->impl->done) {
+		client->impl->done(mgr, client, cancel);
+	}
+}
+
+void comp_animation_client_cancel(struct comp_animation_mgr *mgr,
+								  struct comp_animation_client *client) {
+	run(mgr, client, true);
+}
+
 void comp_animation_client_destroy(struct comp_animation_client *client) {
 	comp_animation_client_remove(client);
 	free(client);
@@ -50,9 +69,22 @@ void comp_animation_client_add(struct comp_animation_mgr *mgr,
 							   struct comp_animation_client *client) {
 	comp_animation_client_remove(client);
 	client->inited = true;
+	client->animating = true;
 
 	client->progress = 0.0;
 	wl_list_insert(&mgr->clients, &client->link);
+
+	if (client->duration_ms < MIN_DURATION) {
+		client->progress = 1.0;
+		if (client->impl->update) {
+			client->impl->update(mgr, client);
+		}
+		run(mgr, client, false);
+		return;
+	}
+
+	// Run now
+	animation_mgr_run(mgr);
 }
 
 /*
@@ -63,7 +95,7 @@ static float get_fastest_output_refresh_s(void) {
 	float fastest_output_refresh_s = 0.0166667; // fallback to 60 Hz
 	struct comp_output *output;
 	wl_list_for_each_reverse(output, &server.outputs, link) {
-		if (output->refresh_nsec > 0) {
+		if (output != server.fallback_output && output->refresh_nsec > 0) {
 			fastest_output_refresh_s =
 				MIN(fastest_output_refresh_s, output->refresh_sec);
 		}
@@ -75,12 +107,10 @@ static int animation_timer(void *data) {
 	struct comp_animation_mgr *mgr = data;
 	const float fastest_output_refresh_s =
 		get_fastest_output_refresh_s() * 1000;
-	wl_event_source_timer_update(mgr->tick, fastest_output_refresh_s);
 
 	struct comp_animation_client *client, *tmp;
 	wl_list_for_each_reverse_safe(client, tmp, &mgr->clients, link) {
 		client->progress += fastest_output_refresh_s / client->duration_ms;
-
 		client->animating = true;
 
 		if (client->impl->update) {
@@ -88,16 +118,20 @@ static int animation_timer(void *data) {
 		}
 
 		if (client->progress >= 1.0) {
-			comp_animation_client_remove(client);
-
 			client->progress = 1.0;
-			if (client->impl->done) {
-				client->impl->done(mgr, client);
-			}
+			run(mgr, client, false);
 		}
 	}
 
+	if (!wl_list_empty(&mgr->clients)) {
+		wl_event_source_timer_update(mgr->tick, fastest_output_refresh_s);
+	}
+
 	return 0;
+}
+
+static void animation_mgr_run(struct comp_animation_mgr *mgr) {
+	animation_timer(mgr);
 }
 
 struct comp_animation_mgr *comp_animation_mgr_init(void) {

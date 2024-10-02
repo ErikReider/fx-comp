@@ -22,9 +22,13 @@ static void unmanaged_set_position(struct comp_xwayland_unmanaged *unmanaged,
 								   int16_t x, int16_t y) {
 	struct wlr_scene_tree *parent_tree = unmanaged->parent_tree;
 
-	wlr_scene_node_set_position(&unmanaged->surface_scene->buffer->node,
-								x - parent_tree->node.x,
-								y - parent_tree->node.y);
+	// Make the scene root relative coords into parent node relative coords
+	int lx = 0;
+	int ly = 0;
+	wlr_scene_node_coords(&parent_tree->node, &lx, &ly);
+
+	wlr_scene_node_set_position(&unmanaged->surface_scene->buffer->node, x - lx,
+								y - ly);
 }
 
 /*
@@ -83,11 +87,12 @@ static void unmanaged_map(struct wl_listener *listener, void *data) {
 	}
 
 	unmanaged->object.scene_tree = alloc_tree(unmanaged->parent_tree);
+	unmanaged->object.content_tree = alloc_tree(unmanaged->object.scene_tree);
 	unmanaged->object.scene_tree->node.data = &unmanaged->object;
 	xsurface->data = unmanaged->object.scene_tree;
 
 	unmanaged->surface_scene = wlr_scene_surface_create(
-		unmanaged->object.scene_tree, xsurface->surface);
+		unmanaged->object.content_tree, xsurface->surface);
 	if (unmanaged->surface_scene) {
 		unmanaged->surface_scene->buffer->node.data = &unmanaged->object;
 
@@ -213,6 +218,7 @@ xway_create_unmanaged(struct wlr_xwayland_surface *xsurface) {
 	unmanaged->object.scene_tree = NULL;
 	unmanaged->object.data = unmanaged;
 	unmanaged->object.type = COMP_OBJECT_TYPE_UNMANAGED;
+	unmanaged->object.destroying = false;
 
 	/*
 	 * Initialize listeners
