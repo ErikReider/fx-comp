@@ -524,30 +524,37 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 
 	bool has_effects = !toplevel->fullscreen;
 
-	// TODO: Be able to set whole decoration_data instead of calling
-	// each individually?
-
-	// Toplevel
-	if (toplevel->tiling_drag_opacity < 1) {
-		wlr_scene_buffer_set_opacity(
-			buffer, has_effects ? toplevel->tiling_drag_opacity : 1);
-	} else {
-		wlr_scene_buffer_set_opacity(buffer,
-									 has_effects ? toplevel->opacity : 1);
+	// The node data should be NULL if it's a toplevel buffer
+	struct comp_object *obj = buffer->node.data;
+	if (!obj) {
+		// Toplevel
+		if (toplevel->tiling_drag_opacity < 1) {
+			wlr_scene_buffer_set_opacity(
+				buffer, has_effects ? toplevel->tiling_drag_opacity : 1);
+		} else {
+			wlr_scene_buffer_set_opacity(buffer,
+										 has_effects ? toplevel->opacity : 1);
+		}
+		wlr_scene_buffer_set_corner_radius(
+			buffer, has_effects ? toplevel->corner_radius : 0);
+		return;
+	} else if (obj->type != COMP_OBJECT_TYPE_WIDGET) {
+		wlr_log(WLR_ERROR, "Tried to apply effects to unsupported type: %i",
+				obj->type);
+		return;
 	}
-	wlr_scene_buffer_set_corner_radius(
-		buffer, has_effects ? toplevel->corner_radius : 0);
 
-	// Titlebar
-	struct comp_widget *titlebar_widget = &toplevel->titlebar->widget;
-	struct wlr_scene_buffer *titlebar_buffer = titlebar_widget->scene_buffer;
-	wlr_scene_buffer_set_opacity(titlebar_buffer,
-								 has_effects ? titlebar_widget->opacity : 1);
-	comp_titlebar_refresh_corner_radii(toplevel->titlebar);
-	wlr_scene_buffer_set_corner_radius(
-		titlebar_buffer, has_effects ? titlebar_widget->corner_radius : 0);
-	wlr_scene_buffer_set_shadow_data(titlebar_buffer,
-									 titlebar_widget->shadow_data);
+	// Widget
+	struct comp_widget *widget = obj->data;
+
+	if (widget == &toplevel->titlebar->widget) {
+		comp_titlebar_refresh_corner_radii(toplevel->titlebar);
+	}
+
+	wlr_scene_buffer_set_opacity(buffer, has_effects ? widget->opacity : 1);
+	wlr_scene_buffer_set_corner_radius(buffer,
+									   has_effects ? widget->corner_radius : 0);
+	wlr_scene_buffer_set_shadow_data(buffer, widget->shadow_data);
 }
 
 void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
@@ -563,7 +570,7 @@ void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
 		return;
 	}
 
-	wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,
+	wlr_scene_node_for_each_buffer(&toplevel->object.content_tree->node,
 								   iter_scene_buffers_apply_effects, toplevel);
 }
 

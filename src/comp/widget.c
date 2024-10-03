@@ -46,6 +46,7 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 		wlr_scene_node_destroy(&widget->object.scene_tree->node);
 		return false;
 	}
+	widget->scene_buffer->node.data = &widget->object;
 
 	widget->sets_cursor = false;
 
