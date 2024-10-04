@@ -469,6 +469,7 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 	}
 
 	toplevel->saved_scene_tree = alloc_tree(toplevel->object.content_tree);
+	wlr_scene_node_raise_to_top(&toplevel->decoration_scene_tree->node);
 
 	listener_connect(&toplevel_xway->xwayland_surface->surface->events.commit,
 					 &toplevel_xway->commit, xway_toplevel_commit);

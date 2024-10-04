@@ -38,8 +38,8 @@ struct comp_toplevel {
 
 	struct comp_object object;
 
-	struct wlr_scene_tree *decoration_scene_tree;
 	struct wlr_scene_tree *toplevel_scene_tree;
+	struct wlr_scene_tree *decoration_scene_tree;
 	// The saved buffer tree used for animations
 	struct wlr_scene_tree *saved_scene_tree;
 

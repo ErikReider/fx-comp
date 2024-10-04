@@ -814,8 +814,6 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
 	comp_toplevel_refresh_titlebar(toplevel);
 
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
-	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
-							   !toplevel->fullscreen);
 
 	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
 								toplevel->state.x, toplevel->state.y);
@@ -836,17 +834,32 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
 		comp_toplevel_center_and_clip(toplevel);
 	}
 
+	// Adjust edges
+	for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
+		struct comp_resize_edge *edge = toplevel->edges[i];
+		wlr_scene_node_set_enabled(&edge->widget.object.scene_tree->node,
+								   !toplevel->fullscreen);
+		if (toplevel->fullscreen) {
+			continue;
+		}
+		int width, height, x, y;
+		comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
+
+		comp_widget_draw_resize(&edge->widget, width, height);
+		wlr_scene_node_set_position(&edge->widget.object.scene_tree->node, x,
+									y);
+	}
+
+	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
+							   !toplevel->fullscreen);
 	if (toplevel->fullscreen) {
 		return;
 	}
 
 	struct comp_titlebar *titlebar = toplevel->titlebar;
-	if (titlebar &&
-		// Only redraw the titlebar if the size has changed
-		(titlebar->widget.width != toplevel->decorated_size.width ||
-		 titlebar->widget.height != toplevel->decorated_size.height)) {
-		bool show_full_titlebar = comp_titlebar_should_be_shown(toplevel);
-
+	// Only redraw the titlebar if the size has changed
+	if (titlebar->widget.width != toplevel->decorated_size.width ||
+		titlebar->widget.height != toplevel->decorated_size.height) {
 		comp_widget_draw_resize(&titlebar->widget,
 								toplevel->decorated_size.width,
 								toplevel->decorated_size.height);
@@ -854,19 +867,6 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
 		wlr_scene_node_set_position(
 			&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
 			-toplevel->decorated_size.top_border_height);
-
-		// Adjust edges
-		for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
-			struct comp_resize_edge *edge = toplevel->edges[i];
-			wlr_scene_node_set_enabled(&edge->widget.object.scene_tree->node,
-									   show_full_titlebar);
-			int width, height, x, y;
-			comp_resize_edge_get_geometry(edge, &width, &height, &x, &y);
-
-			comp_widget_draw_resize(&edge->widget, width, height);
-			wlr_scene_node_set_position(&edge->widget.object.scene_tree->node,
-										x, y);
-		}
 	}
 }
 

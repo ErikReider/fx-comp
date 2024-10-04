@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <wlr/util/log.h>
 
+#include "cairo.h"
 #include "comp/cairo_buffer.h"
+#include "comp/object.h"
 #include "comp/output.h"
 #include "comp/widget.h"
 #include "seat/seat.h"
@@ -24,6 +26,17 @@ static void widget_destroy(struct wl_listener *listener, void *data) {
 	if (widget->impl->destroy) {
 		widget->impl->destroy(widget);
 	}
+}
+
+static bool handle_point_accepts_input(struct wlr_scene_buffer *buffer,
+									   double *x, double *y) {
+	struct comp_object *object = buffer->node.data;
+	assert(object && object->type == COMP_OBJECT_TYPE_WIDGET && object->data);
+	struct comp_widget *widget = object->data;
+	if (widget->impl->handle_point_accepts_input) {
+		return widget->impl->handle_point_accepts_input(widget, buffer, x, y);
+	}
+	return true;
 }
 
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
@@ -47,6 +60,8 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 		return false;
 	}
 	widget->scene_buffer->node.data = &widget->object;
+
+	widget->scene_buffer->point_accepts_input = handle_point_accepts_input;
 
 	widget->sets_cursor = false;
 
@@ -127,6 +142,15 @@ static void comp_widget_draw(struct comp_widget *widget, int width,
 		wlr_buffer_drop(&widget->buffer->base);
 
 		widget->buffer = cairo_buffer_init(scaled_width, scaled_height);
+	} else {
+		// Clear the previous buffer
+		cairo_save(widget->buffer->cairo);
+		cairo_set_source_rgba(widget->buffer->cairo, 0.0, 0.0, 0.0, 0.0);
+		cairo_set_operator(widget->buffer->cairo, CAIRO_OPERATOR_CLEAR);
+		cairo_rectangle(widget->buffer->cairo, 0, 0, scaled_width,
+						scaled_height);
+		cairo_paint_with_alpha(widget->buffer->cairo, 1.0);
+		cairo_restore(widget->buffer->cairo);
 	}
 
 	// Draw
