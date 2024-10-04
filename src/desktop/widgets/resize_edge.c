@@ -130,8 +130,10 @@ void comp_resize_edge_get_geometry(struct comp_resize_edge *edge, int *width,
 	const int FULL_HEIGHT = titlebar->widget.height + BORDER_RESIZE_WIDTH * 2;
 
 	const int ORIGIN_X = -RESIZE_WIDTH;
-	const int ORIGIN_Y = -edge->toplevel->titlebar->bar_height - BORDER_WIDTH -
-						 BORDER_RESIZE_WIDTH;
+	const int ORIGIN_Y =
+		(edge->toplevel->using_csd ? 0
+								   : -edge->toplevel->titlebar->bar_height) -
+		BORDER_WIDTH - BORDER_RESIZE_WIDTH;
 
 	// NOTE: Maybe find a better way of doing this...
 	switch (edge->edge) {
