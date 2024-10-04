@@ -625,22 +625,28 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 }
 
 void comp_toplevel_save_buffer(struct comp_toplevel *toplevel) {
-	if (toplevel->saved_scene_tree) {
+	if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 		wlr_log(WLR_INFO, "Trying to save already saved buffer...");
 		comp_toplevel_remove_buffer(toplevel);
 	}
 
 	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, true);
-	toplevel->saved_scene_tree = wlr_scene_tree_snapshot(
-		&toplevel->toplevel_scene_tree->node, toplevel->object.content_tree);
+	wlr_scene_tree_snapshot(&toplevel->toplevel_scene_tree->node,
+							toplevel->saved_scene_tree);
 
 	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, false);
 	wlr_scene_node_set_enabled(&toplevel->saved_scene_tree->node, true);
 }
 
 void comp_toplevel_remove_buffer(struct comp_toplevel *toplevel) {
-	wlr_scene_node_destroy(&toplevel->saved_scene_tree->node);
-	toplevel->saved_scene_tree = NULL;
+	if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+		struct wlr_scene_node *node, *tmp;
+		wl_list_for_each_safe(node, tmp, &toplevel->saved_scene_tree->children,
+							  link) {
+			wlr_scene_node_destroy(node);
+		}
+	}
+	wlr_scene_node_set_enabled(&toplevel->saved_scene_tree->node, false);
 	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, true);
 }
 

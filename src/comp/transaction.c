@@ -142,7 +142,7 @@ static void transaction_apply(struct comp_transaction *transaction) {
 				break;
 			}
 
-			if (toplevel->saved_scene_tree) {
+			if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 				if (!object->destroying || object->num_txn_refs == 1) {
 					comp_toplevel_remove_buffer(toplevel);
 					comp_toplevel_mark_effects_dirty(toplevel);
@@ -266,7 +266,8 @@ static void transaction_commit(struct comp_transaction *transaction) {
 
 				comp_toplevel_send_frame_done(toplevel);
 			}
-			if (!hidden && !toplevel->unmapped && !toplevel->saved_scene_tree) {
+			if (!hidden && !toplevel->unmapped &&
+				wl_list_empty(&toplevel->saved_scene_tree->children)) {
 				comp_toplevel_mark_effects_dirty(toplevel);
 				comp_toplevel_save_buffer(toplevel);
 			}

@@ -20,6 +20,7 @@
 #include "desktop/widgets/titlebar.h"
 #include "desktop/xdg.h"
 #include "seat/cursor.h"
+#include "util.h"
 
 /*
  * Toplevel Implementation
@@ -178,9 +179,8 @@ static void handle_new_popup(struct wl_listener *listener, void *data) {
 	struct comp_xdg_toplevel *toplevel_xdg =
 		wl_container_of(listener, toplevel_xdg, new_popup);
 	struct wlr_xdg_popup *wlr_popup = data;
-	// TODO: Somehow raise above comp_resize_edge
 	xdg_new_xdg_popup(wlr_popup, &toplevel_xdg->toplevel->object,
-					  toplevel_xdg->toplevel->toplevel_scene_tree);
+					  toplevel_xdg->popup_scene_tree);
 }
 
 /*
@@ -385,6 +385,10 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		toplevel->object.content_tree, toplevel_xdg->xdg_toplevel->base);
 	toplevel->toplevel_scene_tree->node.data = &toplevel->object;
 	xdg_surface->data = toplevel->object.scene_tree;
+
+	toplevel->saved_scene_tree = alloc_tree(toplevel->object.content_tree);
+	// Make sure that the popups are above the saved buffers and the decorations
+	toplevel_xdg->popup_scene_tree = alloc_tree(toplevel->object.content_tree);
 
 	/*
 	 * Events
