@@ -131,6 +131,7 @@ static void resize_animation_done(struct comp_animation_mgr *mgr,
 								  bool cancelled) {
 	struct comp_toplevel *toplevel = client->data;
 	comp_toplevel_remove_buffer(toplevel);
+	comp_toplevel_mark_effects_dirty(toplevel);
 }
 
 const struct comp_animation_client_impl resize_animation_impl = {
