@@ -4,6 +4,20 @@ My compositor built primarily for testing [SceneFX](https://github.com/wlrfx/sce
 
 Use at your own discretion...
 
+Running:
+
+```sh
+fx-comp -s ./fx-comp_cmd.sh
+```
+
+```sh
+#!/bin/bash
+# fx-comp_cmd.sh
+
+waybar &
+swaybg -i ~/Pictures/Your_cool_pic.jpg &
+```
+
 Todo:
 
 - [X] Basic output support
@@ -21,6 +35,7 @@ Todo:
 - [ ] foreign toplevel for ironbar support
 - [x] Tiling
 - [x] Lock support
+- [ ] Pointer Constraint
 - [x] Fullscreen
 - [ ] Fullscreen titlebar on top hover
     - [ ] Delay
@@ -49,5 +64,6 @@ Todo:
     - [ ] VR support?
     - [ ] Hypr protocols support
     - [ ] Hyprcursor support
+    - [ ] Keep toplevels inside of output region when resizing (percentage of w/h instead of px while resizing?)
 
 Thanks to Sway, Hyprland, and TinyWL for showing how stuff needs to be done! :)
