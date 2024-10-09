@@ -386,7 +386,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	toplevel->toplevel_scene_tree->node.data = &toplevel->object;
 	xdg_surface->data = toplevel->object.scene_tree;
 
-	toplevel->saved_scene_tree = alloc_tree(toplevel->object.content_tree);
+	wlr_scene_node_raise_to_top(&toplevel->saved_scene_tree->node);
 	wlr_scene_node_raise_to_top(&toplevel->decoration_scene_tree->node);
 	// Make sure that the popups are above the saved buffers and the decorations
 	toplevel_xdg->popup_scene_tree = alloc_tree(toplevel->object.content_tree);

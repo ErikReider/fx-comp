@@ -47,10 +47,9 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	struct comp_toplevel *toplevel = node->toplevel;
 	struct tiling_node *container = toplevel->tiling_node;
 
-	const int WIDTH_OFFSET =
-		toplevel->decorated_size.width - toplevel->state.width;
+	const int WIDTH_OFFSET = BORDER_WIDTH * 2;
 	const int HEIGHT_OFFSET =
-		toplevel->decorated_size.height - toplevel->state.height;
+		BORDER_WIDTH * 2 + toplevel->decorated_size.top_border_height;
 
 	const int WIDTH =
 		container->box.width - WIDTH_OFFSET - TILING_GAPS_INNER * 2;

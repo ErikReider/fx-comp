@@ -215,7 +215,7 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel);
 
 void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel);
 
-void comp_toplevel_refresh(struct comp_toplevel *toplevel);
+void comp_toplevel_refresh(struct comp_toplevel *toplevel, bool is_instruction);
 
 /*
  * Implementation generic functions

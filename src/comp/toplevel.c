@@ -17,6 +17,7 @@
 #include "comp/server.h"
 #include "comp/tiling_node.h"
 #include "comp/transaction.h"
+#include "comp/widget.h"
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/toplevel.h"
@@ -86,6 +87,10 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 									  struct comp_toplevel_state to) {
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.resize.client);
+
+	// Save the initial buffer
+	comp_toplevel_save_buffer(toplevel);
+
 	toplevel->anim.resize.from = from;
 	toplevel->anim.resize.to = to;
 	comp_animation_client_add(server.animation_mgr,
@@ -112,6 +117,11 @@ static void resize_animation_update(struct comp_animation_mgr *mgr,
 	comp_toplevel_set_size(toplevel, width, height);
 	comp_toplevel_set_position(toplevel, x, y);
 
+	// Save the buffer and resize it to the new size, will get removed when the
+	// toplevel has committed with the new requested size
+	comp_toplevel_save_buffer(toplevel);
+	comp_toplevel_refresh(toplevel, false);
+
 	comp_object_mark_dirty(&toplevel->object);
 	comp_transaction_commit_dirty(true);
 }
@@ -119,7 +129,8 @@ static void resize_animation_update(struct comp_animation_mgr *mgr,
 static void resize_animation_done(struct comp_animation_mgr *mgr,
 								  struct comp_animation_client *client,
 								  bool cancelled) {
-	// no-op
+	struct comp_toplevel *toplevel = client->data;
+	comp_toplevel_remove_buffer(toplevel);
 }
 
 const struct comp_animation_client_impl resize_animation_impl = {
@@ -537,6 +548,17 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 		}
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? toplevel->corner_radius : 0);
+
+		// Stretch the saved toplevel buffer to fit the toplevel state
+		if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+			int width = toplevel->state.width;
+			int height = toplevel->state.height;
+			if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
+				wlr_scene_buffer_set_dest_size(buffer, height, width);
+			} else {
+				wlr_scene_buffer_set_dest_size(buffer, width, height);
+			}
+		}
 		return;
 	} else if (obj->type != COMP_OBJECT_TYPE_WIDGET) {
 		wlr_log(WLR_ERROR, "Tried to apply effects to unsupported type: %i",
@@ -790,6 +812,7 @@ static void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
 	}
 
 	wlr_scene_node_set_position(&toplevel->toplevel_scene_tree->node, 0, 0);
+	wlr_scene_node_set_position(&toplevel->saved_scene_tree->node, 0, 0);
 
 	struct wlr_box clip = {
 		.width = toplevel->state.width,
@@ -803,36 +826,46 @@ static void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel) {
 	// Run the fade-in animation if the first visible commit timed out
-	if (toplevel->unmapped) {
+	if (!toplevel->object.destroying && toplevel->unmapped) {
 		toplevel->unmapped = false;
 		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
 	}
 }
 
-void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
-	// Set decoration size
-	comp_toplevel_refresh_titlebar(toplevel);
+void comp_toplevel_refresh(struct comp_toplevel *toplevel,
+						   bool is_instruction) {
+	struct comp_toplevel_state original_state = toplevel->state;
+	// Assume that there's a pending state. Update the decorations with said
+	// pending state
+	if (!is_instruction) {
+		toplevel->state = toplevel->pending_state;
+	}
 
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
-
-	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
-								toplevel->state.x, toplevel->state.y);
 
 	if (toplevel->impl && toplevel->impl->marked_dirty_cb) {
 		toplevel->impl->marked_dirty_cb(toplevel);
 	}
 
-	if (toplevel->anim.resize.client->animating) {
+	// Set decoration size
+	comp_toplevel_refresh_titlebar(toplevel);
+
+	wlr_scene_node_set_position(&toplevel->object.scene_tree->node,
+								toplevel->state.x, toplevel->state.y);
+
+	bool animating = toplevel->anim.resize.client->animating;
+	if (animating) {
 		// Get the potentially new clip region, due to
 		// wlr_xdg_toplevel_set_tiled
-		struct wlr_box new_geo = comp_toplevel_get_geometry(toplevel);
 		struct wlr_box original_geo = toplevel->geometry;
-		toplevel->geometry = new_geo;
+		toplevel->geometry = comp_toplevel_get_geometry(toplevel);
 		comp_toplevel_center_and_clip(toplevel);
 		toplevel->geometry = original_geo;
 	} else {
 		comp_toplevel_center_and_clip(toplevel);
 	}
+
+	comp_toplevel_mark_effects_dirty(toplevel);
 
 	// Adjust edges
 	for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
@@ -853,21 +886,33 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel) {
 	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
 							   !toplevel->fullscreen);
 	if (toplevel->fullscreen) {
-		return;
+		goto end;
 	}
 
+	// Only redraw the titlebar if the size has changed or there's a force
+	// update
 	struct comp_titlebar *titlebar = toplevel->titlebar;
-	// Only redraw the titlebar if the size has changed
-	if (titlebar->widget.width != toplevel->decorated_size.width ||
+	if (!is_instruction ||
+		titlebar->widget.width != toplevel->decorated_size.width ||
 		titlebar->widget.height != toplevel->decorated_size.height) {
-		comp_widget_draw_resize(&titlebar->widget,
-								toplevel->decorated_size.width,
-								toplevel->decorated_size.height);
+		// Assume that the whole surface has changed
+		if (!is_instruction) {
+			titlebar->widget.width = toplevel->decorated_size.width;
+			titlebar->widget.height = toplevel->decorated_size.height;
+			comp_widget_draw_full(&titlebar->widget);
+		} else {
+			comp_widget_draw_resize(&titlebar->widget,
+									toplevel->decorated_size.width,
+									toplevel->decorated_size.height);
+		}
 		// Position the titlebar above the window
 		wlr_scene_node_set_position(
 			&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
 			-toplevel->decorated_size.top_border_height);
 	}
+
+end:
+	toplevel->state = original_state;
 }
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
@@ -929,6 +974,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->object.type = COMP_OBJECT_TYPE_TOPLEVEL;
 	toplevel->object.destroying = false;
 
+	toplevel->saved_scene_tree = alloc_tree(toplevel->object.content_tree);
 	toplevel->decoration_scene_tree = alloc_tree(toplevel->object.content_tree);
 
 	// Initialize saved position/size
@@ -1127,7 +1173,7 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 			struct comp_transaction_instruction *instruction =
 				toplevel->object.instruction;
 			comp_transaction_instruction_mark_ready(instruction);
-		} else if (toplevel->saved_scene_tree) {
+		} else if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 			comp_toplevel_send_frame_done(toplevel);
 		}
 	}
