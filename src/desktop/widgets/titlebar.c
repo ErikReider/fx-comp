@@ -395,10 +395,10 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 							  &foreground_color);
 
 			// Draw background
-			if (!is_focused) {
-				cairo_set_rgba32(cr, &unfocus_color);
-			} else if (button->cursor_hovering) {
+			if (button->cursor_hovering) {
 				cairo_set_rgba32(cr, &hover_color);
+			} else if (!is_focused) {
+				cairo_set_rgba32(cr, &unfocus_color);
 			} else {
 				cairo_set_rgba32(cr, &focus_color);
 			}
@@ -412,8 +412,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 			cairo_fill(cr);
 
 			// Draw icon
-			if (TITLEBAR_BUTTONS_ALWAYS_VISIBLE ||
-				(is_focused && button->cursor_hovering)) {
+			if (TITLEBAR_BUTTONS_ALWAYS_VISIBLE || button->cursor_hovering) {
 				char *icon_name = NULL;
 				int icon_padding;
 				get_button_props(type, &icon_name, &icon_padding);
