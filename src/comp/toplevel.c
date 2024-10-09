@@ -649,6 +649,9 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 }
 
 void comp_toplevel_save_buffer(struct comp_toplevel *toplevel) {
+	if (toplevel->unmapped || toplevel->object.destroying) {
+		return;
+	}
 	if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 		wlr_log(WLR_INFO, "Trying to save already saved buffer...");
 		comp_toplevel_remove_buffer(toplevel);
@@ -663,6 +666,9 @@ void comp_toplevel_save_buffer(struct comp_toplevel *toplevel) {
 }
 
 void comp_toplevel_remove_buffer(struct comp_toplevel *toplevel) {
+	if (toplevel->unmapped || toplevel->object.destroying) {
+		return;
+	}
 	if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 		struct wlr_scene_node *node, *tmp;
 		wl_list_for_each_safe(node, tmp, &toplevel->saved_scene_tree->children,
