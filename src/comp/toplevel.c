@@ -539,13 +539,8 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	struct comp_object *obj = buffer->node.data;
 	if (!obj) {
 		// Toplevel
-		if (toplevel->tiling_drag_opacity < 1) {
-			wlr_scene_buffer_set_opacity(
-				buffer, has_effects ? toplevel->tiling_drag_opacity : 1);
-		} else {
-			wlr_scene_buffer_set_opacity(buffer,
-										 has_effects ? toplevel->opacity : 1);
-		}
+		wlr_scene_buffer_set_opacity(buffer,
+									 has_effects ? toplevel->opacity : 1);
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? toplevel->corner_radius : 0);
 
@@ -952,7 +947,6 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->impl = impl;
 
 	/* Set the scene_nodes decoration data */
-	toplevel->tiling_drag_opacity = 1;
 	toplevel->opacity = 1;
 	toplevel->corner_radius = EFFECTS_CORNER_RADII;
 	toplevel->shadow_data.enabled = true;

@@ -102,7 +102,6 @@ struct comp_toplevel {
 	} anim;
 
 	// Effects
-	float tiling_drag_opacity;
 	float opacity;
 	int corner_radius;
 	struct shadow_data shadow_data;
