@@ -134,10 +134,7 @@ static uint32_t xway_configure(struct comp_toplevel *toplevel, int width,
 		y -= (int16_t)ly;
 	}
 
-	if (xsurface->x != x || xsurface->y != y || xsurface->width != width ||
-		xsurface->height != height) {
-		wlr_xwayland_surface_configure(xsurface, x, y, width, height);
-	}
+	wlr_xwayland_surface_configure(xsurface, x, y, width, height);
 
 	// xwayland doesn't give us a serial for the configure
 	return 0;
@@ -440,7 +437,7 @@ static void xway_toplevel_request_configure(struct wl_listener *listener,
 					   toplevel->pending_state.y);
 		comp_object_mark_dirty(&toplevel->object);
 	} else {
-		xway_configure(toplevel, toplevel->state.width, toplevel->state.width,
+		xway_configure(toplevel, toplevel->state.width, toplevel->state.height,
 					   toplevel->state.x, toplevel->state.y);
 	}
 }
