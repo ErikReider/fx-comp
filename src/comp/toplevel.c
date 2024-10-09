@@ -538,7 +538,17 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	// The node data should be NULL if it's a toplevel buffer
 	struct comp_object *obj = buffer->node.data;
 	if (!obj) {
-		// Toplevel
+		wlr_log(WLR_DEBUG,
+				"Tried to apply effects to buffer with unknown data");
+		return;
+	}
+	switch (obj->type) {
+	default:
+		wlr_log(WLR_ERROR, "Tried to apply effects to unsupported type: %i",
+				obj->type);
+		return;
+
+	case COMP_OBJECT_TYPE_TOPLEVEL: {
 		wlr_scene_buffer_set_opacity(buffer,
 									 has_effects ? toplevel->opacity : 1);
 		wlr_scene_buffer_set_corner_radius(
@@ -554,24 +564,21 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 				wlr_scene_buffer_set_dest_size(buffer, width, height);
 			}
 		}
-		return;
-	} else if (obj->type != COMP_OBJECT_TYPE_WIDGET) {
-		wlr_log(WLR_ERROR, "Tried to apply effects to unsupported type: %i",
-				obj->type);
-		return;
+		break;
 	}
+	case COMP_OBJECT_TYPE_WIDGET: {
+		struct comp_widget *widget = obj->data;
+		if (widget == &toplevel->titlebar->widget) {
+			comp_titlebar_refresh_corner_radii(toplevel->titlebar);
+		}
 
-	// Widget
-	struct comp_widget *widget = obj->data;
-
-	if (widget == &toplevel->titlebar->widget) {
-		comp_titlebar_refresh_corner_radii(toplevel->titlebar);
+		wlr_scene_buffer_set_opacity(buffer, has_effects ? widget->opacity : 1);
+		wlr_scene_buffer_set_corner_radius(
+			buffer, has_effects ? widget->corner_radius : 0);
+		wlr_scene_buffer_set_shadow_data(buffer, widget->shadow_data);
+		break;
 	}
-
-	wlr_scene_buffer_set_opacity(buffer, has_effects ? widget->opacity : 1);
-	wlr_scene_buffer_set_corner_radius(buffer,
-									   has_effects ? widget->corner_radius : 0);
-	wlr_scene_buffer_set_shadow_data(buffer, widget->shadow_data);
+	}
 }
 
 void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
@@ -1027,8 +1034,25 @@ static inline void set_natural_size(struct comp_toplevel *toplevel) {
  * Implementation generic functions
  */
 
+static void iter_scene_buffers_set_data(struct wlr_scene_buffer *buffer, int sx,
+										int sy, void *user_data) {
+	struct comp_toplevel *toplevel = user_data;
+
+	struct wlr_scene_surface *scene_surface =
+		wlr_scene_surface_try_from_buffer(buffer);
+	if (scene_surface &&
+		scene_surface->surface == comp_toplevel_get_wlr_surface(toplevel)) {
+		buffer->node.data = &toplevel->object;
+	}
+}
+
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	struct comp_workspace *ws = toplevel->state.workspace;
+
+	if (comp_toplevel_get_wlr_surface(toplevel)) {
+		wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,
+									   iter_scene_buffers_set_data, toplevel);
+	}
 
 	comp_toplevel_set_pid(toplevel);
 
