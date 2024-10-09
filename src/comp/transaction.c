@@ -98,6 +98,7 @@ static void transaction_add_node(struct comp_transaction *transaction,
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		break;
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		struct comp_toplevel *toplevel = object->data;
@@ -135,6 +136,7 @@ static void transaction_apply(struct comp_transaction *transaction) {
 		case COMP_OBJECT_TYPE_LAYER_SURFACE:
 		case COMP_OBJECT_TYPE_WIDGET:
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		case COMP_OBJECT_TYPE_DND_ICON:
 			break;
 		case COMP_OBJECT_TYPE_TOPLEVEL:;
 			struct comp_toplevel *toplevel = object->data;
@@ -202,6 +204,7 @@ static int timed_out_func(void *data) {
 		case COMP_OBJECT_TYPE_LAYER_SURFACE:
 		case COMP_OBJECT_TYPE_WIDGET:
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		case COMP_OBJECT_TYPE_DND_ICON:
 			break;
 		case COMP_OBJECT_TYPE_TOPLEVEL:;
 			struct comp_toplevel *toplevel = object->data;

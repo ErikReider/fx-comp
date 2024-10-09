@@ -13,6 +13,16 @@ struct gesture_data {
 	float percent;
 };
 
+struct comp_drag {
+	struct comp_object object;
+
+	struct wlr_scene_tree *tree;
+
+	struct comp_seat *seat;
+	struct wlr_drag *wlr_drag;
+	struct wl_listener destroy;
+};
+
 struct comp_seat {
 	struct comp_server *server;
 
@@ -26,6 +36,8 @@ struct comp_seat {
 	// Keyboard
 	struct wl_listener new_input;
 	struct wl_listener request_cursor;
+	struct wl_listener request_start_drag;
+	struct wl_listener start_drag;
 	struct wl_listener request_set_selection;
 	struct wl_list keyboards;
 
@@ -53,5 +65,7 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 
 void comp_seat_surface_focus(struct comp_object *object,
 							 struct wlr_surface *surface);
+
+void comp_seat_update_dnd_positions(void);
 
 #endif // !FX_SEAT_H

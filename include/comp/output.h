@@ -24,7 +24,6 @@ struct comp_output {
 		struct wlr_scene_tree *workspaces;
 		struct wlr_scene_tree *shell_top;	  // TODO: Layershell
 		struct wlr_scene_tree *shell_overlay; // TODO: Layershell
-		struct wlr_scene_tree *seat;		  // TODO: Drag and drop
 		struct wlr_scene_tree *session_lock;  // TODO: session_lock
 	} layers;
 

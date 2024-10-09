@@ -248,7 +248,7 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	wlr_output->data = output;
 	output->server = server;
 
-	output->object.scene_tree = alloc_tree(&server->root_scene->tree);
+	output->object.scene_tree = alloc_tree(server->trees.outputs_tree);
 	output->object.content_tree = alloc_tree(output->object.scene_tree);
 	output->object.scene_tree->node.data = &output->object;
 	output->object.data = output;
@@ -261,7 +261,6 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.workspaces = alloc_tree(output->object.content_tree);
 	output->layers.shell_top = alloc_tree(output->object.content_tree);
 	output->layers.shell_overlay = alloc_tree(output->object.content_tree);
-	output->layers.seat = alloc_tree(output->object.content_tree);
 	output->layers.session_lock = alloc_tree(output->object.content_tree);
 
 	wl_list_init(&output->workspaces);
@@ -586,7 +585,6 @@ void comp_output_arrange_output(struct comp_output *output) {
 	wlr_scene_node_set_enabled(&output->layers.shell_top->node,
 							   !is_fullscreen && !is_locked);
 	wlr_scene_node_set_enabled(&output->layers.shell_overlay->node, !is_locked);
-	wlr_scene_node_set_enabled(&output->layers.seat->node, !is_locked);
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,

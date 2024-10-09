@@ -34,6 +34,7 @@ Todo:
     - [X] Unmanaged
     - [X] Transient checks
     - [ ] XCursor theme support
+- [X] Drag and drop support
 - [ ] Tearing support
 - [ ] Adaptive sync support
 - [ ] WLR Portal support

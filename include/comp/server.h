@@ -42,6 +42,10 @@ struct comp_server {
 	struct wlr_compositor *compositor;
 
 	struct wlr_scene *root_scene;
+	struct {
+		struct wlr_scene_tree *outputs_tree;
+		struct wlr_scene_tree *dnd_tree;
+	} trees;
 	struct wlr_scene_output_layout *scene_layout;
 
 	// XDG

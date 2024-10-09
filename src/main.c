@@ -268,6 +268,9 @@ int main(int argc, char *argv[]) {
 	 */
 	server.root_scene = wlr_scene_create();
 
+	server.trees.outputs_tree = wlr_scene_tree_create(&server.root_scene->tree);
+	server.trees.dnd_tree = wlr_scene_tree_create(&server.root_scene->tree);
+
 	server.scene_layout =
 		wlr_scene_attach_output_layout(server.root_scene, server.output_layout);
 	if (server.scene_layout == NULL) {
