@@ -105,10 +105,10 @@ static void popup_unconstrain(struct comp_xdg_popup *popup) {
 	struct comp_toplevel *toplevel = get_root_toplevel(popup);
 	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
 
-	if (!toplevel || !toplevel->state.workspace) {
+	if (!toplevel || !toplevel->workspace || !toplevel->workspace->output) {
 		return;
 	}
-	struct comp_workspace *workspace = toplevel->state.workspace;
+	struct comp_workspace *workspace = toplevel->workspace;
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup

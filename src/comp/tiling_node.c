@@ -137,14 +137,14 @@ void tiling_node_mark_workspace_dirty(struct comp_workspace *workspace) {
 
 void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 							  const bool insert_floating) {
-	toplevel->tiling_node = tiling_node_init(toplevel->state.workspace, false);
+	toplevel->tiling_node = tiling_node_init(toplevel->workspace, false);
 	struct tiling_node *container = toplevel->tiling_node;
 	container->toplevel = toplevel;
 
 	bool split_first = false;
 
 	// Try to get parent node
-	struct comp_workspace *ws = toplevel->state.workspace;
+	struct comp_workspace *ws = toplevel->workspace;
 	struct tiling_node *parent_node = NULL;
 	if (insert_floating) {
 		// Get the tiling node beneath the floating toplevel.
@@ -228,7 +228,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 
 	if (!parent_node) {
 		// No tiled nodes, don't split first node
-		struct comp_output *output = toplevel->state.workspace->output;
+		struct comp_output *output = toplevel->workspace->output;
 		container->box = (struct wlr_box){
 			.width = output->usable_area.width - TILING_GAPS_OUTER * 2,
 			.height = output->usable_area.height - TILING_GAPS_OUTER * 2,
@@ -241,7 +241,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	}
 
 	struct tiling_node *new_parent =
-		tiling_node_init(toplevel->state.workspace, true);
+		tiling_node_init(toplevel->workspace, true);
 	new_parent->box = parent_node->box;
 	new_parent->parent = parent_node->parent;
 	new_parent->split_vertical =
@@ -299,7 +299,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 
 	calc_size_pos_recursive(new_parent, true);
 
-	tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	tiling_node_mark_workspace_dirty(toplevel->workspace);
 }
 
 void tiling_node_remove_toplevel(struct comp_toplevel *toplevel) {
@@ -350,7 +350,7 @@ static bool can_update(struct comp_toplevel *toplevel) {
 	struct tiling_node *node = toplevel->tiling_node;
 
 	float ms = 16.667;
-	struct comp_workspace *ws = toplevel->state.workspace;
+	struct comp_workspace *ws = toplevel->workspace;
 	if (ws && ws->output && ws->output != server.fallback_output) {
 		ms = ws->output->refresh_sec * 1000;
 	}
@@ -378,7 +378,7 @@ void tiling_node_resize(struct comp_toplevel *toplevel) {
 	struct tiling_node *node = toplevel->tiling_node;
 
 	struct wlr_box box = node->box;
-	struct wlr_box usable_area = toplevel->state.workspace->output->usable_area;
+	struct wlr_box usable_area = toplevel->workspace->output->usable_area;
 
 	const double delta_x =
 		(seat->cursor->wlr_cursor->x - seat->cursor->previous.x);

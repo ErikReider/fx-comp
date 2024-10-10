@@ -560,7 +560,7 @@ void comp_output_arrange_output(struct comp_output *output) {
 					continue;
 				}
 				struct wlr_box output_box =
-					toplevel->state.workspace->output->geometry;
+					toplevel->workspace->output->geometry;
 				comp_toplevel_set_position(toplevel, 0, 0);
 				comp_toplevel_set_size(toplevel, output_box.width,
 									   output_box.height);

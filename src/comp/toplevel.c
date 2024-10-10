@@ -145,20 +145,19 @@ static void save_state(struct comp_toplevel *toplevel,
 	toplevel->saved_state.y = state->y;
 	toplevel->saved_state.width = state->width;
 	toplevel->saved_state.height = state->height;
-	toplevel->saved_state.workspace = state->workspace;
 }
 
 static void restore_state(struct comp_toplevel *toplevel) {
-	struct comp_output *output = toplevel->state.workspace->output;
-	struct comp_workspace *fs_ws = toplevel->state.workspace;
+	struct comp_output *output = toplevel->workspace->output;
+	struct comp_workspace *fs_ws = toplevel->workspace;
 
 	if (fs_ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
-		struct comp_workspace *saved_ws = toplevel->saved_state.workspace;
+		struct comp_workspace *prev_ws = toplevel->saved_workspace;
 		// Make sure that the workspace still exists...
 		struct comp_workspace *pos, *ws = NULL;
 		wl_list_for_each_reverse(pos, &output->workspaces, output_link) {
-			if (pos == saved_ws) {
-				ws = saved_ws;
+			if (pos == prev_ws) {
+				ws = prev_ws;
 				break;
 			}
 		}
@@ -195,7 +194,7 @@ static void restore_state(struct comp_toplevel *toplevel) {
 	toplevel->saved_state.y = 0;
 	toplevel->saved_state.width = 0;
 	toplevel->saved_state.height = 0;
-	toplevel->saved_state.workspace = NULL;
+	toplevel->saved_workspace = NULL;
 }
 
 /**
@@ -247,9 +246,9 @@ void comp_toplevel_process_cursor_move(struct comp_server *server,
 			ly = server->seat->cursor->wlr_cursor->y -
 				 toplevel->decorated_size.height * 0.5;
 		}
-		wlr_output_layout_output_coords(
-			server->output_layout,
-			toplevel->state.workspace->output->wlr_output, &lx, &ly);
+		wlr_output_layout_output_coords(server->output_layout,
+										toplevel->workspace->output->wlr_output,
+										&lx, &ly);
 		// Let the animation adjust the position
 		if (!toplevel->anim.resize.client->animating) {
 			comp_toplevel_set_position(toplevel, lx, ly);
@@ -445,7 +444,7 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 		// Adjust the toplevel coordinates to be root-relative
 		struct wlr_box output_box;
 		wlr_output_layout_get_box(server->output_layout,
-								  toplevel->state.workspace->output->wlr_output,
+								  toplevel->workspace->output->wlr_output,
 								  &output_box);
 		server->seat->grab_x = server->seat->cursor->wlr_cursor->x -
 							   toplevel->object.scene_tree->node.x -
@@ -491,20 +490,20 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 }
 
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
-	assert(toplevel->state.workspace);
-	switch (toplevel->state.workspace->type) {
+	assert(toplevel->workspace);
+	switch (toplevel->workspace->type) {
 	case COMP_WORKSPACE_TYPE_FULLSCREEN:
 		if (toplevel->fullscreen) {
-			return toplevel->state.workspace->layers.lower;
+			return toplevel->workspace->layers.lower;
 		}
 		// Always float sub toplevels
-		return toplevel->state.workspace->layers.floating;
+		return toplevel->workspace->layers.floating;
 	case COMP_WORKSPACE_TYPE_REGULAR:
 		switch (toplevel->tiling_mode) {
 		case COMP_TILING_MODE_FLOATING:
-			return toplevel->state.workspace->layers.floating;
+			return toplevel->workspace->layers.floating;
 		case COMP_TILING_MODE_TILED:
-			return toplevel->state.workspace->layers.lower;
+			return toplevel->workspace->layers.lower;
 		}
 		break;
 	}
@@ -620,7 +619,7 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 	toplevel->state.height = height;
 	comp_toplevel_refresh_titlebar(toplevel);
 
-	struct comp_workspace *ws = toplevel->state.workspace;
+	struct comp_workspace *ws = toplevel->workspace;
 
 	double x = 0;
 	double y = 0;
@@ -704,14 +703,14 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 		// Create a new neighbouring fullscreen workspace
 		struct comp_workspace *fs_ws = comp_output_new_workspace(
-			toplevel->state.workspace->output, COMP_WORKSPACE_TYPE_FULLSCREEN);
+			toplevel->workspace->output, COMP_WORKSPACE_TYPE_FULLSCREEN);
 
 		fs_ws->fullscreen_toplevel = toplevel;
 
 		comp_workspace_move_toplevel_to(fs_ws, toplevel);
 	} else {
-		if (toplevel->state.workspace->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
-			toplevel->state.workspace->fullscreen_toplevel = NULL;
+		if (toplevel->workspace->type == COMP_WORKSPACE_TYPE_FULLSCREEN) {
+			toplevel->workspace->fullscreen_toplevel = NULL;
 
 			// Restore the floating state
 			restore_state(toplevel);
@@ -719,7 +718,7 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	}
 
 	// Update the output
-	comp_output_arrange_output(toplevel->state.workspace->output);
+	comp_output_arrange_output(toplevel->workspace->output);
 }
 
 void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
@@ -753,7 +752,7 @@ void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
 		if (toplevel->dragging_tiled) {
 			// Limit to the outputs usable area
 			struct wlr_box *usable_area =
-				&toplevel->state.workspace->output->usable_area;
+				&toplevel->workspace->output->usable_area;
 			const int WIDTH =
 				MIN(toplevel->state.width * TOPLEVEL_TILED_DRAG_SIZE,
 					usable_area->width * 0.5) -
@@ -972,7 +971,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 
 	toplevel->dragging_tiled = false;
 	toplevel->tiling_mode = tiling_mode;
-	toplevel->state.workspace = workspace;
+	toplevel->workspace = workspace;
 	struct wlr_scene_tree *tree = comp_toplevel_get_layer(toplevel);
 	toplevel->object.scene_tree = alloc_tree(tree);
 	toplevel->object.content_tree = alloc_tree(toplevel->object.scene_tree);
@@ -1025,7 +1024,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 }
 
 static inline void set_natural_size(struct comp_toplevel *toplevel) {
-	struct wlr_box box = toplevel->state.workspace->output->usable_area;
+	struct wlr_box box = toplevel->workspace->output->usable_area;
 
 	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
 	toplevel->natural_width =
@@ -1054,7 +1053,7 @@ static void iter_scene_buffers_set_data(struct wlr_scene_buffer *buffer, int sx,
 }
 
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
-	struct comp_workspace *ws = toplevel->state.workspace;
+	struct comp_workspace *ws = toplevel->workspace;
 
 	if (comp_toplevel_get_wlr_surface(toplevel)) {
 		wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,

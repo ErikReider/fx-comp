@@ -56,6 +56,11 @@ struct comp_toplevel {
 	struct comp_resize_edge *edges[NUMBER_OF_RESIZE_TARGETS];
 	bool using_csd;
 
+	// The current workspace
+	struct comp_workspace *workspace;
+	// The previous workspace where the non-fullscreen state resided.
+	// Might be NULL
+	struct comp_workspace *saved_workspace;
 	struct tiling_node *tiling_node;
 	enum comp_tiling_mode tiling_mode;
 	bool dragging_tiled;

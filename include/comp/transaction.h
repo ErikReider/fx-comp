@@ -12,7 +12,6 @@ struct comp_toplevel_state {
 	int y;
 	int width;
 	int height;
-	struct comp_workspace *workspace;
 };
 
 void comp_toplevel_state_print(struct comp_toplevel_state *state,

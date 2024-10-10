@@ -125,11 +125,11 @@ static uint32_t xway_configure(struct comp_toplevel *toplevel, int width,
 							   int height, int x, int y) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 
-	if (toplevel->state.workspace && toplevel->state.workspace->output) {
+	if (toplevel->workspace && toplevel->workspace->output) {
 		double lx = 0, ly = 0;
-		wlr_output_layout_output_coords(
-			server.output_layout, toplevel->state.workspace->output->wlr_output,
-			&lx, &ly);
+		wlr_output_layout_output_coords(server.output_layout,
+										toplevel->workspace->output->wlr_output,
+										&lx, &ly);
 		x -= (int16_t)lx;
 		y -= (int16_t)ly;
 	}
@@ -193,9 +193,9 @@ static bool should_run_transaction(struct comp_toplevel *toplevel) {
 	// XWayland uses root coords, input hitboxes get all messed up when output
 	// position is changed...
 	double lx = 0, ly = 0;
-	wlr_output_layout_output_coords(
-		server.output_layout, toplevel->state.workspace->output->wlr_output,
-		&lx, &ly);
+	wlr_output_layout_output_coords(server.output_layout,
+									toplevel->workspace->output->wlr_output,
+									&lx, &ly);
 	int x = instruction->state.x - (int)lx;
 	int y = instruction->state.y - (int)ly;
 
@@ -272,11 +272,11 @@ static void xway_toplevel_request_activate(struct wl_listener *listener,
 	// Make surface coords output scene node relative, instead of scene root
 	// relative. Helps when output position isn't 0
 	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
-	if (toplevel->state.workspace && toplevel->state.workspace->output) {
+	if (toplevel->workspace && toplevel->workspace->output) {
 		double lx = 0, ly = 0;
-		wlr_output_layout_output_coords(
-			server.output_layout, toplevel->state.workspace->output->wlr_output,
-			&lx, &ly);
+		wlr_output_layout_output_coords(server.output_layout,
+										toplevel->workspace->output->wlr_output,
+										&lx, &ly);
 		x += (int16_t)lx;
 		y += (int16_t)ly;
 	}
@@ -370,7 +370,7 @@ static void xway_toplevel_set_decorations(struct wl_listener *listener,
 	comp_transaction_commit_dirty(true);
 	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
 		toplevel->tiling_node) {
-		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+		tiling_node_mark_workspace_dirty(toplevel->workspace);
 	}
 }
 

@@ -30,20 +30,20 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	comp_transaction_commit_dirty(true);
 	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
 		toplevel->tiling_node) {
-		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+		tiling_node_mark_workspace_dirty(toplevel->workspace);
 	}
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
 		toplevel->tiling_node) {
-		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+		tiling_node_mark_workspace_dirty(toplevel->workspace);
 	}
 
 	if (floating && client_mode) {
 		mode = client_mode;
 	}
 
-	if (!floating && toplevel->tiling_node && toplevel->state.workspace) {
-		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	if (!floating && toplevel->tiling_node && toplevel->workspace) {
+		tiling_node_mark_workspace_dirty(toplevel->workspace);
 	}
 
 	if (toplevel_xdg->xdg_toplevel->base->initialized) {
