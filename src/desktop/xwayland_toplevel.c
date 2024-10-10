@@ -298,7 +298,8 @@ static void xway_toplevel_request_move(struct wl_listener *listener,
 	}
 
 	// TODO: Also check if tiled
-	if (!toplevel->fullscreen) {
+	if (!toplevel->fullscreen &&
+		toplevel->tiling_mode != COMP_TILING_MODE_TILED) {
 		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
 	}
 }
@@ -314,7 +315,8 @@ static void xway_toplevel_request_resize(struct wl_listener *listener,
 	}
 
 	// TODO: Also check if tiled
-	if (!toplevel->fullscreen) {
+	if (!toplevel->fullscreen &&
+		toplevel->tiling_mode != COMP_TILING_MODE_TILED) {
 		struct wlr_xwayland_resize_event *event = data;
 		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE,
 										event->edges);
