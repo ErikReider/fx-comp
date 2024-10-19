@@ -153,8 +153,10 @@ static void layer_surface_node_destroy(struct wl_listener *listener,
 	if (wlr_layer_surface->current.layer ==
 			ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND ||
 		wlr_layer_surface->current.layer == ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM) {
-		wlr_scene_optimized_blur_mark_dirty(server.root_scene,
-											layer_surface->output->wlr_output);
+		if (layer_surface->output) {
+			wlr_scene_optimized_blur_mark_dirty(
+				server.root_scene, layer_surface->output->wlr_output);
+		}
 	}
 
 	// Don't iterate through this tree
