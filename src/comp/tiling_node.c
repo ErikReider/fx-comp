@@ -8,6 +8,7 @@
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
@@ -71,6 +72,15 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	}
 
 	comp_object_mark_dirty(&toplevel->object);
+
+	if (toplevel->anim.resize.client->state != ANIMATION_STATE_NONE) {
+		toplevel->anim.resize.to = (struct comp_toplevel_state) {
+			.width = WIDTH,
+			.height = HEIGHT,
+			.x = X,
+			.y = Y,
+		};
+	}
 }
 
 static void calc_size_pos_recursive(struct tiling_node *node, bool update) {
