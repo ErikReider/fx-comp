@@ -268,6 +268,12 @@ int main(int argc, char *argv[]) {
 	 */
 	server.root_scene = wlr_scene_create();
 
+	// Set the wlr_scene blur_data
+	struct blur_data blur_data = blur_data_get_default();
+	blur_data.radius = 5;
+	blur_data.num_passes = 3;
+	wlr_scene_set_blur_data(server.root_scene, blur_data);
+
 	server.trees.outputs_tree = wlr_scene_tree_create(&server.root_scene->tree);
 	server.trees.dnd_tree = wlr_scene_tree_create(&server.root_scene->tree);
 
