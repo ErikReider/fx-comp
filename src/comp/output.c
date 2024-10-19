@@ -457,9 +457,6 @@ void comp_output_update_sizes(struct comp_output *output) {
 	wlr_scene_node_set_position(&output->object.scene_tree->node,
 								output->geometry.x, output->geometry.y);
 
-	// Update optimized blur node position and size
-	wlr_scene_node_set_position(&output->layers.optimized_blur_node->node,
-								output->geometry.x, output->geometry.y);
 	// Also marks the blur as dirty
 	wlr_scene_optimized_blur_set_size(output->layers.optimized_blur_node,
 									  output->geometry.width,
