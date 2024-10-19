@@ -86,6 +86,14 @@ const struct comp_animation_client_impl fade_animation_impl = {
 void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 									  struct comp_toplevel_state from,
 									  struct comp_toplevel_state to) {
+	// Skip animation if there's no difference. Avoids the issue that the
+	// transaction will ignore commits where there's no size difference
+	if (comp_toplevel_state_is_same(&to, &toplevel->state) ||
+		(comp_toplevel_state_is_same(&from, &toplevel->anim.resize.from) &&
+		 comp_toplevel_state_is_same(&to, &toplevel->anim.resize.to))) {
+		return;
+	}
+
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.resize.client);
 
@@ -1132,6 +1140,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 	if (fullscreen && comp_toplevel_can_fullscreen(toplevel)) {
 		comp_toplevel_set_fullscreen(toplevel, true);
+		toplevel->unmapped = false;
 	} else {
 		toplevel->fullscreen = false;
 
