@@ -588,7 +588,6 @@ void comp_output_arrange_output(struct comp_output *output) {
 	struct comp_workspace *ws;
 	wl_list_for_each_reverse(ws, &output->workspaces, output_link) {
 		tiling_node_mark_workspace_dirty(ws);
-		comp_transaction_commit_dirty(true);
 
 		bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
 							 !wl_list_empty(&ws->toplevels);
@@ -605,10 +604,10 @@ void comp_output_arrange_output(struct comp_output *output) {
 				comp_toplevel_set_size(toplevel, output_box.width,
 									   output_box.height);
 				comp_object_mark_dirty(&toplevel->object);
-				comp_transaction_commit_dirty(true);
 			}
 		}
 	}
+	comp_transaction_commit_dirty(true);
 
 	ws = output->active_workspace;
 	bool is_locked = server.comp_session_lock.locked;
