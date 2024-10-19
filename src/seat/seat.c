@@ -1,16 +1,19 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <wayland-server-core.h>
 #include <wayland-util.h>
 #include <wlr/backend.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_seat.h>
+#include <wlr/types/wlr_session_lock_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <xkbcommon/xkbcommon-keysyms.h>
 #include <xkbcommon/xkbcommon.h>
 
+#include "comp/lock.h"
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
@@ -24,6 +27,7 @@
 #include "seat/cursor.h"
 #include "seat/keyboard.h"
 #include "seat/seat.h"
+#include "util.h"
 #include "wlr-layer-shell-unstable-v1-protocol.h"
 
 bool comp_seat_object_is_focus(struct comp_seat *seat,
@@ -53,14 +57,18 @@ bool comp_seat_object_is_focus(struct comp_seat *seat,
 				   surface == seat->wlr_seat->pointer_state.focused_surface;
 		}
 		break;
-	case COMP_OBJECT_TYPE_WIDGET:
-		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:;
 		struct comp_xdg_popup *popup = object->data;
 		if (popup->parent_object == NULL) {
 			break;
 		}
 		return comp_seat_object_is_focus(seat, popup->parent_object);
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		// TODO: Handle this?
+		break;
+	case COMP_OBJECT_TYPE_WIDGET:
+	case COMP_OBJECT_TYPE_DND_ICON:
+		break;
 	}
 	return false;
 }
@@ -147,6 +155,101 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 	}
 }
 
+static void handle_request_start_drag(struct wl_listener *listener,
+									  void *data) {
+	struct comp_seat *seat =
+		wl_container_of(listener, seat, request_start_drag);
+	struct wlr_seat_request_start_drag_event *event = data;
+
+	if (wlr_seat_validate_pointer_grab_serial(seat->wlr_seat, event->origin,
+											  event->serial)) {
+		wlr_seat_start_pointer_drag(seat->wlr_seat, event->drag, event->serial);
+		return;
+	}
+
+	wlr_log(WLR_DEBUG,
+			"Skipping start drag, could not validate drag serial %" PRIu32,
+			event->serial);
+
+	wlr_data_source_destroy(event->drag->source);
+}
+
+static void drag_icon_update_position(struct comp_drag *drag) {
+	struct wlr_cursor *cursor = drag->seat->cursor->wlr_cursor;
+	struct wlr_drag_icon *wlr_drag_icon = drag->wlr_drag->icon;
+
+	switch (wlr_drag_icon->drag->grab_type) {
+	case WLR_DRAG_GRAB_KEYBOARD:
+		return;
+	case WLR_DRAG_GRAB_KEYBOARD_POINTER:
+		wlr_scene_node_set_position(&drag->object.scene_tree->node, cursor->x,
+									cursor->y);
+		break;
+	case WLR_DRAG_GRAB_KEYBOARD_TOUCH:
+		wlr_log(WLR_DEBUG, "Touch dnd not supported yet...");
+		return;
+	}
+}
+
+void comp_seat_update_dnd_positions(void) {
+	struct wlr_scene_node *node;
+	wl_list_for_each(node, &server.trees.dnd_tree->children, link) {
+		struct comp_object *obj = node->data;
+		if (!obj || obj->type != COMP_OBJECT_TYPE_DND_ICON || !obj->data) {
+			continue;
+		}
+		drag_icon_update_position(obj->data);
+	}
+}
+
+static void handle_dnd_destroy(struct wl_listener *listener, void *data) {
+	struct comp_drag *drag = wl_container_of(listener, drag, destroy);
+
+	// TODO: Focus?
+
+	wlr_scene_node_destroy(&drag->object.scene_tree->node);
+	drag->wlr_drag->data = NULL;
+	listener_remove(&drag->destroy);
+	free(drag);
+}
+
+static void handle_start_drag(struct wl_listener *listener, void *data) {
+	struct comp_seat *seat = wl_container_of(listener, seat, start_drag);
+	struct wlr_drag *wlr_drag = data;
+
+	struct comp_drag *drag = calloc(1, sizeof(*drag));
+	drag->object.scene_tree = alloc_tree(server.trees.dnd_tree);
+	drag->object.content_tree = alloc_tree(drag->object.scene_tree);
+	drag->object.scene_tree->node.data = &drag->object;
+	drag->object.data = drag;
+	drag->object.type = COMP_OBJECT_TYPE_DND_ICON;
+	drag->object.destroying = false;
+	drag->seat = seat;
+	drag->wlr_drag = wlr_drag;
+	wlr_drag->data = drag;
+
+	listener_init(&drag->destroy);
+	listener_connect(&wlr_drag->events.destroy, &drag->destroy,
+					 handle_dnd_destroy);
+
+	struct wlr_drag_icon *wlr_drag_icon = wlr_drag->icon;
+	if (wlr_drag_icon) {
+		drag->tree = wlr_scene_drag_icon_create(drag->object.content_tree,
+												wlr_drag_icon);
+		if (!drag->tree) {
+			wlr_log(WLR_ERROR, "Could not allocate drag icon tree");
+			drag->wlr_drag->data = NULL;
+			wlr_scene_node_destroy(&drag->object.scene_tree->node);
+			listener_remove(&drag->destroy);
+			free(drag);
+			return;
+		}
+
+		wlr_drag_icon->data = &drag->object;
+		drag_icon_update_position(drag);
+	}
+}
+
 static void seat_request_set_selection(struct wl_listener *listener,
 									   void *data) {
 	/* This event is raised by the seat when a client wants to set the
@@ -160,24 +263,107 @@ static void seat_request_set_selection(struct wl_listener *listener,
 	wlr_seat_set_selection(seat->wlr_seat, event->source, event->serial);
 }
 
-static void seat_focus_previous_toplevel(struct wlr_surface *surface) {
-	// Focus previous node
-	if (wl_list_empty(&server.seat->focus_order)) {
+static void seat_focus_previous_toplevel(struct comp_workspace *ws,
+										 struct wlr_surface *surface) {
+	if (!ws) {
+		wlr_log(WLR_ERROR,
+				"Tried to focus previous toplevel on NULL workspace!");
 		return;
 	}
-	struct comp_toplevel *toplevel =
-		wl_container_of(server.seat->focus_order.next, toplevel, focus_link);
-	if (toplevel) {
-		struct wlr_surface *toplevel_surface =
-			comp_toplevel_get_wlr_surface(toplevel);
-		if (toplevel_surface && toplevel_surface != surface) {
-			comp_seat_surface_focus(&toplevel->object, toplevel_surface);
+	struct comp_toplevel *toplevels[2] = {};
+	if (!wl_list_empty(&ws->toplevels)) {
+		// Workspace focus order
+		struct comp_toplevel *toplevel;
+		wl_list_for_each(toplevel, &ws->toplevels, workspace_link) {
+			struct wlr_surface *toplevel_surface =
+				comp_toplevel_get_wlr_surface(toplevel);
+			if (toplevel_surface && toplevel_surface != surface) {
+				toplevels[0] = toplevel;
+				break;
+			}
+		}
+	}
+	if (!wl_list_empty(&ws->toplevels)) {
+		// Use seat focus order as fallback
+		struct comp_toplevel *seat_toplevel = wl_container_of(
+			server.seat->focus_order.next, seat_toplevel, focus_link);
+		toplevels[1] = seat_toplevel;
+	}
+
+	// Focus previous node
+	for (size_t i = 0; i < 2; i++) {
+		struct comp_toplevel *toplevel = toplevels[i];
+		if (toplevel) {
+			struct wlr_surface *toplevel_surface =
+				comp_toplevel_get_wlr_surface(toplevel);
+			if (toplevel_surface && toplevel_surface != surface) {
+				comp_seat_surface_focus(&toplevel->object, toplevel_surface);
+				return;
+			}
+		}
+	}
+}
+
+void comp_seat_unfocus_unless_client(struct wl_client *client) {
+	struct comp_layer_surface *focused_layer =
+		server.seat->focused_layer_surface;
+	if (focused_layer && focused_layer->wlr_layer_surface) {
+		if (wl_resource_get_client(
+				focused_layer->wlr_layer_surface->resource) != client) {
+			comp_seat_surface_unfocus(focused_layer->wlr_layer_surface->surface,
+									  false);
+		}
+	}
+
+	struct comp_toplevel *focused_toplevel = server.seat->focused_toplevel;
+	if (focused_toplevel) {
+		struct wlr_surface *surface =
+			comp_toplevel_get_wlr_surface(focused_toplevel);
+		if (surface && wl_resource_get_client(surface->resource) != client) {
+			comp_seat_surface_unfocus(surface, false);
+		}
+	}
+
+	if (server.seat->wlr_seat->pointer_state.focused_client) {
+		if (server.seat->wlr_seat->pointer_state.focused_client->client !=
+			client) {
+			wlr_seat_pointer_notify_clear_focus(server.seat->wlr_seat);
 		}
 	}
 }
 
 void comp_seat_surface_unfocus(struct wlr_surface *surface,
 							   bool focus_previous) {
+	// Lock:
+	if (server.comp_session_lock.locked) {
+		// Trying to unfocus non locked surface, refocusing locked
+		// surface...
+		comp_session_lock_refocus();
+		return;
+	}
+	// Unlock:
+	// Refocus previous focus on unlock
+	if (surface == server.comp_session_lock.focused) {
+		wlr_seat_keyboard_notify_clear_focus(server.seat->wlr_seat);
+		wlr_seat_pointer_notify_clear_focus(server.seat->wlr_seat);
+
+		// Focus previous toplevel in focus order
+		struct comp_object *object = surface->data;
+		struct comp_session_lock_output *lock_output = object->data;
+		struct comp_output *focused_output = NULL;
+		if (lock_output) {
+			focused_output = lock_output->output;
+		}
+		if (!focused_output) {
+			focused_output = get_active_output(&server);
+		}
+		if (focused_output) {
+			seat_focus_previous_toplevel(focused_output->active_workspace,
+										 surface);
+		}
+		return;
+	}
+
 	if (surface == NULL) {
 		wlr_log(WLR_ERROR, "Tried to unfocus NULL surface");
 		return;
@@ -198,7 +384,7 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 			}
 
 			if (focus_previous) {
-				seat_focus_previous_toplevel(surface);
+				seat_focus_previous_toplevel(toplevel->workspace, surface);
 			}
 
 			/*
@@ -226,7 +412,7 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 			}
 
 			if (focus_previous) {
-				seat_focus_previous_toplevel(surface);
+				seat_focus_previous_toplevel(toplevel->workspace, surface);
 			}
 
 			/*
@@ -254,7 +440,8 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 		}
 
 		if (focus_previous) {
-			seat_focus_previous_toplevel(surface);
+			seat_focus_previous_toplevel(
+				layer_surface->output->active_workspace, surface);
 		}
 		return;
 	}
@@ -284,14 +471,21 @@ void comp_seat_surface_focus(struct comp_object *object,
 		return;
 	}
 
+	// Refocus the locked output focus if locked
+	if (object->type != COMP_OBJECT_TYPE_LOCK_OUTPUT &&
+		server.comp_session_lock.locked) {
+		comp_session_lock_refocus();
+		return;
+	}
+
 	struct comp_seat *seat = server.seat;
 	struct comp_toplevel *toplevel = object->data;
 	struct comp_layer_surface *layer_surface = object->data;
 	struct comp_layer_surface *focused_layer = seat->focused_layer_surface;
 
 	switch (object->type) {
-	case COMP_OBJECT_TYPE_UNMANAGED:;
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
+		// Check for locked is checked above, so not needed here
 		if (seat->exclusive_layer && focused_layer) {
 			// Hacky... Some toplevels like kitty needs to be focused then
 			// unfocused
@@ -319,10 +513,14 @@ void comp_seat_surface_focus(struct comp_object *object,
 			break;
 		}
 		break;
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		break;
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
+	case COMP_OBJECT_TYPE_UNMANAGED:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		return;
 	}
 
@@ -332,7 +530,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 		/* Don't re-focus an already focused surface. */
 		return;
 	}
-	if (prev_surface) {
+	if (prev_surface && !server.comp_session_lock.locked) {
 		/*
 		 * Deactivate the previously focused surface. This lets the client know
 		 * it no longer has focus and the client will repaint accordingly, e.g.
@@ -350,20 +548,29 @@ void comp_seat_surface_focus(struct comp_object *object,
 		/* Move the node to the front */
 		// Workspace
 		wl_list_remove(&toplevel->workspace_link);
-		wl_list_insert(&toplevel->state.workspace->toplevels,
+		wl_list_insert(&toplevel->workspace->toplevels,
 					   &toplevel->workspace_link);
 		// Seat
 		wl_list_remove(&toplevel->focus_link);
 		wl_list_insert(&server.seat->focus_order, &toplevel->focus_link);
+
+		// Set XWayland seat
+		if (toplevel->type == COMP_TOPLEVEL_TYPE_XWAYLAND) {
+			struct wlr_xwayland *xwayland = server.xwayland_mgr.wlr_xwayland;
+			wlr_xwayland_set_seat(xwayland, seat->wlr_seat);
+		}
 		break;
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:;
 		seat->focused_layer_surface = layer_surface;
+		break;
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		break;
 	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		return;
 	}
 
@@ -386,6 +593,8 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		return;
 	}
 }
@@ -417,6 +626,14 @@ struct comp_seat *comp_seat_create(struct comp_server *server) {
 	seat->request_cursor.notify = seat_request_cursor;
 	wl_signal_add(&seat->wlr_seat->events.request_set_cursor,
 				  &seat->request_cursor);
+
+	wl_signal_add(&seat->wlr_seat->events.request_start_drag,
+				  &seat->request_start_drag);
+	seat->request_start_drag.notify = handle_request_start_drag;
+
+	wl_signal_add(&seat->wlr_seat->events.start_drag, &seat->start_drag);
+	seat->start_drag.notify = handle_start_drag;
+
 	seat->request_set_selection.notify = seat_request_set_selection;
 	wl_signal_add(&seat->wlr_seat->events.request_set_selection,
 				  &seat->request_set_selection);

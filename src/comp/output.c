@@ -13,16 +13,18 @@
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/util/log.h>
 
+#include "comp/lock.h"
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/server.h"
+#include "comp/tiling_node.h"
 #include "comp/widget.h"
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/layer_shell.h"
 #include "desktop/toplevel.h"
-#include "desktop/widgets/titlebar.h"
 #include "desktop/widgets/workspace_indicator.h"
+#include "seat/seat.h"
 #include "util.h"
 
 static void output_get_identifier(char *identifier, size_t len,
@@ -122,48 +124,42 @@ struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 }
 
 static void output_configure_scene(struct comp_output *output,
-								   struct wlr_scene_node *node, void *data) {
+								   struct wlr_scene_node *node) {
 	if (!node->enabled) {
 		return;
 	}
 
-	switch (node->type) {
-	case WLR_SCENE_NODE_BUFFER:;
+	if (node->type == WLR_SCENE_NODE_BUFFER) {
 		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
+		// struct wlr_scene_surface *surface =
+		// 	wlr_scene_surface_try_from_buffer(buffer);
 
-		struct wlr_scene_surface *scene_surface =
-			wlr_scene_surface_try_from_buffer(buffer);
-		struct comp_object *object = data;
-		if (!scene_surface || !object) {
+		struct comp_object *obj = buffer->node.data;
+		if (!obj) {
+			wlr_log(WLR_DEBUG,
+					"Tried to apply effects to buffer with unknown data");
 			return;
 		}
-
-		if (object->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			struct comp_toplevel *toplevel = object->data;
-			struct comp_titlebar *titlebar = toplevel->titlebar;
-
-			float opacity = 1;
-			// Change the opacity of the grabbed toplevel if it's not displayed
-			// on it's active monitor
-			if (output != toplevel->state.workspace->output) {
-				opacity = TOPLEVEL_NON_MAIN_OUTPUT_OPACITY;
+		if (obj->type == COMP_OBJECT_TYPE_TOPLEVEL) {
+			struct comp_toplevel *toplevel = obj->data;
+			// Stretch the saved toplevel buffer to fit the toplevel state
+			if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+				int width = toplevel->state.width;
+				int height = toplevel->state.height;
+				if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
+					wlr_scene_buffer_set_dest_size(buffer, height, width);
+				} else {
+					wlr_scene_buffer_set_dest_size(buffer, width, height);
+				}
 			}
-			wlr_scene_buffer_set_opacity(buffer, opacity);
-			wlr_scene_buffer_set_opacity(titlebar->widget.scene_buffer,
-										 opacity);
 		}
-		break;
-	case WLR_SCENE_NODE_TREE:;
-		struct wlr_scene_tree *tree = wl_container_of(node, tree, node);
-		if (node->data) {
-			data = node->data;
-		}
+
+	} else if (node->type == WLR_SCENE_NODE_TREE) {
+		struct wlr_scene_tree *tree = wlr_scene_tree_from_node(node);
 		struct wlr_scene_node *node;
 		wl_list_for_each(node, &tree->children, link) {
-			output_configure_scene(output, node, data);
+			output_configure_scene(output, node);
 		}
-	default:
-		break;
 	}
 }
 
@@ -171,12 +167,20 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
 	struct comp_output *output = wl_container_of(listener, output, frame);
-	struct wlr_scene *scene = output->server->root_scene;
+	if (!output->wlr_output->enabled) {
+		return;
+	}
 
+	struct wlr_scene *scene = output->server->root_scene;
 	struct wlr_scene_output *scene_output =
 		wlr_scene_get_scene_output(scene, output->wlr_output);
 
-	output_configure_scene(output, &server.root_scene->tree.node, NULL);
+	output_configure_scene(output, &server.root_scene->tree.node);
+	// wlr_scene_optimized_blur_mark_dirty(scene);
+	// wlr_output_layout_get_box(server.output_layout, output->wlr_output,
+	// 						  &output->geometry);
+	// wlr_scene_output_set_position(scene_output, output->geometry.x,
+	// 							  output->geometry.y);
 
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
@@ -284,21 +288,23 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	wlr_output->data = output;
 	output->server = server;
 
-	output->object.scene_tree = alloc_tree(&server->root_scene->tree);
+	output->object.scene_tree = alloc_tree(server->trees.outputs_tree);
+	output->object.content_tree = alloc_tree(output->object.scene_tree);
 	output->object.scene_tree->node.data = &output->object;
 	output->object.data = output;
 	output->object.type = COMP_OBJECT_TYPE_OUTPUT;
+	output->object.destroying = false;
 
 	// Initialize layers
-	output->layers.shell_background = alloc_tree(output->object.scene_tree);
-	output->layers.shell_bottom = alloc_tree(output->object.scene_tree);
+	output->layers.shell_background = alloc_tree(output->object.content_tree);
+	output->layers.shell_bottom = alloc_tree(output->object.content_tree);
 	output->layers.optimized_blur_node = wlr_scene_blur_create(
 		output->object.scene_tree, wlr_output->width, wlr_output->height);
-	output->layers.workspaces = alloc_tree(output->object.scene_tree);
-	output->layers.shell_top = alloc_tree(output->object.scene_tree);
-	output->layers.shell_overlay = alloc_tree(output->object.scene_tree);
-	output->layers.seat = alloc_tree(output->object.scene_tree);
-	output->layers.session_lock = alloc_tree(output->object.scene_tree);
+	output->layers.workspaces = alloc_tree(output->object.content_tree);
+	output->layers.unmanaged = alloc_tree(output->object.content_tree);
+	output->layers.shell_top = alloc_tree(output->object.content_tree);
+	output->layers.shell_overlay = alloc_tree(output->object.content_tree);
+	output->layers.session_lock = alloc_tree(output->object.content_tree);
 
 	// Initially disable due to this potentially being a fallback wlr_output
 	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node,
@@ -413,6 +419,10 @@ void comp_new_output(struct wl_listener *listener, void *data) {
 		wlr_output_layout_add_auto(server->output_layout, wlr_output);
 	wlr_scene_output_layout_add_output(server->scene_layout, l_output,
 									   scene_output);
+
+	if (server->comp_session_lock.locked) {
+		comp_session_lock_add_output(wlr_output);
+	}
 }
 
 void comp_output_disable(struct comp_output *output) {
@@ -464,6 +474,12 @@ void comp_output_update_sizes(struct comp_output *output) {
 
 	comp_output_arrange_layers(output);
 	comp_output_arrange_output(output);
+
+	// TODO: Update toplevel positions/tiling/sizes Only enable for actual
+	// outputs
+	// printf("GEO: %i %i %ix%i\n", output->geometry.width,
+	// 	   output->geometry.height, output->geometry.x,
+	// output->geometry.y);
 }
 
 void comp_output_move_workspace_to(struct comp_output *dest_output,
@@ -511,6 +527,15 @@ void comp_output_focus_workspace(struct comp_output *output,
 	}
 
 	comp_output_arrange_output(output);
+
+	// Refocus the lastest focused toplevel
+	if (!wl_list_empty(&ws->toplevels)) {
+		struct comp_toplevel *latest = comp_workspace_get_latest_focused(ws);
+		if (latest) {
+			comp_seat_surface_focus(&latest->object,
+									comp_toplevel_get_wlr_surface(latest));
+		}
+	}
 
 	wl_signal_emit_mutable(&output->events.ws_change, output);
 }
@@ -574,34 +599,48 @@ void comp_output_arrange_output(struct comp_output *output) {
 		comp_widget_center_on_output(&output->ws_indicator->widget, output);
 	}
 
-	// TODO: Update all toplevels/widgets on workspace
+	// Arrange workspaces
+	struct comp_workspace *ws;
+	wl_list_for_each_reverse(ws, &output->workspaces, output_link) {
+		tiling_node_mark_workspace_dirty(ws);
 
-	// Disable unneeded layers when fullscreen
-	struct comp_workspace *ws = output->active_workspace;
-	bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
-						 !wl_list_empty(&ws->toplevels);
-	wlr_scene_node_set_enabled(&output->layers.shell_background->node,
-							   !is_fullscreen);
-	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
-							   !is_fullscreen);
-	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node,
-							   !is_fullscreen);
-	wlr_scene_node_set_enabled(&output->layers.shell_top->node, !is_fullscreen);
-
-	if (is_fullscreen) {
-		// Update the position and size of the fullscreen toplevel
-		struct comp_toplevel *toplevel;
-		wl_list_for_each_reverse(toplevel, &ws->toplevels, workspace_link) {
-			if (!toplevel->fullscreen) {
-				continue;
+		bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
+							 !wl_list_empty(&ws->toplevels);
+		if (is_fullscreen) {
+			// Update the position and size of the fullscreen toplevel
+			struct comp_toplevel *toplevel;
+			wl_list_for_each_reverse(toplevel, &ws->toplevels, workspace_link) {
+				if (!toplevel->fullscreen) {
+					continue;
+				}
+				struct wlr_box output_box =
+					toplevel->workspace->output->geometry;
+				comp_toplevel_set_position(toplevel, 0, 0);
+				comp_toplevel_set_size(toplevel, output_box.width,
+									   output_box.height);
+				comp_object_mark_dirty(&toplevel->object);
 			}
-			struct wlr_box output_box =
-				toplevel->state.workspace->output->geometry;
-			comp_toplevel_set_size(toplevel, output_box.width,
-								   output_box.height);
-			comp_toplevel_mark_dirty(toplevel);
 		}
 	}
+	comp_transaction_commit_dirty(true);
+
+	ws = output->active_workspace;
+	bool is_locked = server.comp_session_lock.locked;
+	bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
+						 !wl_list_empty(&ws->toplevels);
+
+	// Disable all layers when locked but also disable background, bottom,
+	// and top layers when fullscreen
+	wlr_scene_node_set_enabled(&output->layers.shell_background->node,
+							   !is_fullscreen && !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.shell_bottom->node,
+							   !is_fullscreen && !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node,
+							   !is_fullscreen && !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.workspaces->node, !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.shell_top->node,
+							   !is_fullscreen && !is_locked);
+	wlr_scene_node_set_enabled(&output->layers.shell_overlay->node, !is_locked);
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,
@@ -646,5 +685,44 @@ void comp_output_arrange_layers(struct comp_output *output) {
 		wlr_log(WLR_DEBUG, "Usable area changed, rearranging output");
 		output->usable_area = usable_area;
 		comp_output_arrange_output(output);
+	}
+
+	// Update and focus the topmost layer surface
+	struct comp_seat *seat = server.seat;
+	seat->exclusive_layer = false;
+
+	const struct wlr_scene_tree *layers_above_shell[] = {
+		output->layers.shell_overlay,
+		output->layers.shell_top,
+	};
+	for (size_t i = 0; i < 2; i++) {
+		const struct wlr_scene_tree *layer = layers_above_shell[i];
+		struct wlr_scene_node *node;
+		wl_list_for_each_reverse(node, &layer->children, link) {
+			struct comp_object *obj = node->data;
+			if (!obj || obj->type != COMP_OBJECT_TYPE_LAYER_SURFACE) {
+				continue;
+			}
+			struct comp_layer_surface *surface = obj->data;
+			if (surface &&
+				surface->wlr_layer_surface->current.keyboard_interactive ==
+					ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE &&
+				surface->wlr_layer_surface->surface &&
+				surface->wlr_layer_surface->surface->mapped) {
+				comp_seat_surface_focus(&surface->object,
+										surface->wlr_layer_surface->surface);
+				return;
+			}
+		}
+	}
+
+	// Not found
+	if (seat->focused_layer_surface &&
+		seat->focused_layer_surface->wlr_layer_surface->current
+				.keyboard_interactive !=
+			ZWLR_LAYER_SURFACE_V1_KEYBOARD_INTERACTIVITY_EXCLUSIVE) {
+		comp_seat_surface_focus(
+			&seat->focused_layer_surface->object,
+			seat->focused_layer_surface->wlr_layer_surface->surface);
 	}
 }

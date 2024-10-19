@@ -39,6 +39,7 @@ struct comp_widget {
 
 	const struct comp_widget_impl *impl;
 
+	struct cairo_buffer *buffer;
 	pixman_region32_t damage;
 
 	// Effects
@@ -57,6 +58,9 @@ struct comp_widget_impl {
 	void (*handle_pointer_button)(struct comp_widget *widget, double x,
 								  double y,
 								  struct wlr_pointer_button_event *event);
+	bool (*handle_point_accepts_input)(struct comp_widget *widget,
+									   struct wlr_scene_buffer *buffer,
+									   double *x, double *y);
 	void (*destroy)(struct comp_widget *widget);
 	// Return true to override the default centering logic
 	bool (*center)(struct comp_widget *widget);

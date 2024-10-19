@@ -10,6 +10,7 @@
 #include <time.h>
 #include <unistd.h>
 #include <wayland-server-core.h>
+#include <wayland-util.h>
 #include <wlr/backend.h>
 #include <wlr/backend/headless.h>
 #include <wlr/backend/multi.h>
@@ -43,6 +44,7 @@
 #include <wlr/xwayland.h>
 
 #include "comp/animation_mgr.h"
+#include "comp/lock.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "constants.h"
@@ -59,6 +61,7 @@ static void print_help(void) {
 	printf("Usage:\n");
 	printf("\t-s <cmd>\tStartup command\n");
 	printf("\t-l <DEBUG|INFO>\tLog level\n");
+	printf("\t-D <log-txn-timings>\tLog level\n");
 	printf("\t-o <int>\tNumber of additional testing outputs\n");
 }
 
@@ -83,6 +86,17 @@ static void create_output(struct wlr_backend *backend, void *data) {
 #endif
 }
 
+void comp_create_extra_output(void) {
+	bool done = false;
+	wlr_multi_for_each_backend(server.backend, create_output, &done);
+	if (!done) {
+		wlr_log(WLR_ERROR, "Could not create virtual output for backend!");
+		wlr_backend_destroy(server.backend);
+		wl_display_destroy(server.wl_display);
+		exit(1);
+	}
+}
+
 /** Initialize GTK */
 static void *init_gtk(void *attr) {
 	wlr_log(WLR_INFO, "Initializing GTK");
@@ -99,7 +113,7 @@ int main(int argc, char *argv[]) {
 	int num_test_outputs = 1;
 
 	int c;
-	while ((c = getopt(argc, argv, "s:o:l:h")) != -1) {
+	while ((c = getopt(argc, argv, "s:o:l:D:h")) != -1) {
 		switch (c) {
 		case 's':
 			startup_cmd = optarg;
@@ -109,6 +123,11 @@ int main(int argc, char *argv[]) {
 				log_importance = WLR_DEBUG;
 			} else if (strcmp(optarg, "INFO") == 0) {
 				log_importance = WLR_INFO;
+			}
+			break;
+		case 'D':
+			if (strcmp(optarg, "log-txn-timings") == 0) {
+				server.debug.log_txn_timings = true;
 			}
 			break;
 		case 'o':;
@@ -143,6 +162,9 @@ int main(int argc, char *argv[]) {
 	server.wl_event_loop = wl_display_get_event_loop(server.wl_display);
 	// Initialize animation manager
 	server.animation_mgr = comp_animation_mgr_init();
+
+	// Transactions
+	wl_list_init(&server.dirty_objects);
 
 	/* The backend is a wlroots feature which abstracts the underlying input and
 	 * output hardware. The autocreate option will choose the most suitable
@@ -251,6 +273,9 @@ int main(int argc, char *argv[]) {
 	blur_data.radius = 5;
 	blur_data.num_passes = 3;
 	wlr_scene_set_blur_data(server.root_scene, blur_data);
+
+	server.trees.outputs_tree = wlr_scene_tree_create(&server.root_scene->tree);
+	server.trees.dnd_tree = wlr_scene_tree_create(&server.root_scene->tree);
 
 	server.scene_layout =
 		wlr_scene_attach_output_layout(server.root_scene, server.output_layout);
@@ -371,6 +396,8 @@ int main(int argc, char *argv[]) {
 	wl_signal_add(&xdg_decoration_manager->events.new_toplevel_decoration,
 				  &server.new_xdg_decoration);
 
+	comp_session_lock_create();
+
 	/*
 	 * Wayland socket
 	 */
@@ -402,15 +429,7 @@ int main(int argc, char *argv[]) {
 	// Create additional outputs
 	if (num_test_outputs > 1) {
 		for (int i = 0; i < num_test_outputs - 1; i++) {
-			bool done = false;
-			wlr_multi_for_each_backend(server.backend, create_output, &done);
-			if (!done) {
-				wlr_log(WLR_ERROR,
-						"Could not create virtual output for backend!");
-				wlr_backend_destroy(server.backend);
-				wl_display_destroy(server.wl_display);
-				return 1;
-			}
+			comp_create_extra_output();
 		}
 	}
 

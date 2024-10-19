@@ -9,6 +9,7 @@
 #include <pango/pangocairo.h>
 #include <pixman.h>
 #include <scenefx/types/wlr_scene.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_buffer.h>
@@ -24,6 +25,11 @@
 #include "desktop/xdg.h"
 #include "seat/seat.h"
 #include "util.h"
+
+void comp_titlebar_refresh_corner_radii(struct comp_titlebar *titlebar) {
+	titlebar->widget.corner_radius =
+		titlebar->toplevel->corner_radius + BORDER_WIDTH * 0.5;
+}
 
 void comp_titlebar_change_title(struct comp_titlebar *titlebar) {
 	if (comp_titlebar_should_be_shown(titlebar->toplevel)) {
@@ -102,7 +108,8 @@ static void get_button_props(enum comp_titlebar_button_type type,
 }
 
 static void get_bar_colors(bool is_focused, uint32_t *background_color,
-						   uint32_t *foreground_color, uint32_t *border_color) {
+						   uint32_t *foreground_color, uint32_t *border_color,
+						   uint32_t *inner_border_color) {
 	if (!is_focused) {
 		*background_color = TITLEBAR_COLOR_BACKGROUND_UNFOCUSED;
 		*foreground_color = TITLEBAR_COLOR_FOREGROUND_UNFOCUSED;
@@ -112,6 +119,7 @@ static void get_bar_colors(bool is_focused, uint32_t *background_color,
 		*foreground_color = TITLEBAR_COLOR_FOREGROUND_FOCUSED;
 		*border_color = TITLEBAR_COLOR_BORDER_FOCUSED;
 	}
+	*inner_border_color = TITLEBAR_COLOR_INNER_BORDER;
 }
 
 static void titlebar_pointer_button(struct comp_widget *widget, double x,
@@ -144,11 +152,18 @@ static void titlebar_pointer_button(struct comp_widget *widget, double x,
 	case WLR_BUTTON_PRESSED:
 		// Don't move the toplevel if we're pressing on a button
 		if (hovered_button == NULL) {
-			// Focus the titlebars toplevel
-			comp_seat_surface_focus(&toplevel->object,
-									comp_toplevel_get_wlr_surface(toplevel));
+			bool has_focus = server.seat->focused_toplevel == toplevel;
+			if (!has_focus) {
+				// Focus the titlebars toplevel
+				comp_seat_surface_focus(
+					&toplevel->object, comp_toplevel_get_wlr_surface(toplevel));
+			}
 
-			comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+			// Don't move tiled directly, require focus first
+			if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING ||
+				has_focus) {
+				comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
+			}
 		}
 		break;
 	}
@@ -214,18 +229,16 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
 	struct comp_toplevel *toplevel = titlebar->toplevel;
 
-	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
-
 	const bool is_focused =
 		comp_seat_object_is_focus(server.seat, &toplevel->object);
 
 	const int TITLEBAR_HEIGHT = titlebar->bar_height + BORDER_WIDTH;
 
 	const int toplevel_radius = toplevel->corner_radius;
-	const int toplevel_x = BORDER_WIDTH;
+	const double toplevel_x = BORDER_WIDTH;
 	const int toplevel_y = TITLEBAR_HEIGHT;
-	const int toplevel_width = geometry.width;
-	const int toplevel_height = geometry.height;
+	const int toplevel_width = toplevel->state.width;
+	const int toplevel_height = toplevel->state.height;
 
 	const int titlebar_radii = titlebar->widget.corner_radius;
 	const int button_margin = titlebar_radii;
@@ -249,21 +262,22 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	uint32_t background_color;
 	uint32_t foreground_color;
 	uint32_t border_color;
+	uint32_t inner_border_color;
 	get_bar_colors(is_focused, &background_color, &foreground_color,
-				   &border_color);
+				   &border_color, &inner_border_color);
 
 	/*
 	 * Draw titlebar
 	 */
 
-	const int x = ceil((double)BORDER_WIDTH);
-	const int y = ceil((double)BORDER_WIDTH);
+	const double x = BORDER_WIDTH;
+	const double y = BORDER_WIDTH;
 
 	// Draw background
 	if (!toplevel->using_csd) {
 		cairo_set_rgba32(cr, &background_color);
-		cairo_draw_rounded_rect(cr, surface_width, surface_height, 0, 0,
-								titlebar_radii);
+		cairo_draw_rounded_rect(cr, surface_width - x * 2,
+								surface_height - y * 2, x, y, titlebar_radii);
 		cairo_close_path(cr);
 		cairo_fill(cr);
 	}
@@ -271,8 +285,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 	// Draw whole perimeter border
 	cairo_set_rgba32(cr, &border_color);
 	cairo_draw_rounded_rect(cr, surface_width - x, surface_height - y, x * 0.5,
-							y * 0.5,
-							toplevel->corner_radius + BORDER_WIDTH * 0.5);
+							y * 0.5, titlebar->widget.corner_radius);
 	cairo_set_line_width(cr, BORDER_WIDTH);
 	cairo_stroke(cr);
 
@@ -382,10 +395,10 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 							  &foreground_color);
 
 			// Draw background
-			if (!is_focused) {
-				cairo_set_rgba32(cr, &unfocus_color);
-			} else if (button->cursor_hovering) {
+			if (button->cursor_hovering) {
 				cairo_set_rgba32(cr, &hover_color);
+			} else if (!is_focused) {
+				cairo_set_rgba32(cr, &unfocus_color);
 			} else {
 				cairo_set_rgba32(cr, &focus_color);
 			}
@@ -399,8 +412,7 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 			cairo_fill(cr);
 
 			// Draw icon
-			if (TITLEBAR_BUTTONS_ALWAYS_VISIBLE ||
-				(is_focused && button->cursor_hovering)) {
+			if (TITLEBAR_BUTTONS_ALWAYS_VISIBLE || button->cursor_hovering) {
 				char *icon_name = NULL;
 				int icon_padding;
 				get_button_props(type, &icon_name, &icon_padding);
@@ -417,6 +429,33 @@ static void titlebar_draw(struct comp_widget *widget, cairo_t *cr,
 		}
 		cairo_restore(cr);
 	}
+
+	// Draw whole inner perimeter border
+	cairo_set_rgba32(cr, &inner_border_color);
+	cairo_draw_rounded_rect(cr, surface_width - x * 2, surface_height - y * 2,
+							x, y, toplevel->corner_radius);
+	cairo_set_line_width(cr, INNER_BORDER_WIDTH);
+	cairo_stroke(cr);
+}
+
+static bool titlebar_handle_accepts_input(struct comp_widget *widget,
+										  struct wlr_scene_buffer *buffer,
+										  double *x, double *y) {
+	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
+	struct comp_toplevel *toplevel = titlebar->toplevel;
+
+	double titlebar_height = BORDER_WIDTH;
+	if (!toplevel->using_csd) {
+		titlebar_height += titlebar->bar_height;
+	}
+
+	// Don't accept input if the pointer is over the toplevel surface
+	pixman_region32_t region;
+	pixman_region32_init_rect(&region, BORDER_WIDTH, titlebar_height,
+							  toplevel->state.width, toplevel->state.height);
+	bool contains = pixman_region32_contains_point(&region, *x, *y, NULL);
+	pixman_region32_fini(&region);
+	return !contains;
 }
 
 static void titlebar_destroy(struct comp_widget *widget) {
@@ -437,6 +476,7 @@ static const struct comp_widget_impl comp_titlebar_widget_impl = {
 	.handle_pointer_leave = titlebar_pointer_leave,
 	.handle_pointer_motion = titlebar_pointer_motion,
 	.handle_pointer_button = titlebar_pointer_button,
+	.handle_point_accepts_input = titlebar_handle_accepts_input,
 	.destroy = titlebar_destroy,
 };
 
@@ -487,7 +527,7 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 
 	// Set the titlebar decoration data
 	titlebar->widget.opacity = 1;
-	titlebar->widget.corner_radius = toplevel->corner_radius + BORDER_WIDTH;
+	comp_titlebar_refresh_corner_radii(titlebar);
 	if (toplevel->corner_radius == 0) {
 		titlebar->widget.corner_radius = 0;
 	}

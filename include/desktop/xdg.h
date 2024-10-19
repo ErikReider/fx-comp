@@ -14,6 +14,8 @@
 struct comp_xdg_toplevel {
 	struct comp_toplevel *toplevel;
 
+	struct wlr_scene_tree *popup_scene_tree;
+
 	struct wlr_xdg_toplevel *xdg_toplevel;
 	struct comp_xdg_decoration *xdg_decoration;
 

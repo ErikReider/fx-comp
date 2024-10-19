@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <wlr/util/log.h>
 
+#include "cairo.h"
 #include "comp/cairo_buffer.h"
+#include "comp/object.h"
 #include "comp/output.h"
 #include "comp/widget.h"
 #include "seat/seat.h"
@@ -26,24 +28,40 @@ static void widget_destroy(struct wl_listener *listener, void *data) {
 	}
 }
 
+static bool handle_point_accepts_input(struct wlr_scene_buffer *buffer,
+									   double *x, double *y) {
+	struct comp_object *object = buffer->node.data;
+	assert(object && object->type == COMP_OBJECT_TYPE_WIDGET && object->data);
+	struct comp_widget *widget = object->data;
+	if (widget->impl->handle_point_accepts_input) {
+		return widget->impl->handle_point_accepts_input(widget, buffer, x, y);
+	}
+	return true;
+}
+
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 					  struct comp_object *parent_obj,
 					  struct wlr_scene_tree *parent_tree,
 					  const struct comp_widget_impl *impl) {
 	assert(parent_obj);
 	widget->object.scene_tree = alloc_tree(parent_tree);
-	if (widget->object.scene_tree == NULL) {
+	widget->object.content_tree = alloc_tree(widget->object.scene_tree);
+	if (widget->object.scene_tree == NULL ||
+		widget->object.content_tree == NULL) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar wlr_scene_tree");
 		return false;
 	}
 
 	widget->scene_buffer =
-		wlr_scene_buffer_create(widget->object.scene_tree, NULL);
+		wlr_scene_buffer_create(widget->object.content_tree, NULL);
 	if (widget->scene_buffer == NULL) {
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar wlr_scene_buffer");
 		wlr_scene_node_destroy(&widget->object.scene_tree->node);
 		return false;
 	}
+	widget->scene_buffer->node.data = &widget->object;
+
+	widget->scene_buffer->point_accepts_input = handle_point_accepts_input;
 
 	widget->sets_cursor = false;
 
@@ -53,6 +71,7 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 	widget->object.scene_tree->node.data = &widget->object;
 	widget->object.type = COMP_OBJECT_TYPE_WIDGET;
 	widget->object.data = widget;
+	widget->object.destroying = false;
 
 	widget->parent_object = parent_obj;
 
@@ -116,68 +135,31 @@ static void comp_widget_draw(struct comp_widget *widget, int width,
 	int scaled_width = ceil(width * scale);
 	int scaled_height = ceil(height * scale);
 
-	cairo_surface_t *surface = cairo_image_surface_create(
-		CAIRO_FORMAT_ARGB32, scaled_width, scaled_height);
-	if (surface == NULL) {
-		wlr_log(WLR_ERROR, "Failed to create cairo image surface for titlebar");
-		return;
-	}
-	if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
-		goto err_create_cairo;
-	}
+	// Only re-create the buffer if the size changes
+	if (!widget->buffer || widget->buffer->base.width != scaled_width ||
+		widget->buffer->base.height != scaled_height) {
+		// Free the old buffer
+		wlr_buffer_drop(&widget->buffer->base);
 
-	cairo_t *cairo = cairo_create(surface);
-	if (cairo == NULL) {
-		goto err_create_cairo;
-	}
-	cairo_set_antialias(cairo, CAIRO_ANTIALIAS_BEST);
-
-	cairo_font_options_t *font_options = cairo_font_options_create();
-	if (!font_options) {
-		goto err_create_font_options;
-	}
-	cairo_font_options_set_hint_style(font_options, CAIRO_HINT_STYLE_FULL);
-	cairo_font_options_set_antialias(font_options, CAIRO_ANTIALIAS_GRAY);
-	cairo_set_font_options(cairo, font_options);
-
-	PangoContext *pango = pango_cairo_create_context(cairo);
-	if (!pango) {
-		goto err_create_pango;
-	}
-
-	struct cairo_buffer *buffer = calloc(1, sizeof(struct cairo_buffer));
-	if (!buffer) {
-		goto err;
+		widget->buffer = cairo_buffer_init(scaled_width, scaled_height);
+	} else {
+		// Clear the previous buffer
+		cairo_save(widget->buffer->cairo);
+		cairo_set_source_rgba(widget->buffer->cairo, 0.0, 0.0, 0.0, 0.0);
+		cairo_set_operator(widget->buffer->cairo, CAIRO_OPERATOR_CLEAR);
+		cairo_rectangle(widget->buffer->cairo, 0, 0, scaled_width,
+						scaled_height);
+		cairo_paint_with_alpha(widget->buffer->cairo, 1.0);
+		cairo_restore(widget->buffer->cairo);
 	}
 
 	// Draw
-	widget->impl->draw(widget, cairo, scaled_width, scaled_height, scale);
-	cairo_surface_flush(surface);
+	widget->impl->draw(widget, widget->buffer->cairo, scaled_width,
+					   scaled_height, scale);
 
-	// Finish post draw
-	buffer->cairo = cairo;
-	buffer->surface = surface;
-	wlr_buffer_init(&buffer->base, &cairo_buffer_buffer_impl, scaled_width,
-					scaled_height);
+	wlr_scene_buffer_set_buffer_with_damage(
+		widget->scene_buffer, &widget->buffer->base, &widget->damage);
 
-	wlr_scene_buffer_set_buffer_with_damage(widget->scene_buffer, &buffer->base,
-											&widget->damage);
-	wlr_buffer_drop(&buffer->base);
-
-	goto clear_damage;
-
-err:
-	if (pango) {
-		g_object_unref(pango);
-	}
-err_create_pango:
-	cairo_font_options_destroy(font_options);
-err_create_font_options:
-	cairo_destroy(cairo);
-err_create_cairo:
-	cairo_surface_destroy(surface);
-
-clear_damage:
 	pixman_region32_clear(&widget->damage);
 }
 

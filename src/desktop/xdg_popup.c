@@ -29,6 +29,8 @@ static struct comp_toplevel *get_root_toplevel(struct comp_xdg_popup *popup) {
 	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_WIDGET:
+	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 		return get_root_toplevel(parent_object->data);
@@ -103,18 +105,18 @@ static void popup_unconstrain(struct comp_xdg_popup *popup) {
 	struct comp_toplevel *toplevel = get_root_toplevel(popup);
 	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
 
-	if (!toplevel || !toplevel->state.workspace) {
+	if (!toplevel || !toplevel->workspace || !toplevel->workspace->output) {
 		return;
 	}
-	struct comp_workspace *workspace = toplevel->state.workspace;
+	struct comp_workspace *workspace = toplevel->workspace;
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup
 	struct wlr_box output_box;
 	wlr_output_layout_get_box(server.output_layout,
 							  workspace->output->wlr_output, &output_box);
-	output_box.x -= toplevel->state.x;
-	output_box.y -= toplevel->state.y;
+	output_box.x = -toplevel->state.x + toplevel->geometry.x;
+	output_box.y = -toplevel->state.y + toplevel->geometry.y;
 
 	wlr_xdg_popup_unconstrain_from_box(wlr_popup, &output_box);
 }
@@ -142,11 +144,13 @@ struct comp_xdg_popup *xdg_new_xdg_popup(struct wlr_xdg_popup *wlr_popup,
 	popup->parent_object = object;
 	popup->wlr_popup = wlr_popup;
 	popup->object.scene_tree = alloc_tree(parent);
-	if (popup->object.scene_tree == NULL) {
+	popup->object.content_tree = alloc_tree(popup->object.scene_tree);
+	if (popup->object.scene_tree == NULL ||
+		popup->object.content_tree == NULL) {
 		goto error_scene;
 	}
-	popup->xdg_scene_tree =
-		wlr_scene_xdg_surface_create(popup->object.scene_tree, wlr_popup->base);
+	popup->xdg_scene_tree = wlr_scene_xdg_surface_create(
+		popup->object.content_tree, wlr_popup->base);
 	if (popup->xdg_scene_tree == NULL) {
 		goto error_xdg;
 	}
@@ -154,6 +158,7 @@ struct comp_xdg_popup *xdg_new_xdg_popup(struct wlr_xdg_popup *wlr_popup,
 	popup->object.scene_tree->node.data = &popup->object;
 	popup->object.type = COMP_OBJECT_TYPE_XDG_POPUP;
 	popup->object.data = popup;
+	popup->object.destroying = false;
 
 	popup->wlr_popup->base->data = popup;
 

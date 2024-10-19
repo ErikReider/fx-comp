@@ -2,6 +2,7 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <wayland-server-core.h>
 #include <wayland-util.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -147,8 +148,6 @@ static void layer_surface_node_destroy(struct wl_listener *listener,
 	struct comp_layer_surface *layer_surface =
 		wl_container_of(listener, layer_surface, node_destroy);
 
-	// TODO: Session lock handling
-
 	struct wlr_layer_surface_v1 *wlr_layer_surface =
 		layer_surface->wlr_layer_surface;
 	if (wlr_layer_surface->current.layer ==
@@ -236,7 +235,10 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 	struct wlr_scene_tree *layer =
 		layer_get_scene_tree(output, wlr_layer_surface->pending.layer);
 	layer_surface->object.scene_tree = alloc_tree(layer);
-	if (layer_surface->object.scene_tree == NULL) {
+	layer_surface->object.content_tree =
+		alloc_tree(layer_surface->object.scene_tree);
+	if (layer_surface->object.scene_tree == NULL ||
+		layer_surface->object.content_tree == NULL) {
 		goto error;
 	}
 
@@ -245,7 +247,7 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 	 */
 
 	layer_surface->scene_layer = wlr_scene_layer_surface_v1_create(
-		layer_surface->object.scene_tree, wlr_layer_surface);
+		layer_surface->object.content_tree, wlr_layer_surface);
 	if (layer_surface->scene_layer == NULL) {
 		wlr_log(WLR_ERROR, "Could not create wlr_scene_layer_surface");
 		goto error;
@@ -256,6 +258,7 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 	layer_surface->object.scene_tree->node.data = &layer_surface->object;
 	layer_surface->object.data = layer_surface;
 	layer_surface->object.type = COMP_OBJECT_TYPE_LAYER_SURFACE;
+	layer_surface->object.destroying = false;
 	wlr_layer_surface->data = layer_surface->object.scene_tree;
 
 	/*

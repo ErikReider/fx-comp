@@ -172,8 +172,8 @@ static void indicator_ws_change(struct wl_listener *listener, void *data) {
 			WORKSPACE_SWITCHER_VISIBLE_MS;
 	}
 
-	comp_animation_client_add(server.animation_mgr,
-							  indicator->animation_client);
+	comp_animation_client_add(server.animation_mgr, indicator->animation_client,
+							  true);
 }
 
 static void animation_update(struct comp_animation_mgr *mgr,
@@ -192,7 +192,8 @@ static void animation_update(struct comp_animation_mgr *mgr,
 }
 
 static void animation_done(struct comp_animation_mgr *mgr,
-						   struct comp_animation_client *client) {
+						   struct comp_animation_client *client,
+						   bool cancelled) {
 	struct comp_ws_indicator *indicator = client->data;
 
 	indicator->force_update = true;
@@ -202,13 +203,13 @@ static void animation_done(struct comp_animation_mgr *mgr,
 		indicator->state = COMP_WS_INDICATOR_STATE_OPEN;
 		client->duration_ms = WORKSPACE_SWITCHER_VISIBLE_MS;
 		comp_animation_client_add(server.animation_mgr,
-								  indicator->animation_client);
+								  indicator->animation_client, true);
 		break;
 	case COMP_WS_INDICATOR_STATE_OPEN:
 		indicator->state = COMP_WS_INDICATOR_STATE_CLOSING;
 		client->duration_ms = WORKSPACE_SWITCHER_FADE_OUT_MS;
 		comp_animation_client_add(server.animation_mgr,
-								  indicator->animation_client);
+								  indicator->animation_client, true);
 		break;
 	case COMP_WS_INDICATOR_STATE_CLOSING:
 		client->duration_ms = WORKSPACE_SWITCHER_FADE_IN_MS;
