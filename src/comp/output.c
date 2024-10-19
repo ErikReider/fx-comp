@@ -176,12 +176,6 @@ static void output_frame(struct wl_listener *listener, void *data) {
 		wlr_scene_get_scene_output(scene, output->wlr_output);
 
 	output_configure_scene(output, &server.root_scene->tree.node);
-	// wlr_scene_optimized_blur_mark_dirty(scene);
-	// wlr_output_layout_get_box(server.output_layout, output->wlr_output,
-	// 						  &output->geometry);
-	// wlr_scene_output_set_position(scene_output, output->geometry.x,
-	// 							  output->geometry.y);
-
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
 
@@ -299,7 +293,7 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.shell_background = alloc_tree(output->object.content_tree);
 	output->layers.shell_bottom = alloc_tree(output->object.content_tree);
 	output->layers.optimized_blur_node = wlr_scene_blur_create(
-		output->object.scene_tree, wlr_output->width, wlr_output->height);
+		output->object.content_tree, wlr_output->width, wlr_output->height);
 	output->layers.workspaces = alloc_tree(output->object.content_tree);
 	output->layers.unmanaged = alloc_tree(output->object.content_tree);
 	output->layers.shell_top = alloc_tree(output->object.content_tree);
@@ -455,17 +449,15 @@ void comp_output_update_sizes(struct comp_output *output) {
 	wlr_output_layout_get_box(server.output_layout, output->wlr_output,
 							  &output->geometry);
 
-	const int output_x = output->geometry.x, output_y = output->geometry.y;
-
 	// Update the scene_output position
-	wlr_scene_output_set_position(output->scene_output, output_x, output_y);
+	wlr_scene_output_set_position(output->scene_output, output->geometry.x,
+								  output->geometry.y);
 
 	// Update the output tree position to match the scene_output
-	wlr_scene_node_set_position(&output->object.scene_tree->node, output_x,
-								output_y);
+	wlr_scene_node_set_position(&output->object.scene_tree->node,
+								output->geometry.x, output->geometry.y);
 
 	// Update optimized blur node position and size
-	wlr_scene_node_set_enabled(&output->layers.optimized_blur_node->node, true);
 	wlr_scene_node_set_position(&output->layers.optimized_blur_node->node,
 								output->geometry.x, output->geometry.y);
 	// Also marks the blur as dirty
