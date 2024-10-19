@@ -138,7 +138,6 @@ struct comp_toplevel *comp_toplevel_init(struct comp_output *output,
 										 struct comp_workspace *workspace,
 										 enum comp_toplevel_type type,
 										 enum comp_tiling_mode tiling_mode,
-										 bool fullscreen,
 										 const struct comp_toplevel_impl *impl);
 
 void comp_toplevel_process_cursor_move(struct comp_server *server,

@@ -986,7 +986,7 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 struct comp_toplevel *
 comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 				   enum comp_toplevel_type type,
-				   enum comp_tiling_mode tiling_mode, bool fullscreen,
+				   enum comp_tiling_mode tiling_mode,
 				   const struct comp_toplevel_impl *impl) {
 	struct comp_toplevel *toplevel = calloc(1, sizeof(*toplevel));
 	if (!toplevel) {
@@ -996,7 +996,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->server = &server;
 	toplevel->type = type;
 	toplevel->using_csd = false;
-	toplevel->fullscreen = fullscreen;
+	toplevel->fullscreen = false;
 	toplevel->unmapped = true;
 	toplevel->impl = impl;
 
@@ -1103,8 +1103,9 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 	comp_toplevel_set_pid(toplevel);
 
-	toplevel->fullscreen = comp_toplevel_get_is_fullscreen(toplevel);
-	if (toplevel->fullscreen) {
+	bool fullscreen = comp_toplevel_get_is_fullscreen(toplevel);
+	// Always tile toplevels
+	if (fullscreen) {
 		toplevel->tiling_mode = COMP_TILING_MODE_TILED;
 	} else if (comp_toplevel_get_always_floating(toplevel) ||
 			   ws->fullscreen_toplevel) {
@@ -1123,35 +1124,40 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 						 toplevel->natural_height, false);
 	save_state(toplevel, &toplevel->pending_state);
 
-	// Tile/float the new toplevel
-	if (ws->type == COMP_WORKSPACE_TYPE_REGULAR &&
-		toplevel->tiling_mode == COMP_TILING_MODE_TILED) {
-		comp_toplevel_set_tiled(toplevel, true, false);
-	} else {
-		comp_toplevel_set_tiled(toplevel, false, false);
-	}
-	comp_object_mark_dirty(&toplevel->object);
-
 	wl_list_insert(&ws->toplevels, &toplevel->workspace_link);
 	wl_list_insert(server.seat->focus_order.prev, &toplevel->focus_link);
 
 	comp_seat_surface_focus(&toplevel->object,
 							comp_toplevel_get_wlr_surface(toplevel));
 
-	// We display the toplevel instantly if there isn't a size change.
-	bool pending_size_change =
-		toplevel->state.width != toplevel->pending_state.width ||
-		toplevel->state.height != toplevel->pending_state.height ||
-		toplevel->state.x != toplevel->pending_state.x ||
-		toplevel->state.y != toplevel->pending_state.y;
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node,
-							   !pending_size_change);
-	toplevel->unmapped = pending_size_change;
-	if (!pending_size_change) {
-		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
-	}
+	if (fullscreen && comp_toplevel_can_fullscreen(toplevel)) {
+		comp_toplevel_set_fullscreen(toplevel, true);
+	} else {
+		toplevel->fullscreen = false;
 
-	comp_transaction_commit_dirty(true);
+		// Tile/float the new toplevel
+		if (toplevel->tiling_mode == COMP_TILING_MODE_TILED) {
+			comp_toplevel_set_tiled(toplevel, true, false);
+		} else if (toplevel->tiling_mode == COMP_TILING_MODE_FLOATING) {
+			comp_toplevel_set_tiled(toplevel, false, false);
+		}
+
+		// We display the toplevel instantly if there isn't a size change.
+		bool pending_size_change =
+			toplevel->state.width != toplevel->pending_state.width ||
+			toplevel->state.height != toplevel->pending_state.height ||
+			toplevel->state.x != toplevel->pending_state.x ||
+			toplevel->state.y != toplevel->pending_state.y;
+		wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node,
+								   !pending_size_change);
+		toplevel->unmapped = pending_size_change;
+		if (!pending_size_change) {
+			comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+		}
+
+		comp_object_mark_dirty(&toplevel->object);
+		comp_transaction_commit_dirty(true);
+	}
 }
 
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {

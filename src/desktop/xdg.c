@@ -357,21 +357,17 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 		return;
 	}
 	toplevel_xdg->xdg_toplevel = xdg_surface->toplevel;
-	bool is_fullscreen = toplevel_xdg->xdg_toplevel->requested.fullscreen;
 
 	// Add the toplevel to the tiled/floating layer
 	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(server);
-	struct comp_workspace *workspace =
-		comp_output_get_active_ws(output, is_fullscreen);
+	struct comp_workspace *workspace = comp_output_get_active_ws(output, false);
 
 	/* Allocate a comp_toplevel for this surface */
-	struct comp_toplevel *toplevel =
-		comp_toplevel_init(output, workspace, COMP_TOPLEVEL_TYPE_XDG,
-						   tiling_mode, is_fullscreen, &xdg_impl);
+	struct comp_toplevel *toplevel = comp_toplevel_init(
+		output, workspace, COMP_TOPLEVEL_TYPE_XDG, tiling_mode, &xdg_impl);
 	toplevel->using_csd = true;
-	toplevel->fullscreen = is_fullscreen;
 	toplevel->toplevel_xdg = toplevel_xdg;
 	toplevel_xdg->toplevel = toplevel;
 

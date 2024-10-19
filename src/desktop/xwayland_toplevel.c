@@ -543,20 +543,17 @@ xway_create_toplevel(struct wlr_xwayland_surface *xsurface) {
 	}
 	toplevel_xway->xwayland_surface = xsurface;
 
-	bool is_fullscreen = xsurface->fullscreen;
 	// Add the toplevel to the tiled/floating layer
 	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(&server);
-	struct comp_workspace *workspace =
-		comp_output_get_active_ws(output, is_fullscreen);
+	struct comp_workspace *workspace = comp_output_get_active_ws(output, false);
 
 	/* Allocate a comp_toplevel for this surface */
 	struct comp_toplevel *toplevel =
 		comp_toplevel_init(output, workspace, COMP_TOPLEVEL_TYPE_XWAYLAND,
-						   tiling_mode, is_fullscreen, &xwayland_impl);
+						   tiling_mode, &xwayland_impl);
 	toplevel->using_csd = xway_get_using_csd(xsurface);
-	toplevel->fullscreen = is_fullscreen;
 	toplevel->toplevel_xway = toplevel_xway;
 	toplevel_xway->toplevel = toplevel;
 	toplevel_xway->xwayland_surface->data = toplevel->object.scene_tree;
