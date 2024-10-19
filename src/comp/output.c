@@ -292,7 +292,7 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	// Initialize layers
 	output->layers.shell_background = alloc_tree(output->object.content_tree);
 	output->layers.shell_bottom = alloc_tree(output->object.content_tree);
-	output->layers.optimized_blur_node = wlr_scene_blur_create(
+	output->layers.optimized_blur_node = wlr_scene_optimized_blur_create(
 		output->object.content_tree, wlr_output->width, wlr_output->height);
 	output->layers.workspaces = alloc_tree(output->object.content_tree);
 	output->layers.unmanaged = alloc_tree(output->object.content_tree);
@@ -461,8 +461,9 @@ void comp_output_update_sizes(struct comp_output *output) {
 	wlr_scene_node_set_position(&output->layers.optimized_blur_node->node,
 								output->geometry.x, output->geometry.y);
 	// Also marks the blur as dirty
-	wlr_scene_blur_set_size(output->layers.optimized_blur_node,
-							output->geometry.width, output->geometry.height);
+	wlr_scene_optimized_blur_set_size(output->layers.optimized_blur_node,
+									  output->geometry.width,
+									  output->geometry.height);
 
 	comp_output_arrange_layers(output);
 	comp_output_arrange_output(output);
