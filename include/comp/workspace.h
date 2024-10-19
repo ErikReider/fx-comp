@@ -32,8 +32,6 @@ struct comp_workspace {
 		struct wlr_scene_tree *lower;
 		// Floating toplevels
 		struct wlr_scene_tree *floating;
-		// for unmanaged toplevels without a parent
-		struct wlr_scene_tree *unmanaged;
 	} layers;
 
 	// Toplevels and Popups. Also contains the focus order

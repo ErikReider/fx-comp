@@ -202,12 +202,6 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 		return NULL;
 	}
 	ws->layers.floating->node.data = &ws->object;
-	// Create unmanaged
-	ws->layers.unmanaged = alloc_tree(ws->object.content_tree);
-	if (!ws->layers.unmanaged) {
-		return NULL;
-	}
-	ws->layers.unmanaged->node.data = &ws->object;
 
 	wl_list_init(&ws->tiling_nodes);
 	wl_list_init(&ws->toplevels);

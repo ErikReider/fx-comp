@@ -299,6 +299,7 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.shell_background = alloc_tree(output->object.content_tree);
 	output->layers.shell_bottom = alloc_tree(output->object.content_tree);
 	output->layers.workspaces = alloc_tree(output->object.content_tree);
+	output->layers.unmanaged = alloc_tree(output->object.content_tree);
 	output->layers.shell_top = alloc_tree(output->object.content_tree);
 	output->layers.shell_overlay = alloc_tree(output->object.content_tree);
 	output->layers.session_lock = alloc_tree(output->object.content_tree);

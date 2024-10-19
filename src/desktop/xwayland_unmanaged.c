@@ -82,8 +82,7 @@ static void unmanaged_map(struct wl_listener *listener, void *data) {
 	// Tries to attach to the parent
 	if (!unmanaged->parent_tree) {
 		struct comp_output *output = get_active_output(&server);
-		struct comp_workspace *workspace = output->active_workspace;
-		unmanaged->parent_tree = workspace->layers.unmanaged;
+		unmanaged->parent_tree = output->layers.unmanaged;
 	}
 
 	unmanaged->object.scene_tree = alloc_tree(unmanaged->parent_tree);
@@ -162,8 +161,7 @@ static void unmanaged_destroy(struct wl_listener *listener, void *data) {
 
 	// Only destroy when the surface doesn't have a parent
 	struct comp_output *output = get_active_output(&server);
-	struct comp_workspace *workspace = output->active_workspace;
-	if (unmanaged->parent_tree == workspace->layers.unmanaged) {
+	if (unmanaged->parent_tree == output->layers.unmanaged) {
 		wlr_scene_node_destroy(&unmanaged->object.scene_tree->node);
 	}
 
