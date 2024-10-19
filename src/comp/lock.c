@@ -73,7 +73,7 @@ static void add_fade_animation(struct comp_session_lock_output *l_output,
 	l_output->fade_animation.from = from;
 	l_output->fade_animation.to = to;
 	comp_animation_client_add(server.animation_mgr,
-							  l_output->fade_animation.client);
+							  l_output->fade_animation.client, true);
 }
 
 static void fade_animation_update(struct comp_animation_mgr *mgr,

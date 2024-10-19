@@ -4,6 +4,7 @@
 #include <wayland-util.h>
 #include <wlr/util/log.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/object.h"
 #include "comp/server.h"
 #include "comp/transaction.h"
@@ -144,8 +145,11 @@ static void transaction_apply(struct comp_transaction *transaction) {
 				break;
 			}
 
-			if (!toplevel->anim.resize.client->animating &&
-				!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+			if (toplevel->anim.resize.client->state != ANIMATION_STATE_NONE) {
+				break;
+			}
+
+			if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 				if (!object->destroying || object->num_txn_refs == 1) {
 					comp_toplevel_remove_buffer(toplevel);
 					comp_toplevel_mark_effects_dirty(toplevel);
@@ -189,7 +193,7 @@ static void transaction_progress(void) {
 
 static int timed_out_func(void *data) {
 	struct comp_transaction *transaction = data;
-	wlr_log(WLR_DEBUG, "Transaction %p timed out (%zi waiting)", transaction,
+	wlr_log(WLR_ERROR, "Transaction %p timed out (%zi waiting)", transaction,
 			transaction->num_waiting);
 
 	struct comp_transaction_instruction *instruction;
@@ -271,7 +275,7 @@ static void transaction_commit(struct comp_transaction *transaction) {
 				comp_toplevel_send_frame_done(toplevel);
 			}
 			if (!hidden && !toplevel->unmapped &&
-				!toplevel->anim.resize.client->animating &&
+				toplevel->anim.resize.client->state == ANIMATION_STATE_NONE &&
 				wl_list_empty(&toplevel->saved_scene_tree->children)) {
 				comp_toplevel_mark_effects_dirty(toplevel);
 				comp_toplevel_save_buffer(toplevel);

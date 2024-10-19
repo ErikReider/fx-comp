@@ -123,6 +123,46 @@ struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 	return active_ws;
 }
 
+static void output_configure_scene(struct comp_output *output,
+								   struct wlr_scene_node *node) {
+	if (!node->enabled) {
+		return;
+	}
+
+	if (node->type == WLR_SCENE_NODE_BUFFER) {
+		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
+		// struct wlr_scene_surface *surface =
+		// 	wlr_scene_surface_try_from_buffer(buffer);
+
+		struct comp_object *obj = buffer->node.data;
+		if (!obj) {
+			wlr_log(WLR_DEBUG,
+					"Tried to apply effects to buffer with unknown data");
+			return;
+		}
+		if (obj->type == COMP_OBJECT_TYPE_TOPLEVEL) {
+			struct comp_toplevel *toplevel = obj->data;
+			// Stretch the saved toplevel buffer to fit the toplevel state
+			if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+				int width = toplevel->state.width;
+				int height = toplevel->state.height;
+				if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
+					wlr_scene_buffer_set_dest_size(buffer, height, width);
+				} else {
+					wlr_scene_buffer_set_dest_size(buffer, width, height);
+				}
+			}
+		}
+
+	} else if (node->type == WLR_SCENE_NODE_TREE) {
+		struct wlr_scene_tree *tree = wlr_scene_tree_from_node(node);
+		struct wlr_scene_node *node;
+		wl_list_for_each(node, &tree->children, link) {
+			output_configure_scene(output, node);
+		}
+	}
+}
+
 static void output_frame(struct wl_listener *listener, void *data) {
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -135,7 +175,7 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	struct wlr_scene_output *scene_output =
 		wlr_scene_get_scene_output(scene, output->wlr_output);
 
-	// output_configure_scene(output, &server.root_scene->tree.node, NULL);
+	output_configure_scene(output, &server.root_scene->tree.node);
 	// wlr_scene_optimized_blur_mark_dirty(scene);
 	// wlr_output_layout_get_box(server.output_layout, output->wlr_output,
 	// 						  &output->geometry);

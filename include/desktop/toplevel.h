@@ -103,6 +103,7 @@ struct comp_toplevel {
 			struct comp_animation_client *client;
 			struct comp_toplevel_state to;
 			struct comp_toplevel_state from;
+			float crossfade_opacity;
 		} resize;
 	} anim;
 
