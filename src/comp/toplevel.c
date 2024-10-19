@@ -1105,6 +1105,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 		toplevel->state.y != toplevel->pending_state.y;
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node,
 							   !pending_size_change);
+	toplevel->unmapped = pending_size_change;
 	if (!pending_size_change) {
 		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
 	}
