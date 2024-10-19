@@ -14,6 +14,9 @@ struct comp_toplevel_state {
 	int height;
 };
 
+bool comp_toplevel_state_is_same(struct comp_toplevel_state *state_a,
+								 struct comp_toplevel_state *state_b);
+
 void comp_toplevel_state_print(struct comp_toplevel_state *state,
 							   const char *str);
 
