@@ -9,6 +9,8 @@
 #define HEADLESS_FALLBACK_OUTPUT_HEIGHT 600
 
 #define EFFECTS_CORNER_RADII 14
+#define BLUR_RADIUS 8
+#define BLUR_PASSES 3
 
 #define TERM "kitty"
 
