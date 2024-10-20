@@ -608,6 +608,13 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? widget->corner_radius : 0);
 		wlr_scene_buffer_set_shadow_data(buffer, widget->shadow_data);
+
+		wlr_scene_buffer_set_backdrop_blur(buffer, has_effects &&
+													   widget->backdrop_blur);
+		wlr_scene_buffer_set_backdrop_blur_optimized(
+			buffer, widget->backdrop_blur_optimized);
+		wlr_scene_buffer_set_backdrop_blur_ignore_transparent(
+			buffer, widget->backdrop_blur_ignore_transparent);
 		break;
 	}
 	}
