@@ -272,6 +272,12 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 	wlr_scene_buffer_set_shadow_data(indicator->widget.scene_buffer,
 									 indicator->widget.shadow_data);
 
+	indicator->widget.backdrop_blur = true;
+	indicator->widget.backdrop_blur_optimized = false;
+	indicator->widget.backdrop_blur_ignore_transparent = false;
+	wlr_scene_buffer_set_backdrop_blur(indicator->widget.scene_buffer,
+									   indicator->widget.backdrop_blur);
+
 	indicator->force_update = false;
 
 	// Disable input
