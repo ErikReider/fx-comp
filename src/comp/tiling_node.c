@@ -64,6 +64,14 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	comp_toplevel_set_size(toplevel, WIDTH, HEIGHT);
 	comp_toplevel_set_position(toplevel, X, Y);
 
+	if (toplevel->state.width == WIDTH && toplevel->state.height == HEIGHT &&
+		toplevel->state.x == X && toplevel->state.y == Y) {
+		wlr_log(WLR_DEBUG,
+				"No size change for toplevel (%p), skipping resize animation",
+				toplevel);
+		return;
+	}
+
 	if (!toplevel->unmapped &&
 		server.seat->cursor->cursor_mode != COMP_CURSOR_RESIZE) {
 		// Only animate if not resizing and the toplevel is mapped
@@ -74,7 +82,7 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	comp_object_mark_dirty(&toplevel->object);
 
 	if (toplevel->anim.resize.client->state != ANIMATION_STATE_NONE) {
-		toplevel->anim.resize.to = (struct comp_toplevel_state) {
+		toplevel->anim.resize.to = (struct comp_toplevel_state){
 			.width = WIDTH,
 			.height = HEIGHT,
 			.x = X,

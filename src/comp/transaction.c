@@ -11,6 +11,13 @@
 #include "constants.h"
 #include "desktop/toplevel.h"
 
+bool comp_toplevel_state_is_same(struct comp_toplevel_state *state_a,
+								 struct comp_toplevel_state *state_b) {
+	return state_a->width == state_b->width &&
+		   state_a->height == state_b->height && state_a->x == state_b->x &&
+		   state_a->y == state_b->y;
+}
+
 void comp_toplevel_state_print(struct comp_toplevel_state *state,
 							   const char *str) {
 	printf("%s: %i %i %i %i\n", str, state->width, state->height, state->x,
