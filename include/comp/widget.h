@@ -8,9 +8,9 @@
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_subcompositor.h>
 
-#include "desktop/effects/shadow_data.h"
 #include "comp/object.h"
 #include "comp/server.h"
+#include "desktop/effects/shadow_data.h"
 
 struct comp_widget;
 
