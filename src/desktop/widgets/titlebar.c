@@ -506,8 +506,16 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 		return NULL;
 	}
 
+	struct shadow_data shadow_data = {
+		.color = wlr_render_color_from_color(
+			&(const uint32_t){TOPLEVEL_SHADOW_COLOR}),
+		.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA,
+		.offset_x = TOPLEVEL_SHADOW_X_OFFSET,
+		.offset_y = TOPLEVEL_SHADOW_Y_OFFSET,
+	};
+
 	if (!comp_widget_init(&titlebar->widget, server, &toplevel->object,
-						  toplevel->decoration_scene_tree,
+						  toplevel->decoration_scene_tree, shadow_data,
 						  &comp_titlebar_widget_impl)) {
 		free(titlebar);
 		return NULL;
@@ -531,7 +539,6 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 	if (toplevel->corner_radius == 0) {
 		titlebar->widget.corner_radius = 0;
 	}
-	titlebar->widget.shadow_data = toplevel->shadow_data;
 
 	/*
 	 * Buttons

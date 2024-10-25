@@ -4,6 +4,7 @@
 #include <wayland-server-core.h>
 
 #include "comp/object.h"
+#include "desktop/effects/shadow_data.h"
 
 /*
  * Layer surface

@@ -1,15 +1,16 @@
 #ifndef FX_COMP_WIDGET_H
 #define FX_COMP_WIDGET_H
 
+#include <cairo.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wlr/types/wlr_pointer.h>
 #include <wlr/types/wlr_subcompositor.h>
 
-#include "cairo.h"
 #include "comp/object.h"
 #include "comp/server.h"
+#include "desktop/effects/shadow_data.h"
 
 struct comp_widget;
 
@@ -24,6 +25,7 @@ struct comp_widget_click_region {
 };
 
 struct comp_widget {
+	struct wlr_scene_shadow *shadow_node;
 	struct wlr_scene_buffer *scene_buffer;
 
 	struct comp_object object;
@@ -69,6 +71,7 @@ struct comp_widget_impl {
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 					  struct comp_object *parent_obj,
 					  struct wlr_scene_tree *parent_tree,
+					  struct shadow_data shadow_data,
 					  const struct comp_widget_impl *impl);
 
 void comp_widget_pointer_button(struct comp_widget *widget, double x, double y,
@@ -85,5 +88,7 @@ void comp_widget_draw_full(struct comp_widget *widget);
 
 void comp_widget_center_on_output(struct comp_widget *widget,
 								  struct comp_output *output);
+
+void comp_widget_refresh_shadow(struct comp_widget *widget);
 
 #endif // !FX_COMP_WIDGET_H

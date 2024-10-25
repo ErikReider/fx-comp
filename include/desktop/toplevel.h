@@ -1,7 +1,6 @@
 #ifndef FX_COMP_TOPLEVEL_H
 #define FX_COMP_TOPLEVEL_H
 
-#include <scenefx/types/fx/shadow_data.h>
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wayland-util.h>
@@ -110,7 +109,6 @@ struct comp_toplevel {
 	// Effects
 	float opacity;
 	int corner_radius;
-	struct shadow_data shadow_data;
 };
 
 struct comp_toplevel_impl {
