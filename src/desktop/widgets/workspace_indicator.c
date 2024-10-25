@@ -115,10 +115,7 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 	}
 	wlr_scene_buffer_set_opacity(indicator->widget.scene_buffer, alpha);
 
-	float shadow_alpha = indicator->widget.shadow_data.color.a;
-	indicator->widget.shadow_data.color.a = shadow_alpha * alpha;
 	comp_widget_refresh_shadow(&indicator->widget);
-	indicator->widget.shadow_data.color.a = shadow_alpha;
 }
 
 static void resize_and_draw(struct comp_ws_indicator *indicator) {

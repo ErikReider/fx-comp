@@ -51,7 +51,8 @@ void comp_widget_refresh_shadow(struct comp_widget *widget) {
 	wlr_scene_shadow_set_color(
 		widget->shadow_node,
 		(float[4]){shadow_data->color.r, shadow_data->color.g,
-				   shadow_data->color.b, shadow_data->color.a});
+				   shadow_data->color.b,
+				   shadow_data->color.a * widget->scene_buffer->opacity});
 
 	wlr_scene_node_set_position(
 		&widget->shadow_node->node,
