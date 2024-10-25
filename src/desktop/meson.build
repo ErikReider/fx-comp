@@ -1,3 +1,5 @@
+subdir('effects')
+
 sources += files(
 	'layer_shell.c',
 	'xdg.c',

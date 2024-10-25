@@ -191,7 +191,6 @@ void layer_shell_new_surface(struct wl_listener *listener, void *data) {
 	layer_surface->opacity = 1;
 	layer_surface->corner_radius = EFFECTS_CORNER_RADII;
 	layer_surface->shadow_data = shadow_data_get_default();
-	layer_surface->shadow_data.enabled = true;
 
 	layer_surface->wlr_layer_surface = wlr_layer_surface;
 	wlr_layer_surface->data = layer_surface->object.scene_tree;

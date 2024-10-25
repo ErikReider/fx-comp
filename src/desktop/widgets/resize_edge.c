@@ -7,6 +7,7 @@
 
 #include "comp/server.h"
 #include "constants.h"
+#include "desktop/effects/shadow_data.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/resize_edge.h"
 #include "desktop/widgets/titlebar.h"
@@ -104,6 +105,7 @@ comp_resize_edge_init(struct comp_server *server,
 
 	if (!comp_widget_init(&edge->widget, server, &toplevel->object,
 						  toplevel->decoration_scene_tree,
+						  shadow_data_get_default(),
 						  &comp_resize_edge_widget_impl)) {
 		free(edge);
 		return NULL;

@@ -39,9 +39,33 @@ static bool handle_point_accepts_input(struct wlr_scene_buffer *buffer,
 	return true;
 }
 
+void comp_widget_refresh_shadow(struct comp_widget *widget) {
+	struct shadow_data *shadow_data = &widget->shadow_data;
+
+	wlr_scene_node_set_enabled(&widget->shadow_node->node, true);
+
+	wlr_scene_shadow_set_corner_radius(widget->shadow_node,
+									   widget->corner_radius);
+	wlr_scene_shadow_set_blur_sigma(widget->shadow_node,
+									shadow_data->blur_sigma);
+	wlr_scene_shadow_set_color(
+		widget->shadow_node,
+		(float[4]){shadow_data->color.r, shadow_data->color.g,
+				   shadow_data->color.b, shadow_data->color.a});
+
+	wlr_scene_node_set_position(
+		&widget->shadow_node->node,
+		-shadow_data->blur_sigma + shadow_data->offset_x,
+		-shadow_data->blur_sigma + shadow_data->offset_y);
+	wlr_scene_shadow_set_size(widget->shadow_node,
+							  widget->width + shadow_data->blur_sigma * 2,
+							  widget->height + shadow_data->blur_sigma * 2);
+}
+
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 					  struct comp_object *parent_obj,
 					  struct wlr_scene_tree *parent_tree,
+					  struct shadow_data shadow_data,
 					  const struct comp_widget_impl *impl) {
 	assert(parent_obj);
 	widget->object.scene_tree = alloc_tree(parent_tree);
@@ -51,6 +75,14 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 		wlr_log(WLR_ERROR, "Failed to allocate comp_titlebar wlr_scene_tree");
 		return false;
 	}
+
+	// Shadow
+	widget->shadow_node = wlr_scene_shadow_create(
+		widget->object.content_tree, 0, 0, 0, shadow_data.blur_sigma,
+		(float[4]){shadow_data.color.r, shadow_data.color.g,
+				   shadow_data.color.b, shadow_data.color.a});
+	widget->shadow_data = shadow_data;
+	wlr_scene_node_set_enabled(&widget->shadow_node->node, false);
 
 	widget->scene_buffer =
 		wlr_scene_buffer_create(widget->object.content_tree, NULL);

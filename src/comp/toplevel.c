@@ -590,12 +590,12 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 		struct comp_widget *widget = obj->data;
 		if (widget == &toplevel->titlebar->widget) {
 			comp_titlebar_refresh_corner_radii(toplevel->titlebar);
+			comp_widget_refresh_shadow(widget);
 		}
 
 		wlr_scene_buffer_set_opacity(buffer, has_effects ? widget->opacity : 1);
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? widget->corner_radius : 0);
-		wlr_scene_buffer_set_shadow_data(buffer, widget->shadow_data);
 		break;
 	}
 	}
@@ -1011,12 +1011,6 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	/* Set the scene_nodes decoration data */
 	toplevel->opacity = 1;
 	toplevel->corner_radius = EFFECTS_CORNER_RADII;
-	toplevel->shadow_data.enabled = true;
-	toplevel->shadow_data.color =
-		wlr_render_color_from_color(&(const uint32_t){TOPLEVEL_SHADOW_COLOR});
-	toplevel->shadow_data.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA;
-	toplevel->shadow_data.offset_x = TOPLEVEL_SHADOW_X_OFFSET;
-	toplevel->shadow_data.offset_y = TOPLEVEL_SHADOW_Y_OFFSET;
 
 	toplevel->dragging_tiled = false;
 	toplevel->tiling_mode = tiling_mode;
