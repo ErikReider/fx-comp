@@ -959,8 +959,6 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
 	comp_toplevel_center_and_clip(toplevel, &geometry);
 
-	comp_toplevel_mark_effects_dirty(toplevel);
-
 	// Adjust edges
 	for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
 		struct comp_resize_edge *edge = toplevel->edges[i];
@@ -980,7 +978,7 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
 							   !toplevel->fullscreen);
 	if (toplevel->fullscreen) {
-		return;
+		goto post_deocations;
 	}
 
 	// Only redraw the titlebar if the size has changed or there's a force
@@ -1004,6 +1002,9 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 			&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
 			-toplevel->decorated_size.top_border_height);
 	}
+
+post_deocations:
+	comp_toplevel_mark_effects_dirty(toplevel);
 }
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
