@@ -456,6 +456,12 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xway, map);
 	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
 
+	// Set the initial natural size
+	toplevel->natural_width = toplevel_xway->xwayland_surface->width;
+	toplevel->natural_height = toplevel_xway->xwayland_surface->height;
+	comp_toplevel_generic_set_natural_size(toplevel, toplevel->natural_width,
+										   toplevel->natural_height);
+
 	// Insert the surface into the scene
 	toplevel->toplevel_scene_tree = wlr_scene_subsurface_tree_create(
 		toplevel->object.content_tree,

@@ -226,6 +226,9 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel, bool is_instruction);
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_commit(struct comp_toplevel *toplevel);
+/** Set the natural size of the toplevel, constraining it to the minimum size */
+void comp_toplevel_generic_set_natural_size(struct comp_toplevel *toplevel,
+											int width, int height);
 
 /*
  * Animation

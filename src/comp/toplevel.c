@@ -1101,19 +1101,6 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	return toplevel;
 }
 
-static inline void set_natural_size(struct comp_toplevel *toplevel) {
-	struct wlr_box box = toplevel->workspace->output->usable_area;
-
-	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
-	toplevel->natural_width =
-		MAX(TOPLEVEL_MIN_WIDTH, MIN(geometry.width, box.width * 0.5));
-	toplevel->natural_height =
-		MAX(TOPLEVEL_MIN_HEIGHT, MIN(geometry.height, box.height * 0.75));
-
-	comp_toplevel_set_size(toplevel, toplevel->natural_width,
-						   toplevel->natural_height);
-}
-
 /*
  * Implementation generic functions
  */
@@ -1154,9 +1141,10 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 	comp_toplevel_mark_effects_dirty(toplevel);
 
-	// Open new floating toplevels in the center of the output/parent
-	// If tiling, save the centered state so untiling would center
-	set_natural_size(toplevel);
+	// Open new floating toplevels in the center of the output/parent with the
+	// natural size. If tiling, save the centered state so untiling would center
+	comp_toplevel_set_size(toplevel, toplevel->natural_width,
+						   toplevel->natural_height);
 	comp_toplevel_center(toplevel, toplevel->natural_width,
 						 toplevel->natural_height, false);
 	save_state(toplevel, &toplevel->pending_state);
@@ -1304,4 +1292,25 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 			comp_toplevel_send_frame_done(toplevel);
 		}
 	}
+}
+
+void comp_toplevel_generic_set_natural_size(struct comp_toplevel *toplevel,
+											int width, int height) {
+	struct comp_output *output = toplevel->workspace->output;
+	struct wlr_box box = output->usable_area;
+
+	if (width < TOPLEVEL_MIN_WIDTH) {
+		width = box.width * 0.5;
+	}
+	if (height < TOPLEVEL_MIN_HEIGHT) {
+		height = box.height * 0.75;
+	}
+
+	toplevel->natural_width =
+		MAX(TOPLEVEL_MIN_WIDTH, MIN(width, output->geometry.width));
+	toplevel->natural_height =
+		MAX(TOPLEVEL_MIN_HEIGHT, MIN(height, output->geometry.height));
+
+	comp_toplevel_set_size(toplevel, toplevel->natural_width,
+						   toplevel->natural_height);
 }

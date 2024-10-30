@@ -295,6 +295,20 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xdg, map);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
+	// Set the initial natural size
+	toplevel->natural_width =
+		toplevel_xdg->xdg_toplevel->base->current.geometry.width;
+	toplevel->natural_height =
+		toplevel_xdg->xdg_toplevel->base->current.geometry.height;
+	if (!toplevel->natural_width && !toplevel->natural_height) {
+		toplevel->natural_width =
+			toplevel_xdg->xdg_toplevel->base->surface->current.width;
+		toplevel->natural_height =
+			toplevel_xdg->xdg_toplevel->base->surface->current.height;
+	}
+	comp_toplevel_generic_set_natural_size(toplevel, toplevel->natural_width,
+										   toplevel->natural_height);
+
 	comp_toplevel_generic_map(toplevel);
 
 	struct wlr_xdg_toplevel *xdg_toplevel = toplevel_xdg->xdg_toplevel;
