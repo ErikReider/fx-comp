@@ -198,6 +198,9 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			set_xdg_decoration_mode(toplevel_xdg->xdg_decoration);
 		}
 		wlr_xdg_surface_schedule_configure(xdg_surface);
+		wlr_xdg_toplevel_set_wm_capabilities(
+			toplevel_xdg->xdg_toplevel,
+			XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
 		return;
 	}
 
