@@ -94,6 +94,14 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 		return;
 	}
 
+	bool run_now = false;
+	// Fixes XDG toplevels not running the animation if the size is constant,
+	// but the position needs to change (don't wait until the matching commit)
+	if (comp_toplevel_state_same_size(&to, &toplevel->state) &&
+		!comp_toplevel_state_same_pos(&to, &toplevel->state)) {
+		run_now = true;
+	}
+
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.resize.client);
 
@@ -107,7 +115,7 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 
 	// Wait until the surface has commited with the new size
 	comp_animation_client_add(server.animation_mgr,
-							  toplevel->anim.resize.client, false);
+							  toplevel->anim.resize.client, run_now);
 	toplevel->pending_state = to;
 	comp_object_mark_dirty(&toplevel->object);
 	comp_transaction_commit_dirty(true);

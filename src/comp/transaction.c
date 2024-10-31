@@ -13,9 +13,18 @@
 
 bool comp_toplevel_state_is_same(struct comp_toplevel_state *state_a,
 								 struct comp_toplevel_state *state_b) {
+	return comp_toplevel_state_same_size(state_a, state_b) &&
+		   comp_toplevel_state_same_pos(state_a, state_b);
+}
+
+bool comp_toplevel_state_same_size(struct comp_toplevel_state *state_a,
+								   struct comp_toplevel_state *state_b) {
 	return state_a->width == state_b->width &&
-		   state_a->height == state_b->height && state_a->x == state_b->x &&
-		   state_a->y == state_b->y;
+		   state_a->height == state_b->height;
+}
+bool comp_toplevel_state_same_pos(struct comp_toplevel_state *state_a,
+								  struct comp_toplevel_state *state_b) {
+	return state_a->x == state_b->x && state_a->y == state_b->y;
 }
 
 void comp_toplevel_state_print(struct comp_toplevel_state *state,
