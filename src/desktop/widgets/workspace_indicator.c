@@ -11,6 +11,7 @@
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/widgets/workspace_indicator.h"
+#include "scenefx/types/fx/corner_location.h"
 #include "util.h"
 
 static void set_visible(struct comp_ws_indicator *indicator, bool state) {
@@ -274,7 +275,8 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 	set_visible(indicator, false);
 
 	wlr_scene_buffer_set_corner_radius(indicator->widget.scene_buffer,
-									   EFFECTS_CORNER_RADII);
+									   EFFECTS_CORNER_RADII,
+									   CORNER_LOCATION_ALL);
 
 	indicator->force_update = false;
 

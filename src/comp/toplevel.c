@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <float.h>
 #include <glib.h>
+#include <scenefx/types/fx/corner_location.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -590,8 +591,13 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 		}
 		wlr_scene_buffer_set_opacity(buffer, opacity);
 
+		enum corner_location corners =
+			toplevel->using_csd
+				? CORNER_LOCATION_ALL
+				: CORNER_LOCATION_BOTTOM_LEFT | CORNER_LOCATION_BOTTOM_RIGHT;
 		wlr_scene_buffer_set_corner_radius(
-			buffer, has_effects ? toplevel->corner_radius : 0);
+			buffer, has_effects ? toplevel->corner_radius : 0,
+			has_effects ? corners : CORNER_LOCATION_NONE);
 		break;
 	}
 	case COMP_OBJECT_TYPE_WIDGET: {
@@ -606,7 +612,8 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 		}
 
 		wlr_scene_buffer_set_corner_radius(
-			buffer, has_effects ? widget->corner_radius : 0);
+			buffer, has_effects ? widget->corner_radius : 0,
+			has_effects ? CORNER_LOCATION_ALL : 0);
 		break;
 	}
 	}
