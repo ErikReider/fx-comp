@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <float.h>
 #include <glib.h>
+#include <scenefx/types/fx/corner_location.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stdio.h>
@@ -94,6 +95,14 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 		return;
 	}
 
+	bool run_now = false;
+	// Fixes XDG toplevels not running the animation if the size is constant,
+	// but the position needs to change (don't wait until the matching commit)
+	if (comp_toplevel_state_same_size(&to, &toplevel->state) &&
+		!comp_toplevel_state_same_pos(&to, &toplevel->state)) {
+		run_now = true;
+	}
+
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.resize.client);
 
@@ -107,7 +116,7 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 
 	// Wait until the surface has commited with the new size
 	comp_animation_client_add(server.animation_mgr,
-							  toplevel->anim.resize.client, false);
+							  toplevel->anim.resize.client, run_now);
 	toplevel->pending_state = to;
 	comp_object_mark_dirty(&toplevel->object);
 	comp_transaction_commit_dirty(true);
@@ -535,8 +544,8 @@ struct apply_effects_data {
 	bool is_saved;
 };
 
-static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
-											 int sx, int sy, void *user_data) {
+static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
+									   int sy, void *user_data) {
 	struct apply_effects_data *data = user_data;
 	struct comp_toplevel *toplevel = data->toplevel;
 
@@ -584,8 +593,13 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 		}
 		wlr_scene_buffer_set_opacity(buffer, opacity);
 
+		enum corner_location corners =
+			toplevel->using_csd
+				? CORNER_LOCATION_ALL
+				: CORNER_LOCATION_BOTTOM_LEFT | CORNER_LOCATION_BOTTOM_RIGHT;
 		wlr_scene_buffer_set_corner_radius(
-			buffer, has_effects ? toplevel->corner_radius : 0);
+			buffer, has_effects ? toplevel->corner_radius : 0,
+			has_effects ? corners : CORNER_LOCATION_NONE);
 
 		// Blur
 		wlr_scene_buffer_set_backdrop_blur(buffer, blur);
@@ -602,14 +616,18 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	}
 	case COMP_OBJECT_TYPE_WIDGET: {
 		struct comp_widget *widget = obj->data;
+		wlr_scene_buffer_set_opacity(buffer, has_effects ? widget->opacity : 1);
+
 		if (widget == &toplevel->titlebar->widget) {
 			comp_titlebar_refresh_corner_radii(toplevel->titlebar);
+			if (!data->is_saved) {
+				comp_widget_refresh_shadow(widget);
+			}
 		}
 
-		wlr_scene_buffer_set_opacity(buffer, has_effects ? widget->opacity : 1);
 		wlr_scene_buffer_set_corner_radius(
-			buffer, has_effects ? widget->corner_radius : 0);
-		wlr_scene_buffer_set_shadow_data(buffer, widget->shadow_data);
+			buffer, has_effects ? widget->corner_radius : 0,
+			has_effects ? CORNER_LOCATION_ALL : 0);
 
 		wlr_scene_buffer_set_backdrop_blur(buffer, has_effects &&
 													   widget->backdrop_blur);
@@ -622,10 +640,8 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 	}
 }
 
-static void
-scene_node_for_each_scene_buffer(struct wlr_scene_node *node, int lx, int ly,
-								 wlr_scene_buffer_iterator_func_t user_iterator,
-								 struct apply_effects_data *data) {
+static void scene_node_apply_effects(struct wlr_scene_node *node, int lx,
+									 int ly, struct apply_effects_data *data) {
 	struct comp_toplevel *toplevel = data->toplevel;
 
 	if (!node->enabled) {
@@ -635,11 +651,8 @@ scene_node_for_each_scene_buffer(struct wlr_scene_node *node, int lx, int ly,
 	lx += node->x;
 	ly += node->y;
 
-	if (node->type == WLR_SCENE_NODE_BUFFER) {
-		struct wlr_scene_buffer *scene_buffer =
-			wlr_scene_buffer_from_node(node);
-		user_iterator(scene_buffer, lx, ly, data);
-	} else if (node->type == WLR_SCENE_NODE_TREE) {
+	switch (node->type) {
+	case WLR_SCENE_NODE_TREE: {
 		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
 
 		struct apply_effects_data saved_data = *data;
@@ -651,9 +664,47 @@ scene_node_for_each_scene_buffer(struct wlr_scene_node *node, int lx, int ly,
 
 		struct wlr_scene_node *child;
 		wl_list_for_each(child, &scene_tree->children, link) {
-			scene_node_for_each_scene_buffer(child, lx, ly, user_iterator,
-											 data);
+			scene_node_apply_effects(child, lx, ly, data);
 		}
+		break;
+	}
+	case WLR_SCENE_NODE_BUFFER: {
+		struct wlr_scene_buffer *scene_buffer =
+			wlr_scene_buffer_from_node(node);
+		apply_effects_scene_buffer(scene_buffer, lx, ly, data);
+		break;
+	}
+	case WLR_SCENE_NODE_RECT: {
+		break;
+	}
+	case WLR_SCENE_NODE_SHADOW: {
+		struct wlr_scene_shadow *scene_shadow =
+			wlr_scene_shadow_from_node(node);
+		struct comp_object *obj = scene_shadow->node.data;
+		if (!obj) {
+			wlr_log(WLR_DEBUG,
+					"Tried to apply effects to buffer with unknown data");
+			break;
+		}
+		if (obj->type != COMP_OBJECT_TYPE_WIDGET) {
+			wlr_log(WLR_DEBUG, "Tried to apply effects to non Widget shadow");
+			break;
+		}
+
+		// Update opacity for saved shadow node
+		if (!data->is_saved) {
+			break;
+		}
+		struct comp_widget *widget = obj->data;
+		struct shadow_data *shadow_data = &widget->shadow_data;
+		wlr_scene_shadow_set_color(
+			scene_shadow,
+			(float[4]){shadow_data->color.r, shadow_data->color.g,
+					   shadow_data->color.b,
+					   shadow_data->color.a * widget->scene_buffer->opacity *
+						   widget->opacity});
+		break;
+	}
 	}
 }
 
@@ -664,9 +715,8 @@ void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
 	};
 	if (toplevel->object.saved_tree) {
 		data.is_saved = true;
-		scene_node_for_each_scene_buffer(&toplevel->object.saved_tree->node, 0,
-										 0, iter_scene_buffers_apply_effects,
-										 &data);
+		scene_node_apply_effects(&toplevel->object.saved_tree->node, 0, 0,
+								 &data);
 		return;
 	}
 	if (toplevel->object.destroying) {
@@ -675,8 +725,7 @@ void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
 		return;
 	}
 
-	scene_node_for_each_scene_buffer(&toplevel->object.content_tree->node, 0, 0,
-									 iter_scene_buffers_apply_effects, &data);
+	scene_node_apply_effects(&toplevel->object.content_tree->node, 0, 0, &data);
 }
 
 void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
@@ -946,8 +995,6 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
 	comp_toplevel_center_and_clip(toplevel, &geometry);
 
-	comp_toplevel_mark_effects_dirty(toplevel);
-
 	// Adjust edges
 	for (size_t i = 0; i < NUMBER_OF_RESIZE_TARGETS; i++) {
 		struct comp_resize_edge *edge = toplevel->edges[i];
@@ -967,7 +1014,7 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 	wlr_scene_node_set_enabled(&toplevel->decoration_scene_tree->node,
 							   !toplevel->fullscreen);
 	if (toplevel->fullscreen) {
-		return;
+		goto post_deocations;
 	}
 
 	// Only redraw the titlebar if the size has changed or there's a force
@@ -991,6 +1038,9 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 			&titlebar->widget.object.scene_tree->node, -BORDER_WIDTH,
 			-toplevel->decorated_size.top_border_height);
 	}
+
+post_deocations:
+	comp_toplevel_mark_effects_dirty(toplevel);
 }
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
@@ -1032,12 +1082,6 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	/* Set the scene_nodes decoration data */
 	toplevel->opacity = 1;
 	toplevel->corner_radius = EFFECTS_CORNER_RADII;
-	toplevel->shadow_data.enabled = true;
-	toplevel->shadow_data.color =
-		wlr_render_color_from_color(&(const uint32_t){TOPLEVEL_SHADOW_COLOR});
-	toplevel->shadow_data.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA;
-	toplevel->shadow_data.offset_x = TOPLEVEL_SHADOW_X_OFFSET;
-	toplevel->shadow_data.offset_y = TOPLEVEL_SHADOW_Y_OFFSET;
 
 	toplevel->dragging_tiled = false;
 	toplevel->tiling_mode = tiling_mode;
@@ -1093,19 +1137,6 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	return toplevel;
 }
 
-static inline void set_natural_size(struct comp_toplevel *toplevel) {
-	struct wlr_box box = toplevel->workspace->output->usable_area;
-
-	struct wlr_box geometry = comp_toplevel_get_geometry(toplevel);
-	toplevel->natural_width =
-		MAX(TOPLEVEL_MIN_WIDTH, MIN(geometry.width, box.width * 0.5));
-	toplevel->natural_height =
-		MAX(TOPLEVEL_MIN_HEIGHT, MIN(geometry.height, box.height * 0.75));
-
-	comp_toplevel_set_size(toplevel, toplevel->natural_width,
-						   toplevel->natural_height);
-}
-
 /*
  * Implementation generic functions
  */
@@ -1146,9 +1177,10 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 	comp_toplevel_mark_effects_dirty(toplevel);
 
-	// Open new floating toplevels in the center of the output/parent
-	// If tiling, save the centered state so untiling would center
-	set_natural_size(toplevel);
+	// Open new floating toplevels in the center of the output/parent with the
+	// natural size. If tiling, save the centered state so untiling would center
+	comp_toplevel_set_size(toplevel, toplevel->natural_width,
+						   toplevel->natural_height);
 	comp_toplevel_center(toplevel, toplevel->natural_width,
 						 toplevel->natural_height, false);
 	save_state(toplevel, &toplevel->pending_state);
@@ -1296,4 +1328,25 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 			comp_toplevel_send_frame_done(toplevel);
 		}
 	}
+}
+
+void comp_toplevel_generic_set_natural_size(struct comp_toplevel *toplevel,
+											int width, int height) {
+	struct comp_output *output = toplevel->workspace->output;
+	struct wlr_box box = output->usable_area;
+
+	if (width < TOPLEVEL_MIN_WIDTH) {
+		width = box.width * 0.5;
+	}
+	if (height < TOPLEVEL_MIN_HEIGHT) {
+		height = box.height * 0.75;
+	}
+
+	toplevel->natural_width =
+		MAX(TOPLEVEL_MIN_WIDTH, MIN(width, output->geometry.width));
+	toplevel->natural_height =
+		MAX(TOPLEVEL_MIN_HEIGHT, MIN(height, output->geometry.height));
+
+	comp_toplevel_set_size(toplevel, toplevel->natural_width,
+						   toplevel->natural_height);
 }

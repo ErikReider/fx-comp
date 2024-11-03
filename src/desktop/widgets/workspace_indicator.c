@@ -11,6 +11,7 @@
 #include "comp/workspace.h"
 #include "constants.h"
 #include "desktop/widgets/workspace_indicator.h"
+#include "scenefx/types/fx/corner_location.h"
 #include "util.h"
 
 static void set_visible(struct comp_ws_indicator *indicator, bool state) {
@@ -114,6 +115,8 @@ static void indicator_draw(struct comp_widget *widget, cairo_t *cr, int width,
 		break;
 	}
 	wlr_scene_buffer_set_opacity(indicator->widget.scene_buffer, alpha);
+
+	comp_widget_refresh_shadow(&indicator->widget);
 }
 
 static void resize_and_draw(struct comp_ws_indicator *indicator) {
@@ -171,6 +174,8 @@ static void indicator_ws_change(struct wl_listener *listener, void *data) {
 		indicator->animation_client->duration_ms =
 			WORKSPACE_SWITCHER_VISIBLE_MS;
 	}
+
+	comp_widget_refresh_shadow(&indicator->widget);
 
 	comp_animation_client_add(server.animation_mgr, indicator->animation_client,
 							  true);
@@ -237,8 +242,16 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 		return NULL;
 	}
 
+	struct shadow_data shadow_data = {
+		.color = wlr_render_color_from_color(
+			&(const uint32_t){TOPLEVEL_SHADOW_COLOR}),
+		.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA,
+		.offset_x = TOPLEVEL_SHADOW_X_OFFSET,
+		.offset_y = TOPLEVEL_SHADOW_Y_OFFSET,
+	};
+
 	if (!comp_widget_init(&indicator->widget, server, &output->object,
-						  output->layers.shell_overlay,
+						  output->layers.shell_overlay, shadow_data,
 						  &comp_ws_indicator_widget_impl)) {
 		free(indicator);
 		return NULL;
@@ -262,15 +275,8 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 	set_visible(indicator, false);
 
 	wlr_scene_buffer_set_corner_radius(indicator->widget.scene_buffer,
-									   EFFECTS_CORNER_RADII);
-	indicator->widget.shadow_data.enabled = true;
-	indicator->widget.shadow_data.color =
-		wlr_render_color_from_color(&(const uint32_t){TOPLEVEL_SHADOW_COLOR});
-	indicator->widget.shadow_data.blur_sigma = TOPLEVEL_SHADOW_BLUR_SIGMA;
-	indicator->widget.shadow_data.offset_x = TOPLEVEL_SHADOW_X_OFFSET;
-	indicator->widget.shadow_data.offset_y = TOPLEVEL_SHADOW_Y_OFFSET;
-	wlr_scene_buffer_set_shadow_data(indicator->widget.scene_buffer,
-									 indicator->widget.shadow_data);
+									   EFFECTS_CORNER_RADII,
+									   CORNER_LOCATION_ALL);
 
 	indicator->widget.backdrop_blur = true;
 	indicator->widget.backdrop_blur_optimized = false;

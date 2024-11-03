@@ -1,4 +1,3 @@
-#include <scenefx/types/fx/shadow_data.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -199,6 +198,9 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			set_xdg_decoration_mode(toplevel_xdg->xdg_decoration);
 		}
 		wlr_xdg_surface_schedule_configure(xdg_surface);
+		wlr_xdg_toplevel_set_wm_capabilities(
+			toplevel_xdg->xdg_toplevel,
+			XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
 		return;
 	}
 
@@ -292,6 +294,20 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	struct comp_xdg_toplevel *toplevel_xdg =
 		wl_container_of(listener, toplevel_xdg, map);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
+
+	// Set the initial natural size
+	toplevel->natural_width =
+		toplevel_xdg->xdg_toplevel->base->current.geometry.width;
+	toplevel->natural_height =
+		toplevel_xdg->xdg_toplevel->base->current.geometry.height;
+	if (!toplevel->natural_width && !toplevel->natural_height) {
+		toplevel->natural_width =
+			toplevel_xdg->xdg_toplevel->base->surface->current.width;
+		toplevel->natural_height =
+			toplevel_xdg->xdg_toplevel->base->surface->current.height;
+	}
+	comp_toplevel_generic_set_natural_size(toplevel, toplevel->natural_width,
+										   toplevel->natural_height);
 
 	comp_toplevel_generic_map(toplevel);
 

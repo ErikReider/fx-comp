@@ -1,4 +1,3 @@
-#include <scenefx/types/fx/shadow_data.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -14,6 +13,7 @@
 #include "comp/output.h"
 #include "comp/workspace.h"
 #include "desktop/xdg.h"
+#include "scenefx/types/fx/corner_location.h"
 #include "seat/cursor.h"
 #include "util.h"
 
@@ -59,8 +59,9 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 			return;
 		}
 		struct comp_xdg_popup *popup = user_data;
-		wlr_scene_buffer_set_shadow_data(buffer, popup->shadow_data);
-		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius);
+		// TODO: Apply shadows to popups?
+		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius,
+										   CORNER_LOCATION_ALL);
 		wlr_scene_buffer_set_opacity(buffer, popup->opacity);
 		break;
 	case COMP_TOPLEVEL_TYPE_XWAYLAND:
@@ -166,7 +167,6 @@ struct comp_xdg_popup *xdg_new_xdg_popup(struct wlr_xdg_popup *wlr_popup,
 	popup->opacity = 1;
 	popup->corner_radius = 0;
 	popup->shadow_data = shadow_data_get_default();
-	popup->shadow_data.enabled = false;
 
 	// Events
 
