@@ -1,7 +1,6 @@
 #ifndef FX_COMP_TOPLEVEL_H
 #define FX_COMP_TOPLEVEL_H
 
-#include <scenefx/types/fx/shadow_data.h>
 #include <stdbool.h>
 #include <wayland-server-core.h>
 #include <wayland-util.h>
@@ -38,8 +37,8 @@ struct comp_toplevel {
 
 	struct comp_object object;
 
-	struct wlr_scene_tree *decoration_scene_tree;
 	struct wlr_scene_tree *toplevel_scene_tree;
+	struct wlr_scene_tree *decoration_scene_tree;
 	// The saved buffer tree used for animations
 	struct wlr_scene_tree *saved_scene_tree;
 
@@ -56,6 +55,11 @@ struct comp_toplevel {
 	struct comp_resize_edge *edges[NUMBER_OF_RESIZE_TARGETS];
 	bool using_csd;
 
+	// The current workspace
+	struct comp_workspace *workspace;
+	// The previous workspace where the non-fullscreen state resided.
+	// Might be NULL
+	struct comp_workspace *saved_workspace;
 	struct tiling_node *tiling_node;
 	enum comp_tiling_mode tiling_mode;
 	bool dragging_tiled;
@@ -98,14 +102,13 @@ struct comp_toplevel {
 			struct comp_animation_client *client;
 			struct comp_toplevel_state to;
 			struct comp_toplevel_state from;
+			float crossfade_opacity;
 		} resize;
 	} anim;
 
 	// Effects
-	float tiling_drag_opacity;
 	float opacity;
 	int corner_radius;
-	struct shadow_data shadow_data;
 };
 
 struct comp_toplevel_impl {
@@ -133,7 +136,6 @@ struct comp_toplevel *comp_toplevel_init(struct comp_output *output,
 										 struct comp_workspace *workspace,
 										 enum comp_toplevel_type type,
 										 enum comp_tiling_mode tiling_mode,
-										 bool fullscreen,
 										 const struct comp_toplevel_impl *impl);
 
 void comp_toplevel_process_cursor_move(struct comp_server *server,
@@ -215,7 +217,7 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel);
 
 void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel);
 
-void comp_toplevel_refresh(struct comp_toplevel *toplevel);
+void comp_toplevel_refresh(struct comp_toplevel *toplevel, bool is_instruction);
 
 /*
  * Implementation generic functions
@@ -224,6 +226,9 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel);
 void comp_toplevel_generic_commit(struct comp_toplevel *toplevel);
+/** Set the natural size of the toplevel, constraining it to the minimum size */
+void comp_toplevel_generic_set_natural_size(struct comp_toplevel *toplevel,
+											int width, int height);
 
 /*
  * Animation

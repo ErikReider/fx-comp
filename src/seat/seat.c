@@ -27,6 +27,7 @@
 #include "seat/cursor.h"
 #include "seat/keyboard.h"
 #include "seat/seat.h"
+#include "util.h"
 #include "wlr-layer-shell-unstable-v1-protocol.h"
 
 bool comp_seat_object_is_focus(struct comp_seat *seat,
@@ -56,8 +57,6 @@ bool comp_seat_object_is_focus(struct comp_seat *seat,
 				   surface == seat->wlr_seat->pointer_state.focused_surface;
 		}
 		break;
-	case COMP_OBJECT_TYPE_WIDGET:
-		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:;
 		struct comp_xdg_popup *popup = object->data;
 		if (popup->parent_object == NULL) {
@@ -66,6 +65,9 @@ bool comp_seat_object_is_focus(struct comp_seat *seat,
 		return comp_seat_object_is_focus(seat, popup->parent_object);
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		// TODO: Handle this?
+		break;
+	case COMP_OBJECT_TYPE_WIDGET:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		break;
 	}
 	return false;
@@ -150,6 +152,101 @@ static void seat_request_cursor(struct wl_listener *listener, void *data) {
 		 * cursor moves between outputs. */
 		wlr_cursor_set_surface(seat->cursor->wlr_cursor, event->surface,
 							   event->hotspot_x, event->hotspot_y);
+	}
+}
+
+static void handle_request_start_drag(struct wl_listener *listener,
+									  void *data) {
+	struct comp_seat *seat =
+		wl_container_of(listener, seat, request_start_drag);
+	struct wlr_seat_request_start_drag_event *event = data;
+
+	if (wlr_seat_validate_pointer_grab_serial(seat->wlr_seat, event->origin,
+											  event->serial)) {
+		wlr_seat_start_pointer_drag(seat->wlr_seat, event->drag, event->serial);
+		return;
+	}
+
+	wlr_log(WLR_DEBUG,
+			"Skipping start drag, could not validate drag serial %" PRIu32,
+			event->serial);
+
+	wlr_data_source_destroy(event->drag->source);
+}
+
+static void drag_icon_update_position(struct comp_drag *drag) {
+	struct wlr_cursor *cursor = drag->seat->cursor->wlr_cursor;
+	struct wlr_drag_icon *wlr_drag_icon = drag->wlr_drag->icon;
+
+	switch (wlr_drag_icon->drag->grab_type) {
+	case WLR_DRAG_GRAB_KEYBOARD:
+		return;
+	case WLR_DRAG_GRAB_KEYBOARD_POINTER:
+		wlr_scene_node_set_position(&drag->object.scene_tree->node, cursor->x,
+									cursor->y);
+		break;
+	case WLR_DRAG_GRAB_KEYBOARD_TOUCH:
+		wlr_log(WLR_DEBUG, "Touch dnd not supported yet...");
+		return;
+	}
+}
+
+void comp_seat_update_dnd_positions(void) {
+	struct wlr_scene_node *node;
+	wl_list_for_each(node, &server.trees.dnd_tree->children, link) {
+		struct comp_object *obj = node->data;
+		if (!obj || obj->type != COMP_OBJECT_TYPE_DND_ICON || !obj->data) {
+			continue;
+		}
+		drag_icon_update_position(obj->data);
+	}
+}
+
+static void handle_dnd_destroy(struct wl_listener *listener, void *data) {
+	struct comp_drag *drag = wl_container_of(listener, drag, destroy);
+
+	// TODO: Focus?
+
+	wlr_scene_node_destroy(&drag->object.scene_tree->node);
+	drag->wlr_drag->data = NULL;
+	listener_remove(&drag->destroy);
+	free(drag);
+}
+
+static void handle_start_drag(struct wl_listener *listener, void *data) {
+	struct comp_seat *seat = wl_container_of(listener, seat, start_drag);
+	struct wlr_drag *wlr_drag = data;
+
+	struct comp_drag *drag = calloc(1, sizeof(*drag));
+	drag->object.scene_tree = alloc_tree(server.trees.dnd_tree);
+	drag->object.content_tree = alloc_tree(drag->object.scene_tree);
+	drag->object.scene_tree->node.data = &drag->object;
+	drag->object.data = drag;
+	drag->object.type = COMP_OBJECT_TYPE_DND_ICON;
+	drag->object.destroying = false;
+	drag->seat = seat;
+	drag->wlr_drag = wlr_drag;
+	wlr_drag->data = drag;
+
+	listener_init(&drag->destroy);
+	listener_connect(&wlr_drag->events.destroy, &drag->destroy,
+					 handle_dnd_destroy);
+
+	struct wlr_drag_icon *wlr_drag_icon = wlr_drag->icon;
+	if (wlr_drag_icon) {
+		drag->tree = wlr_scene_drag_icon_create(drag->object.content_tree,
+												wlr_drag_icon);
+		if (!drag->tree) {
+			wlr_log(WLR_ERROR, "Could not allocate drag icon tree");
+			drag->wlr_drag->data = NULL;
+			wlr_scene_node_destroy(&drag->object.scene_tree->node);
+			listener_remove(&drag->destroy);
+			free(drag);
+			return;
+		}
+
+		wlr_drag_icon->data = &drag->object;
+		drag_icon_update_position(drag);
 	}
 }
 
@@ -287,8 +384,7 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 			}
 
 			if (focus_previous) {
-				seat_focus_previous_toplevel(toplevel->state.workspace,
-											 surface);
+				seat_focus_previous_toplevel(toplevel->workspace, surface);
 			}
 
 			/*
@@ -316,8 +412,7 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 			}
 
 			if (focus_previous) {
-				seat_focus_previous_toplevel(toplevel->state.workspace,
-											 surface);
+				seat_focus_previous_toplevel(toplevel->workspace, surface);
 			}
 
 			/*
@@ -425,6 +520,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_UNMANAGED:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		return;
 	}
 
@@ -452,7 +548,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 		/* Move the node to the front */
 		// Workspace
 		wl_list_remove(&toplevel->workspace_link);
-		wl_list_insert(&toplevel->state.workspace->toplevels,
+		wl_list_insert(&toplevel->workspace->toplevels,
 					   &toplevel->workspace_link);
 		// Seat
 		wl_list_remove(&toplevel->focus_link);
@@ -474,6 +570,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		return;
 	}
 
@@ -497,6 +594,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		return;
 	}
 }
@@ -528,6 +626,14 @@ struct comp_seat *comp_seat_create(struct comp_server *server) {
 	seat->request_cursor.notify = seat_request_cursor;
 	wl_signal_add(&seat->wlr_seat->events.request_set_cursor,
 				  &seat->request_cursor);
+
+	wl_signal_add(&seat->wlr_seat->events.request_start_drag,
+				  &seat->request_start_drag);
+	seat->request_start_drag.notify = handle_request_start_drag;
+
+	wl_signal_add(&seat->wlr_seat->events.start_drag, &seat->start_drag);
+	seat->start_drag.notify = handle_start_drag;
+
 	seat->request_set_selection.notify = seat_request_set_selection;
 	wl_signal_add(&seat->wlr_seat->events.request_set_selection,
 				  &seat->request_set_selection);

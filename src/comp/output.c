@@ -123,6 +123,46 @@ struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 	return active_ws;
 }
 
+static void output_configure_scene(struct comp_output *output,
+								   struct wlr_scene_node *node) {
+	if (!node->enabled) {
+		return;
+	}
+
+	if (node->type == WLR_SCENE_NODE_BUFFER) {
+		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
+		// struct wlr_scene_surface *surface =
+		// 	wlr_scene_surface_try_from_buffer(buffer);
+
+		struct comp_object *obj = buffer->node.data;
+		if (!obj) {
+			wlr_log(WLR_DEBUG,
+					"Tried to apply effects to buffer with unknown data");
+			return;
+		}
+		if (obj->type == COMP_OBJECT_TYPE_TOPLEVEL) {
+			struct comp_toplevel *toplevel = obj->data;
+			// Stretch the saved toplevel buffer to fit the toplevel state
+			if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+				int width = toplevel->state.width;
+				int height = toplevel->state.height;
+				if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
+					wlr_scene_buffer_set_dest_size(buffer, height, width);
+				} else {
+					wlr_scene_buffer_set_dest_size(buffer, width, height);
+				}
+			}
+		}
+
+	} else if (node->type == WLR_SCENE_NODE_TREE) {
+		struct wlr_scene_tree *tree = wlr_scene_tree_from_node(node);
+		struct wlr_scene_node *node;
+		wl_list_for_each(node, &tree->children, link) {
+			output_configure_scene(output, node);
+		}
+	}
+}
+
 static void output_frame(struct wl_listener *listener, void *data) {
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -135,7 +175,7 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	struct wlr_scene_output *scene_output =
 		wlr_scene_get_scene_output(scene, output->wlr_output);
 
-	// output_configure_scene(output, &server.root_scene->tree.node, NULL);
+	output_configure_scene(output, &server.root_scene->tree.node);
 	// wlr_scene_optimized_blur_mark_dirty(scene);
 	// wlr_output_layout_get_box(server.output_layout, output->wlr_output,
 	// 						  &output->geometry);
@@ -248,7 +288,7 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	wlr_output->data = output;
 	output->server = server;
 
-	output->object.scene_tree = alloc_tree(&server->root_scene->tree);
+	output->object.scene_tree = alloc_tree(server->trees.outputs_tree);
 	output->object.content_tree = alloc_tree(output->object.scene_tree);
 	output->object.scene_tree->node.data = &output->object;
 	output->object.data = output;
@@ -259,9 +299,9 @@ struct comp_output *comp_output_create(struct comp_server *server,
 	output->layers.shell_background = alloc_tree(output->object.content_tree);
 	output->layers.shell_bottom = alloc_tree(output->object.content_tree);
 	output->layers.workspaces = alloc_tree(output->object.content_tree);
+	output->layers.unmanaged = alloc_tree(output->object.content_tree);
 	output->layers.shell_top = alloc_tree(output->object.content_tree);
 	output->layers.shell_overlay = alloc_tree(output->object.content_tree);
-	output->layers.seat = alloc_tree(output->object.content_tree);
 	output->layers.session_lock = alloc_tree(output->object.content_tree);
 
 	wl_list_init(&output->workspaces);
@@ -549,7 +589,6 @@ void comp_output_arrange_output(struct comp_output *output) {
 	struct comp_workspace *ws;
 	wl_list_for_each_reverse(ws, &output->workspaces, output_link) {
 		tiling_node_mark_workspace_dirty(ws);
-		comp_transaction_commit_dirty(true);
 
 		bool is_fullscreen = ws->type == COMP_WORKSPACE_TYPE_FULLSCREEN &&
 							 !wl_list_empty(&ws->toplevels);
@@ -561,15 +600,15 @@ void comp_output_arrange_output(struct comp_output *output) {
 					continue;
 				}
 				struct wlr_box output_box =
-					toplevel->state.workspace->output->geometry;
+					toplevel->workspace->output->geometry;
 				comp_toplevel_set_position(toplevel, 0, 0);
 				comp_toplevel_set_size(toplevel, output_box.width,
 									   output_box.height);
 				comp_object_mark_dirty(&toplevel->object);
-				comp_transaction_commit_dirty(true);
 			}
 		}
 	}
+	comp_transaction_commit_dirty(true);
 
 	ws = output->active_workspace;
 	bool is_locked = server.comp_session_lock.locked;
@@ -586,7 +625,6 @@ void comp_output_arrange_output(struct comp_output *output) {
 	wlr_scene_node_set_enabled(&output->layers.shell_top->node,
 							   !is_fullscreen && !is_locked);
 	wlr_scene_node_set_enabled(&output->layers.shell_overlay->node, !is_locked);
-	wlr_scene_node_set_enabled(&output->layers.seat->node, !is_locked);
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,

@@ -12,14 +12,14 @@
 
 void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 									 struct comp_toplevel *toplevel) {
-	if (toplevel->state.workspace == dest_workspace) {
+	if (toplevel->workspace == dest_workspace) {
 		return;
 	}
 	wlr_log(WLR_DEBUG, "Changing toplevel output from: '%s' to '%s'\n",
-			toplevel->state.workspace->output->wlr_output->name,
+			toplevel->workspace->output->wlr_output->name,
 			dest_workspace->output->wlr_output->name);
 	wl_list_remove(&toplevel->workspace_link);
-	toplevel->state.workspace = dest_workspace;
+	toplevel->workspace = dest_workspace;
 	wl_list_insert(&dest_workspace->toplevels, &toplevel->workspace_link);
 
 	int x, y;
@@ -32,9 +32,9 @@ void comp_workspace_move_toplevel_to(struct comp_workspace *dest_workspace,
 	// Adjust the node coordinates to be output-relative
 	double lx = x;
 	double ly = y;
-	wlr_output_layout_output_coords(
-		server.output_layout, toplevel->state.workspace->output->wlr_output,
-		&lx, &ly);
+	wlr_output_layout_output_coords(server.output_layout,
+									toplevel->workspace->output->wlr_output,
+									&lx, &ly);
 	comp_toplevel_set_position(toplevel, lx, ly);
 }
 
@@ -202,12 +202,6 @@ struct comp_workspace *comp_workspace_new(struct comp_output *output,
 		return NULL;
 	}
 	ws->layers.floating->node.data = &ws->object;
-	// Create unmanaged
-	ws->layers.unmanaged = alloc_tree(ws->object.content_tree);
-	if (!ws->layers.unmanaged) {
-		return NULL;
-	}
-	ws->layers.unmanaged->node.data = &ws->object;
 
 	wl_list_init(&ws->tiling_nodes);
 	wl_list_init(&ws->toplevels);

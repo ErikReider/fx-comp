@@ -8,6 +8,7 @@
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
 
+#include "comp/animation_mgr.h"
 #include "comp/output.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
@@ -38,6 +39,23 @@ static inline struct tiling_node *get_root_node(struct comp_workspace *ws) {
 	return NULL;
 }
 
+static struct wlr_box get_final_tiling_toplevel_size(struct tiling_node *node) {
+	struct comp_toplevel *toplevel = node->toplevel;
+	struct tiling_node *container = toplevel->tiling_node;
+
+	const int WIDTH_OFFSET = BORDER_WIDTH * 2;
+	const int HEIGHT_OFFSET =
+		BORDER_WIDTH * 2 + toplevel->decorated_size.top_border_height;
+
+	return (struct wlr_box){
+		.width = container->box.width - WIDTH_OFFSET - TILING_GAPS_INNER * 2,
+		.height = container->box.height - HEIGHT_OFFSET - TILING_GAPS_INNER * 2,
+		.x = container->box.x + BORDER_WIDTH + TILING_GAPS_INNER,
+		.y = container->box.y + toplevel->decorated_size.top_border_height +
+			 TILING_GAPS_INNER,
+	};
+}
+
 static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	if (node->is_node) {
 		return;
@@ -45,24 +63,19 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	assert(node->toplevel);
 
 	struct comp_toplevel *toplevel = node->toplevel;
-	struct tiling_node *container = toplevel->tiling_node;
+	struct wlr_box box = get_final_tiling_toplevel_size(node);
 
-	const int WIDTH_OFFSET =
-		toplevel->decorated_size.width - toplevel->state.width;
-	const int HEIGHT_OFFSET =
-		toplevel->decorated_size.height - toplevel->state.height;
+	comp_toplevel_set_size(toplevel, box.width, box.height);
+	comp_toplevel_set_position(toplevel, box.x, box.y);
 
-	const int WIDTH =
-		container->box.width - WIDTH_OFFSET - TILING_GAPS_INNER * 2;
-	const int HEIGHT =
-		container->box.height - HEIGHT_OFFSET - TILING_GAPS_INNER * 2;
-	const int X = container->box.x + BORDER_WIDTH + TILING_GAPS_INNER;
-	const int Y = container->box.y +
-				  toplevel->decorated_size.top_border_height +
-				  TILING_GAPS_INNER;
-
-	comp_toplevel_set_size(toplevel, WIDTH, HEIGHT);
-	comp_toplevel_set_position(toplevel, X, Y);
+	if (toplevel->state.width == box.width &&
+		toplevel->state.height == box.height && toplevel->state.x == box.x &&
+		toplevel->state.y == box.y) {
+		wlr_log(WLR_DEBUG,
+				"No size change for toplevel (%p), skipping resize animation",
+				toplevel);
+		return;
+	}
 
 	if (!toplevel->unmapped &&
 		server.seat->cursor->cursor_mode != COMP_CURSOR_RESIZE) {
@@ -72,6 +85,15 @@ static void apply_node_data_to_toplevel(struct tiling_node *node) {
 	}
 
 	comp_object_mark_dirty(&toplevel->object);
+
+	if (toplevel->anim.resize.client->state != ANIMATION_STATE_NONE) {
+		toplevel->anim.resize.to = (struct comp_toplevel_state){
+			.width = box.width,
+			.height = box.height,
+			.x = box.x,
+			.y = box.y,
+		};
+	}
 }
 
 static void calc_size_pos_recursive(struct tiling_node *node, bool update) {
@@ -138,14 +160,14 @@ void tiling_node_mark_workspace_dirty(struct comp_workspace *workspace) {
 
 void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 							  const bool insert_floating) {
-	toplevel->tiling_node = tiling_node_init(toplevel->state.workspace, false);
+	toplevel->tiling_node = tiling_node_init(toplevel->workspace, false);
 	struct tiling_node *container = toplevel->tiling_node;
 	container->toplevel = toplevel;
 
 	bool split_first = false;
 
 	// Try to get parent node
-	struct comp_workspace *ws = toplevel->state.workspace;
+	struct comp_workspace *ws = toplevel->workspace;
 	struct tiling_node *parent_node = NULL;
 	if (insert_floating) {
 		// Get the tiling node beneath the floating toplevel.
@@ -229,7 +251,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 
 	if (!parent_node) {
 		// No tiled nodes, don't split first node
-		struct comp_output *output = toplevel->state.workspace->output;
+		struct comp_output *output = toplevel->workspace->output;
 		container->box = (struct wlr_box){
 			.width = output->usable_area.width - TILING_GAPS_OUTER * 2,
 			.height = output->usable_area.height - TILING_GAPS_OUTER * 2,
@@ -242,7 +264,7 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	}
 
 	struct tiling_node *new_parent =
-		tiling_node_init(toplevel->state.workspace, true);
+		tiling_node_init(toplevel->workspace, true);
 	new_parent->box = parent_node->box;
 	new_parent->parent = parent_node->parent;
 	new_parent->split_vertical =
@@ -298,9 +320,26 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	parent_node->parent = new_parent;
 	container->parent = new_parent;
 
+	// Don't tile if the tiled size if too small for the toplevel
+	int max_width, max_height, min_width, min_height;
+	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
+								  &max_height);
+	if (!(min_width != 0 && min_height != 0 &&
+		  (min_width == max_width || min_height == max_height))) {
+		struct wlr_box tiling_box = get_final_tiling_toplevel_size(container);
+		if (tiling_box.width < min_width || tiling_box.height < min_height) {
+			wlr_log(WLR_DEBUG,
+					"Toplevel %s (%p) is too large for tiling rect, setting as "
+					"floating",
+					comp_toplevel_get_title(toplevel), toplevel);
+			comp_toplevel_set_tiled(toplevel, false, true);
+			return;
+		}
+	}
+
 	calc_size_pos_recursive(new_parent, true);
 
-	tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+	tiling_node_mark_workspace_dirty(toplevel->workspace);
 }
 
 void tiling_node_remove_toplevel(struct comp_toplevel *toplevel) {
@@ -351,7 +390,7 @@ static bool can_update(struct comp_toplevel *toplevel) {
 	struct tiling_node *node = toplevel->tiling_node;
 
 	float ms = 16.667;
-	struct comp_workspace *ws = toplevel->state.workspace;
+	struct comp_workspace *ws = toplevel->workspace;
 	if (ws && ws->output && ws->output != server.fallback_output) {
 		ms = ws->output->refresh_sec * 1000;
 	}
@@ -379,7 +418,7 @@ void tiling_node_resize(struct comp_toplevel *toplevel) {
 	struct tiling_node *node = toplevel->tiling_node;
 
 	struct wlr_box box = node->box;
-	struct wlr_box usable_area = toplevel->state.workspace->output->usable_area;
+	struct wlr_box usable_area = toplevel->workspace->output->usable_area;
 
 	const double delta_x =
 		(seat->cursor->wlr_cursor->x - seat->cursor->previous.x);
@@ -458,14 +497,12 @@ void tiling_node_move_start(struct comp_toplevel *toplevel) {
 	}
 
 	toplevel->dragging_tiled = true;
-	toplevel->tiling_drag_opacity = TILING_MOVE_TOPLEVEL_OPACITY;
 	comp_toplevel_mark_effects_dirty(toplevel);
 	comp_toplevel_set_tiled(toplevel, false, false);
 }
 
 void tiling_node_move_fini(struct comp_toplevel *toplevel) {
 	toplevel->dragging_tiled = false;
-	toplevel->tiling_drag_opacity = 1;
 	comp_toplevel_mark_effects_dirty(toplevel);
 	comp_toplevel_set_tiled(toplevel, true, false);
 }

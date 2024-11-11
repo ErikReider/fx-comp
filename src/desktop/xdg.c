@@ -1,4 +1,3 @@
-#include <scenefx/types/fx/shadow_data.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -20,6 +19,7 @@
 #include "desktop/widgets/titlebar.h"
 #include "desktop/xdg.h"
 #include "seat/cursor.h"
+#include "util.h"
 
 /*
  * Toplevel Implementation
@@ -178,9 +178,8 @@ static void handle_new_popup(struct wl_listener *listener, void *data) {
 	struct comp_xdg_toplevel *toplevel_xdg =
 		wl_container_of(listener, toplevel_xdg, new_popup);
 	struct wlr_xdg_popup *wlr_popup = data;
-	// TODO: Somehow raise above comp_resize_edge
 	xdg_new_xdg_popup(wlr_popup, &toplevel_xdg->toplevel->object,
-					  toplevel_xdg->toplevel->toplevel_scene_tree);
+					  toplevel_xdg->popup_scene_tree);
 }
 
 /*
@@ -199,6 +198,9 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			set_xdg_decoration_mode(toplevel_xdg->xdg_decoration);
 		}
 		wlr_xdg_surface_schedule_configure(xdg_surface);
+		wlr_xdg_toplevel_set_wm_capabilities(
+			toplevel_xdg->xdg_toplevel,
+			XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
 		return;
 	}
 
@@ -237,7 +239,8 @@ static void xdg_toplevel_request_move(struct wl_listener *listener,
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
 	// TODO: Also check if tiled
-	if (!toplevel->fullscreen) {
+	if (!toplevel->fullscreen &&
+		toplevel->tiling_mode != COMP_TILING_MODE_TILED) {
 		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
 	}
 }
@@ -250,7 +253,8 @@ static void xdg_toplevel_request_resize(struct wl_listener *listener,
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
 	// TODO: Also check if tiled
-	if (!toplevel->fullscreen) {
+	if (!toplevel->fullscreen &&
+		toplevel->tiling_mode != COMP_TILING_MODE_TILED) {
 		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE,
 										event->edges);
 	}
@@ -290,6 +294,20 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	struct comp_xdg_toplevel *toplevel_xdg =
 		wl_container_of(listener, toplevel_xdg, map);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
+
+	// Set the initial natural size
+	toplevel->natural_width =
+		toplevel_xdg->xdg_toplevel->base->current.geometry.width;
+	toplevel->natural_height =
+		toplevel_xdg->xdg_toplevel->base->current.geometry.height;
+	if (!toplevel->natural_width && !toplevel->natural_height) {
+		toplevel->natural_width =
+			toplevel_xdg->xdg_toplevel->base->surface->current.width;
+		toplevel->natural_height =
+			toplevel_xdg->xdg_toplevel->base->surface->current.height;
+	}
+	comp_toplevel_generic_set_natural_size(toplevel, toplevel->natural_width,
+										   toplevel->natural_height);
 
 	comp_toplevel_generic_map(toplevel);
 
@@ -343,21 +361,17 @@ void xdg_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 		return;
 	}
 	toplevel_xdg->xdg_toplevel = xdg_toplevel;
-	bool is_fullscreen = toplevel_xdg->xdg_toplevel->requested.fullscreen;
 
 	// Add the toplevel to the tiled/floating layer
 	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(server);
-	struct comp_workspace *workspace =
-		comp_output_get_active_ws(output, is_fullscreen);
+	struct comp_workspace *workspace = comp_output_get_active_ws(output, false);
 
 	/* Allocate a comp_toplevel for this surface */
-	struct comp_toplevel *toplevel =
-		comp_toplevel_init(output, workspace, COMP_TOPLEVEL_TYPE_XDG,
-						   tiling_mode, is_fullscreen, &xdg_impl);
+	struct comp_toplevel *toplevel = comp_toplevel_init(
+		output, workspace, COMP_TOPLEVEL_TYPE_XDG, tiling_mode, &xdg_impl);
 	toplevel->using_csd = true;
-	toplevel->fullscreen = is_fullscreen;
 	toplevel->toplevel_xdg = toplevel_xdg;
 	toplevel_xdg->toplevel = toplevel;
 
@@ -373,6 +387,11 @@ void xdg_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 		toplevel->object.content_tree, toplevel_xdg->xdg_toplevel->base);
 	toplevel->toplevel_scene_tree->node.data = &toplevel->object;
 	xdg_toplevel->base->data = toplevel->object.scene_tree;
+
+	wlr_scene_node_raise_to_top(&toplevel->saved_scene_tree->node);
+	wlr_scene_node_raise_to_top(&toplevel->decoration_scene_tree->node);
+	// Make sure that the popups are above the saved buffers and the decorations
+	toplevel_xdg->popup_scene_tree = alloc_tree(toplevel->object.content_tree);
 
 	/*
 	 * Events

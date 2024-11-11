@@ -1,4 +1,3 @@
-#include <scenefx/types/fx/shadow_data.h>
 #include <scenefx/types/wlr_scene.h>
 #include <stdbool.h>
 #include <stddef.h>
@@ -14,6 +13,7 @@
 #include "comp/output.h"
 #include "comp/workspace.h"
 #include "desktop/xdg.h"
+#include "scenefx/types/fx/corner_location.h"
 #include "seat/cursor.h"
 #include "util.h"
 
@@ -30,6 +30,7 @@ static struct comp_toplevel *get_root_toplevel(struct comp_xdg_popup *popup) {
 	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 		return get_root_toplevel(parent_object->data);
@@ -58,8 +59,9 @@ static void iter_scene_buffers_apply_effects(struct wlr_scene_buffer *buffer,
 			return;
 		}
 		struct comp_xdg_popup *popup = user_data;
-		wlr_scene_buffer_set_shadow_data(buffer, popup->shadow_data);
-		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius);
+		// TODO: Apply shadows to popups?
+		wlr_scene_buffer_set_corner_radius(buffer, popup->corner_radius,
+										   CORNER_LOCATION_ALL);
 		wlr_scene_buffer_set_opacity(buffer, popup->opacity);
 		break;
 	case COMP_TOPLEVEL_TYPE_XWAYLAND:
@@ -104,10 +106,10 @@ static void popup_unconstrain(struct comp_xdg_popup *popup) {
 	struct comp_toplevel *toplevel = get_root_toplevel(popup);
 	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
 
-	if (!toplevel || !toplevel->state.workspace) {
+	if (!toplevel || !toplevel->workspace || !toplevel->workspace->output) {
 		return;
 	}
-	struct comp_workspace *workspace = toplevel->state.workspace;
+	struct comp_workspace *workspace = toplevel->workspace;
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup
@@ -165,7 +167,6 @@ struct comp_xdg_popup *xdg_new_xdg_popup(struct wlr_xdg_popup *wlr_popup,
 	popup->opacity = 1;
 	popup->corner_radius = 0;
 	popup->shadow_data = shadow_data_get_default();
-	popup->shadow_data.enabled = false;
 
 	// Events
 

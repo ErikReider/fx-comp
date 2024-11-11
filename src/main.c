@@ -269,6 +269,9 @@ int main(int argc, char *argv[]) {
 	 */
 	server.root_scene = wlr_scene_create();
 
+	server.trees.outputs_tree = wlr_scene_tree_create(&server.root_scene->tree);
+	server.trees.dnd_tree = wlr_scene_tree_create(&server.root_scene->tree);
+
 	server.scene_layout =
 		wlr_scene_attach_output_layout(server.root_scene, server.output_layout);
 	if (server.scene_layout == NULL) {
@@ -299,7 +302,7 @@ int main(int argc, char *argv[]) {
 	 * used for application windows. For more detail on shells, refer to
 	 * https://drewdevault.com/2018/07/29/Wayland-shells.html.
 	 */
-	server.xdg_shell = wlr_xdg_shell_create(server.wl_display, 3);
+	server.xdg_shell = wlr_xdg_shell_create(server.wl_display, 5);
 	server.new_xdg_toplevel.notify = xdg_new_xdg_toplevel;
 	wl_signal_add(&server.xdg_shell->events.new_toplevel,
 				  &server.new_xdg_toplevel);

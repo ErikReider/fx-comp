@@ -4,6 +4,7 @@
 #include <wayland-server-core.h>
 
 #include "comp/object.h"
+#include "desktop/effects/shadow_data.h"
 #include "desktop/toplevel.h"
 #include "desktop/xdg_decoration.h"
 
@@ -13,6 +14,8 @@
 
 struct comp_xdg_toplevel {
 	struct comp_toplevel *toplevel;
+
+	struct wlr_scene_tree *popup_scene_tree;
 
 	struct wlr_xdg_toplevel *xdg_toplevel;
 	struct comp_xdg_decoration *xdg_decoration;

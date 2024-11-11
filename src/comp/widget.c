@@ -4,7 +4,9 @@
 #include <stdlib.h>
 #include <wlr/util/log.h>
 
+#include "cairo.h"
 #include "comp/cairo_buffer.h"
+#include "comp/object.h"
 #include "comp/output.h"
 #include "comp/widget.h"
 #include "seat/seat.h"
@@ -26,9 +28,46 @@ static void widget_destroy(struct wl_listener *listener, void *data) {
 	}
 }
 
+static bool handle_point_accepts_input(struct wlr_scene_buffer *buffer,
+									   double *x, double *y) {
+	struct comp_object *object = buffer->node.data;
+	assert(object && object->type == COMP_OBJECT_TYPE_WIDGET && object->data);
+	struct comp_widget *widget = object->data;
+	if (widget->impl->handle_point_accepts_input) {
+		return widget->impl->handle_point_accepts_input(widget, buffer, x, y);
+	}
+	return true;
+}
+
+void comp_widget_refresh_shadow(struct comp_widget *widget) {
+	struct shadow_data *shadow_data = &widget->shadow_data;
+
+	wlr_scene_node_set_enabled(&widget->shadow_node->node, true);
+
+	wlr_scene_shadow_set_corner_radius(widget->shadow_node,
+									   widget->corner_radius);
+	wlr_scene_shadow_set_blur_sigma(widget->shadow_node,
+									shadow_data->blur_sigma);
+	wlr_scene_shadow_set_color(
+		widget->shadow_node,
+		(float[4]){shadow_data->color.r, shadow_data->color.g,
+				   shadow_data->color.b,
+				   shadow_data->color.a * widget->scene_buffer->opacity *
+					   widget->opacity});
+
+	wlr_scene_node_set_position(
+		&widget->shadow_node->node,
+		-shadow_data->blur_sigma + shadow_data->offset_x,
+		-shadow_data->blur_sigma + shadow_data->offset_y);
+	wlr_scene_shadow_set_size(widget->shadow_node,
+							  widget->width + shadow_data->blur_sigma * 2,
+							  widget->height + shadow_data->blur_sigma * 2);
+}
+
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 					  struct comp_object *parent_obj,
 					  struct wlr_scene_tree *parent_tree,
+					  struct shadow_data shadow_data,
 					  const struct comp_widget_impl *impl) {
 	assert(parent_obj);
 	widget->object.scene_tree = alloc_tree(parent_tree);
@@ -39,6 +78,15 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 		return false;
 	}
 
+	// Shadow
+	widget->shadow_node = wlr_scene_shadow_create(
+		widget->object.content_tree, 0, 0, 0, shadow_data.blur_sigma,
+		(float[4]){shadow_data.color.r, shadow_data.color.g,
+				   shadow_data.color.b, shadow_data.color.a});
+	widget->shadow_node->node.data = &widget->object;
+	widget->shadow_data = shadow_data;
+	wlr_scene_node_set_enabled(&widget->shadow_node->node, false);
+
 	widget->scene_buffer =
 		wlr_scene_buffer_create(widget->object.content_tree, NULL);
 	if (widget->scene_buffer == NULL) {
@@ -46,6 +94,9 @@ bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,
 		wlr_scene_node_destroy(&widget->object.scene_tree->node);
 		return false;
 	}
+	widget->scene_buffer->node.data = &widget->object;
+
+	widget->scene_buffer->point_accepts_input = handle_point_accepts_input;
 
 	widget->sets_cursor = false;
 
@@ -126,6 +177,15 @@ static void comp_widget_draw(struct comp_widget *widget, int width,
 		wlr_buffer_drop(&widget->buffer->base);
 
 		widget->buffer = cairo_buffer_init(scaled_width, scaled_height);
+	} else {
+		// Clear the previous buffer
+		cairo_save(widget->buffer->cairo);
+		cairo_set_source_rgba(widget->buffer->cairo, 0.0, 0.0, 0.0, 0.0);
+		cairo_set_operator(widget->buffer->cairo, CAIRO_OPERATOR_CLEAR);
+		cairo_rectangle(widget->buffer->cairo, 0, 0, scaled_width,
+						scaled_height);
+		cairo_paint_with_alpha(widget->buffer->cairo, 1.0);
+		cairo_restore(widget->buffer->cairo);
 	}
 
 	// Draw

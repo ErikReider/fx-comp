@@ -8,6 +8,7 @@
 
 #include "comp/server.h"
 #include "constants.h"
+#include "desktop/effects/shadow_data.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/resize_edge.h"
 #include "desktop/widgets/titlebar.h"
@@ -106,6 +107,7 @@ comp_resize_edge_init(struct comp_server *server,
 
 	if (!comp_widget_init(&edge->widget, server, &toplevel->object,
 						  toplevel->decoration_scene_tree,
+						  shadow_data_get_default(),
 						  &comp_resize_edge_widget_impl)) {
 		free(edge);
 		return NULL;
@@ -132,8 +134,10 @@ void comp_resize_edge_get_geometry(struct comp_resize_edge *edge, int *width,
 	const int FULL_HEIGHT = titlebar->widget.height + BORDER_RESIZE_WIDTH * 2;
 
 	const int ORIGIN_X = -RESIZE_WIDTH;
-	const int ORIGIN_Y = -edge->toplevel->titlebar->bar_height - BORDER_WIDTH -
-						 BORDER_RESIZE_WIDTH;
+	const int ORIGIN_Y =
+		(edge->toplevel->using_csd ? 0
+								   : -edge->toplevel->titlebar->bar_height) -
+		BORDER_WIDTH - BORDER_RESIZE_WIDTH;
 
 	// NOTE: Maybe find a better way of doing this...
 	switch (edge->edge) {

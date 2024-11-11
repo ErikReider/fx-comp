@@ -104,7 +104,7 @@ bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel) {
 void comp_toplevel_toggle_tiled(struct comp_toplevel *toplevel) {
 	comp_toplevel_set_tiled(
 		toplevel, toplevel->tiling_mode == COMP_TILING_MODE_FLOATING, false);
-	comp_transaction_commit_dirty(true);
+	// NOTE: Let the resize animation commit the transaction
 }
 
 void comp_toplevel_set_pid(struct comp_toplevel *toplevel) {

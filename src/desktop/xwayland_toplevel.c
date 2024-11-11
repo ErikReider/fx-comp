@@ -125,19 +125,16 @@ static uint32_t xway_configure(struct comp_toplevel *toplevel, int width,
 							   int height, int x, int y) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 
-	if (toplevel->state.workspace && toplevel->state.workspace->output) {
+	if (toplevel->workspace && toplevel->workspace->output) {
 		double lx = 0, ly = 0;
-		wlr_output_layout_output_coords(
-			server.output_layout, toplevel->state.workspace->output->wlr_output,
-			&lx, &ly);
+		wlr_output_layout_output_coords(server.output_layout,
+										toplevel->workspace->output->wlr_output,
+										&lx, &ly);
 		x -= (int16_t)lx;
 		y -= (int16_t)ly;
 	}
 
-	if (xsurface->x != x || xsurface->y != y || xsurface->width != width ||
-		xsurface->height != height) {
-		wlr_xwayland_surface_configure(xsurface, x, y, width, height);
-	}
+	wlr_xwayland_surface_configure(xsurface, x, y, width, height);
 
 	// xwayland doesn't give us a serial for the configure
 	return 0;
@@ -196,9 +193,9 @@ static bool should_run_transaction(struct comp_toplevel *toplevel) {
 	// XWayland uses root coords, input hitboxes get all messed up when output
 	// position is changed...
 	double lx = 0, ly = 0;
-	wlr_output_layout_output_coords(
-		server.output_layout, toplevel->state.workspace->output->wlr_output,
-		&lx, &ly);
+	wlr_output_layout_output_coords(server.output_layout,
+									toplevel->workspace->output->wlr_output,
+									&lx, &ly);
 	int x = instruction->state.x - (int)lx;
 	int y = instruction->state.y - (int)ly;
 
@@ -275,11 +272,11 @@ static void xway_toplevel_request_activate(struct wl_listener *listener,
 	// Make surface coords output scene node relative, instead of scene root
 	// relative. Helps when output position isn't 0
 	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
-	if (toplevel->state.workspace && toplevel->state.workspace->output) {
+	if (toplevel->workspace && toplevel->workspace->output) {
 		double lx = 0, ly = 0;
-		wlr_output_layout_output_coords(
-			server.output_layout, toplevel->state.workspace->output->wlr_output,
-			&lx, &ly);
+		wlr_output_layout_output_coords(server.output_layout,
+										toplevel->workspace->output->wlr_output,
+										&lx, &ly);
 		x += (int16_t)lx;
 		y += (int16_t)ly;
 	}
@@ -301,7 +298,8 @@ static void xway_toplevel_request_move(struct wl_listener *listener,
 	}
 
 	// TODO: Also check if tiled
-	if (!toplevel->fullscreen) {
+	if (!toplevel->fullscreen &&
+		toplevel->tiling_mode != COMP_TILING_MODE_TILED) {
 		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_MOVE, 0);
 	}
 }
@@ -317,7 +315,8 @@ static void xway_toplevel_request_resize(struct wl_listener *listener,
 	}
 
 	// TODO: Also check if tiled
-	if (!toplevel->fullscreen) {
+	if (!toplevel->fullscreen &&
+		toplevel->tiling_mode != COMP_TILING_MODE_TILED) {
 		struct wlr_xwayland_resize_event *event = data;
 		comp_toplevel_begin_interactive(toplevel, COMP_CURSOR_RESIZE,
 										event->edges);
@@ -371,7 +370,7 @@ static void xway_toplevel_set_decorations(struct wl_listener *listener,
 	comp_transaction_commit_dirty(true);
 	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
 		toplevel->tiling_node) {
-		tiling_node_mark_workspace_dirty(toplevel->state.workspace);
+		tiling_node_mark_workspace_dirty(toplevel->workspace);
 	}
 }
 
@@ -440,7 +439,7 @@ static void xway_toplevel_request_configure(struct wl_listener *listener,
 					   toplevel->pending_state.y);
 		comp_object_mark_dirty(&toplevel->object);
 	} else {
-		xway_configure(toplevel, toplevel->state.width, toplevel->state.width,
+		xway_configure(toplevel, toplevel->state.width, toplevel->state.height,
 					   toplevel->state.x, toplevel->state.y);
 	}
 }
@@ -457,6 +456,12 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xway, map);
 	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
 
+	// Set the initial natural size
+	toplevel->natural_width = toplevel_xway->xwayland_surface->width;
+	toplevel->natural_height = toplevel_xway->xwayland_surface->height;
+	comp_toplevel_generic_set_natural_size(toplevel, toplevel->natural_width,
+										   toplevel->natural_height);
+
 	// Insert the surface into the scene
 	toplevel->toplevel_scene_tree = wlr_scene_subsurface_tree_create(
 		toplevel->object.content_tree,
@@ -467,6 +472,9 @@ static void xway_toplevel_map(struct wl_listener *listener, void *data) {
 						 &toplevel_xway->surface_tree_destroy,
 						 handle_surface_tree_destroy);
 	}
+
+	wlr_scene_node_raise_to_top(&toplevel->saved_scene_tree->node);
+	wlr_scene_node_raise_to_top(&toplevel->decoration_scene_tree->node);
 
 	listener_connect(&toplevel_xway->xwayland_surface->surface->events.commit,
 					 &toplevel_xway->commit, xway_toplevel_commit);
@@ -541,20 +549,17 @@ xway_create_toplevel(struct wlr_xwayland_surface *xsurface) {
 	}
 	toplevel_xway->xwayland_surface = xsurface;
 
-	bool is_fullscreen = xsurface->fullscreen;
 	// Add the toplevel to the tiled/floating layer
 	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
 
 	struct comp_output *output = get_active_output(&server);
-	struct comp_workspace *workspace =
-		comp_output_get_active_ws(output, is_fullscreen);
+	struct comp_workspace *workspace = comp_output_get_active_ws(output, false);
 
 	/* Allocate a comp_toplevel for this surface */
 	struct comp_toplevel *toplevel =
 		comp_toplevel_init(output, workspace, COMP_TOPLEVEL_TYPE_XWAYLAND,
-						   tiling_mode, is_fullscreen, &xwayland_impl);
+						   tiling_mode, &xwayland_impl);
 	toplevel->using_csd = xway_get_using_csd(xsurface);
-	toplevel->fullscreen = is_fullscreen;
 	toplevel->toplevel_xway = toplevel_xway;
 	toplevel_xway->toplevel = toplevel;
 	toplevel_xway->xwayland_surface->data = toplevel->object.scene_tree;

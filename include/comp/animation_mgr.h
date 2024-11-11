@@ -5,6 +5,12 @@
 #include <wayland-server-core.h>
 #include <wayland-util.h>
 
+enum comp_animation_state {
+	ANIMATION_STATE_NONE,
+	ANIMATION_STATE_WAITING,
+	ANIMATION_STATE_RUNNING,
+};
+
 // TODO: Move into SceneFX
 struct comp_animation_mgr {
 	struct wl_event_source *tick;
@@ -22,7 +28,7 @@ struct comp_animation_client {
 	// 0.0f -> 1.0f
 	double progress;
 
-	bool animating;
+	enum comp_animation_state state;
 
 	// Duration in ms
 	int duration_ms;
@@ -55,6 +61,10 @@ void comp_animation_client_cancel(struct comp_animation_mgr *mgr,
 void comp_animation_client_destroy(struct comp_animation_client *client);
 
 void comp_animation_client_add(struct comp_animation_mgr *mgr,
-							   struct comp_animation_client *client);
+							   struct comp_animation_client *client,
+							   bool run_now);
+
+void comp_animation_client_start(struct comp_animation_mgr *mgr,
+								 struct comp_animation_client *client);
 
 #endif // !FX_COMP_ANIMATION_MGR_H

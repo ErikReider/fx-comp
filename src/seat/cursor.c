@@ -60,6 +60,8 @@ static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 	// Set the active output
 	set_active_output_from_cursor_pos(cursor);
 
+	comp_seat_update_dnd_positions();
+
 	// Otherwise, find the toplevel under the pointer and send the event along.
 	double sx, sy;
 	struct wlr_seat *seat = server->seat->wlr_seat;
@@ -83,6 +85,7 @@ static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 	} else {
 		switch (object->type) {
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		case COMP_OBJECT_TYPE_DND_ICON:
 			break;
 		case COMP_OBJECT_TYPE_TOPLEVEL:
 		case COMP_OBJECT_TYPE_XDG_POPUP:
@@ -246,6 +249,7 @@ static bool try_resize_or_move_toplevel(struct comp_object *object,
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+	case COMP_OBJECT_TYPE_DND_ICON:
 		return false;
 	}
 
@@ -314,6 +318,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			case COMP_OBJECT_TYPE_OUTPUT:
 			case COMP_OBJECT_TYPE_WORKSPACE:
 			case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+			case COMP_OBJECT_TYPE_DND_ICON:
 				break;
 			}
 		}
@@ -357,6 +362,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		case COMP_OBJECT_TYPE_OUTPUT:
 		case COMP_OBJECT_TYPE_WORKSPACE:
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
+		case COMP_OBJECT_TYPE_DND_ICON:
 			break;
 		}
 	}

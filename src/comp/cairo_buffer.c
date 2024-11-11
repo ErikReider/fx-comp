@@ -10,7 +10,7 @@ struct cairo_buffer *cairo_buffer_init(int width, int height) {
 	cairo_surface_t *surface =
 		cairo_image_surface_create(CAIRO_FORMAT_ARGB32, width, height);
 	if (surface == NULL) {
-		wlr_log(WLR_ERROR, "Failed to create cairo image surface for titlebar");
+		wlr_log(WLR_ERROR, "Failed to create cairo image surface for widget");
 		return NULL;
 	}
 	if (cairo_surface_status(surface) != CAIRO_STATUS_SUCCESS) {
@@ -21,7 +21,7 @@ struct cairo_buffer *cairo_buffer_init(int width, int height) {
 	if (cairo == NULL) {
 		goto err_create_cairo;
 	}
-	cairo_set_antialias(cairo, CAIRO_ANTIALIAS_BEST);
+	cairo_set_antialias(cairo, CAIRO_ANTIALIAS_DEFAULT);
 
 	cairo_font_options_t *font_options = cairo_font_options_create();
 	if (!font_options) {

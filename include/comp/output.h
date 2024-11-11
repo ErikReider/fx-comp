@@ -19,13 +19,14 @@ struct comp_output {
 	// Geometry never set
 	struct comp_object object;
 	struct {
-		struct wlr_scene_tree *shell_background; // TODO: Layershell
-		struct wlr_scene_tree *shell_bottom;	 // TODO: Layershell
+		struct wlr_scene_tree *shell_background;
+		struct wlr_scene_tree *shell_bottom;
 		struct wlr_scene_tree *workspaces;
-		struct wlr_scene_tree *shell_top;	  // TODO: Layershell
-		struct wlr_scene_tree *shell_overlay; // TODO: Layershell
-		struct wlr_scene_tree *seat;		  // TODO: Drag and drop
-		struct wlr_scene_tree *session_lock;  // TODO: session_lock
+		// for unmanaged XWayland surfaces without a parent
+		struct wlr_scene_tree *unmanaged;
+		struct wlr_scene_tree *shell_top;
+		struct wlr_scene_tree *shell_overlay;
+		struct wlr_scene_tree *session_lock;
 	} layers;
 
 	struct comp_ws_indicator *ws_indicator;

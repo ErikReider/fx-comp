@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <glib.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -29,7 +30,7 @@ comp_animation_client_init(struct comp_animation_mgr *mgr, int duration_ms,
 	client->duration_ms = duration_ms;
 	client->inited = false;
 	client->progress = 0.0;
-	client->animating = false;
+	client->state = ANIMATION_STATE_NONE;
 	client->impl = impl;
 	client->data = data;
 
@@ -38,15 +39,17 @@ comp_animation_client_init(struct comp_animation_mgr *mgr, int duration_ms,
 
 void comp_animation_client_remove(struct comp_animation_client *client) {
 	if (client->inited) {
-		wl_list_remove(&client->link);
+		if (client->state == ANIMATION_STATE_RUNNING) {
+			wl_list_remove(&client->link);
+		}
 		client->inited = false;
 	}
 
-	client->animating = false;
+	client->state = ANIMATION_STATE_NONE;
 }
 
-static void run(struct comp_animation_mgr *mgr,
-				struct comp_animation_client *client, bool cancel) {
+static void done(struct comp_animation_mgr *mgr,
+				 struct comp_animation_client *client, bool cancel) {
 	comp_animation_client_remove(client);
 
 	client->progress = 1.0;
@@ -57,7 +60,7 @@ static void run(struct comp_animation_mgr *mgr,
 
 void comp_animation_client_cancel(struct comp_animation_mgr *mgr,
 								  struct comp_animation_client *client) {
-	run(mgr, client, true);
+	done(mgr, client, true);
 }
 
 void comp_animation_client_destroy(struct comp_animation_client *client) {
@@ -66,20 +69,34 @@ void comp_animation_client_destroy(struct comp_animation_client *client) {
 }
 
 void comp_animation_client_add(struct comp_animation_mgr *mgr,
-							   struct comp_animation_client *client) {
+							   struct comp_animation_client *client,
+							   bool run_now) {
 	comp_animation_client_remove(client);
 	client->inited = true;
-	client->animating = true;
+	client->state = ANIMATION_STATE_WAITING;
+
+	if (run_now) {
+		comp_animation_client_start(mgr, client);
+	}
+}
+
+void comp_animation_client_start(struct comp_animation_mgr *mgr,
+								 struct comp_animation_client *client) {
+	if (!client->inited) {
+		comp_animation_client_add(mgr, client, false);
+	}
+	client->state = ANIMATION_STATE_RUNNING;
 
 	client->progress = 0.0;
 	wl_list_insert(&mgr->clients, &client->link);
 
 	if (client->duration_ms < MIN_DURATION) {
+		client->state = ANIMATION_STATE_RUNNING;
 		client->progress = 1.0;
 		if (client->impl->update) {
 			client->impl->update(mgr, client);
 		}
-		run(mgr, client, false);
+		done(mgr, client, false);
 		return;
 	}
 
@@ -111,7 +128,6 @@ static int animation_timer(void *data) {
 	struct comp_animation_client *client, *tmp;
 	wl_list_for_each_reverse_safe(client, tmp, &mgr->clients, link) {
 		client->progress += fastest_output_refresh_s / client->duration_ms;
-		client->animating = true;
 
 		if (client->impl->update) {
 			client->impl->update(mgr, client);
@@ -119,7 +135,7 @@ static int animation_timer(void *data) {
 
 		if (client->progress >= 1.0) {
 			client->progress = 1.0;
-			run(mgr, client, false);
+			done(mgr, client, false);
 		}
 	}
 
