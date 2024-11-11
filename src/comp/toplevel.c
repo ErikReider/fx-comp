@@ -1209,6 +1209,8 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 
 	// Don't animate if already destroying
 	if (!toplevel->object.destroying) {
+		// Refresh all of the widgets and sizes before saving the nodes
+		comp_toplevel_refresh(toplevel, false);
 		comp_toplevel_add_fade_animation(toplevel, toplevel->opacity, 0.0);
 		comp_object_save_buffer(&toplevel->object);
 	}
