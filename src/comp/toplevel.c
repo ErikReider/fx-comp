@@ -670,18 +670,19 @@ static void scene_node_apply_effects(struct wlr_scene_node *node, int lx,
 			break;
 		}
 
-		// Update opacity for saved shadow node
-		if (!data->is_saved) {
-			break;
-		}
+		// Update color for saved shadow node
 		struct comp_widget *widget = obj->data;
 		struct shadow_data *shadow_data = &widget->shadow_data;
-		wlr_scene_shadow_set_color(
-			scene_shadow,
-			(float[4]){shadow_data->color.r, shadow_data->color.g,
-					   shadow_data->color.b,
-					   shadow_data->color.a * widget->scene_buffer->opacity *
-						   widget->opacity});
+		if (data->is_saved ||
+			shadow_data_should_update_color(scene_shadow, shadow_data)) {
+			wlr_scene_shadow_set_color(
+				scene_shadow,
+				(float[4]){shadow_data->color.r, shadow_data->color.g,
+						   shadow_data->color.b,
+						   shadow_data->color.a *
+							   widget->scene_buffer->opacity *
+							   widget->opacity});
+		}
 		break;
 	}
 	}
