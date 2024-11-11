@@ -18,6 +18,7 @@
 #include <wlr/backend/x11.h>
 #include <wlr/config.h>
 #include <wlr/render/allocator.h>
+#include <wlr/types/wlr_alpha_modifier_v1.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
@@ -39,7 +40,6 @@
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
-#include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 #include <wlr/xwayland.h>
 
@@ -286,6 +286,9 @@ int main(int argc, char *argv[]) {
 		wlr_log(WLR_ERROR, "failed to create wlr_presentation");
 		return 1;
 	}
+
+	/* Alpha modifier protocol */
+	wlr_alpha_modifier_v1_create(server.wl_display);
 
 	// Create a fallback headless output
 	struct wlr_output *wlr_output = wlr_headless_add_output(

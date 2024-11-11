@@ -8,6 +8,7 @@
 #include <strings.h>
 #include <time.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_alpha_modifier_v1.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -162,6 +163,20 @@ static void output_configure_scene(struct comp_output *output,
 			if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
 				opacity *= toplevel->anim.fade.fade_opacity;
 			}
+
+			// Alpha modifier support
+			struct wlr_scene_surface *surface =
+				wlr_scene_surface_try_from_buffer(buffer);
+			if (surface) {
+				const struct wlr_alpha_modifier_surface_v1_state
+					*alpha_modifier_state =
+						wlr_alpha_modifier_v1_get_surface_state(
+							surface->surface);
+				if (alpha_modifier_state) {
+					opacity *= (float)alpha_modifier_state->multiplier;
+				}
+			}
+
 			wlr_scene_buffer_set_opacity(buffer, opacity);
 
 			// Stretch the saved toplevel buffer to fit the toplevel state
