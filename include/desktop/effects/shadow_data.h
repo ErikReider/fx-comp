@@ -15,4 +15,7 @@ struct shadow_data shadow_data_get_default(void);
 void shadow_data_apply_to_shadow_node(struct wlr_scene_shadow *shadow_node,
 									  struct shadow_data *shadow_data);
 
+bool shadow_data_should_update_color(struct wlr_scene_shadow *shadow_node,
+									 struct shadow_data *shadow_data);
+
 #endif // !FX_COMP_DESKTOP_EFFECTS_SHADOW_DATA_H

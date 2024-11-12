@@ -34,7 +34,7 @@ struct comp_xdg_toplevel {
 	struct wl_listener set_title;
 };
 
-void xdg_new_xdg_surface(struct wl_listener *listener, void *data);
+void xdg_new_xdg_toplevel(struct wl_listener *listener, void *data);
 
 void xdg_new_decoration(struct wl_listener *listener, void *data);
 

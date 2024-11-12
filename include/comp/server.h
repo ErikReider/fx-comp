@@ -36,6 +36,7 @@ struct comp_server {
 	struct wl_display *wl_display;
 	struct wlr_backend *headless_backend; // used for creating virtual outputs
 	struct wlr_backend *backend;
+	struct wlr_session *session;
 	struct wlr_renderer *renderer;
 	struct wlr_allocator *allocator;
 	struct wl_event_loop *wl_event_loop;
@@ -50,7 +51,7 @@ struct comp_server {
 
 	// XDG
 	struct wlr_xdg_shell *xdg_shell;
-	struct wl_listener new_xdg_surface;
+	struct wl_listener new_xdg_toplevel;
 	struct wl_listener new_xdg_decoration;
 	struct wl_list xdg_decorations;
 

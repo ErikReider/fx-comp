@@ -22,7 +22,6 @@
 #include "constants.h"
 #include "desktop/toplevel.h"
 #include "desktop/widgets/titlebar.h"
-#include "desktop/xdg.h"
 #include "seat/seat.h"
 #include "util.h"
 
@@ -41,16 +40,6 @@ void comp_titlebar_change_title(struct comp_titlebar *titlebar) {
 }
 
 bool comp_titlebar_should_be_shown(struct comp_toplevel *toplevel) {
-	// TODO: Move to generic toplevel function?
-	switch (toplevel->type) {
-	case COMP_TOPLEVEL_TYPE_XDG:
-		if (toplevel->toplevel_xdg->xdg_decoration == NULL) {
-			return false;
-		}
-		break;
-	case COMP_TOPLEVEL_TYPE_XWAYLAND:
-		break;
-	}
 	if (toplevel->using_csd) {
 		return false;
 	}

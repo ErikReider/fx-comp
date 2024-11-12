@@ -8,6 +8,7 @@
 #include <strings.h>
 #include <time.h>
 #include <wayland-util.h>
+#include <wlr/types/wlr_alpha_modifier_v1.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
@@ -129,12 +130,12 @@ static void output_configure_scene(struct comp_output *output,
 		return;
 	}
 
-	if (node->type == WLR_SCENE_NODE_BUFFER) {
+	switch (node->type) {
+	default:
+		break;
+	case WLR_SCENE_NODE_BUFFER: {
 		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
-		// struct wlr_scene_surface *surface =
-		// 	wlr_scene_surface_try_from_buffer(buffer);
-
-		struct comp_object *obj = buffer->node.data;
+		struct comp_object *obj = node->data;
 		if (!obj) {
 			wlr_log(WLR_DEBUG,
 					"Tried to apply effects to buffer with unknown data");
@@ -142,6 +143,42 @@ static void output_configure_scene(struct comp_output *output,
 		}
 		if (obj->type == COMP_OBJECT_TYPE_TOPLEVEL) {
 			struct comp_toplevel *toplevel = obj->data;
+			bool has_effects = !toplevel->fullscreen;
+			bool is_saved =
+				// saved_scene_tree has a single tree as child which
+				// contains all of the saved nodes.
+				node->parent->node.parent == toplevel->saved_scene_tree ||
+				node->parent == toplevel->object.saved_tree;
+
+			// Set opacity here due to the buffers opacity being reset every
+			// commit... 🙃
+			// https://gitlab.freedesktop.org/wlroots/wlroots/-/blob/0.18.1/types/scene/surface.c?ref_type=tags#L160
+			float opacity = has_effects ? toplevel->opacity : 1;
+			if (toplevel->anim.resize.client->state ==
+				ANIMATION_STATE_RUNNING) {
+				if (is_saved) {
+					opacity *= toplevel->anim.resize.crossfade_opacity;
+				}
+			}
+			if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
+				opacity *= toplevel->anim.fade.fade_opacity;
+			}
+
+			// Alpha modifier support
+			struct wlr_scene_surface *surface =
+				wlr_scene_surface_try_from_buffer(buffer);
+			if (surface) {
+				const struct wlr_alpha_modifier_surface_v1_state
+					*alpha_modifier_state =
+						wlr_alpha_modifier_v1_get_surface_state(
+							surface->surface);
+				if (alpha_modifier_state) {
+					opacity *= (float)alpha_modifier_state->multiplier;
+				}
+			}
+
+			wlr_scene_buffer_set_opacity(buffer, opacity);
+
 			// Stretch the saved toplevel buffer to fit the toplevel state
 			if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 				int width = toplevel->state.width;
@@ -153,13 +190,16 @@ static void output_configure_scene(struct comp_output *output,
 				}
 			}
 		}
-
-	} else if (node->type == WLR_SCENE_NODE_TREE) {
+		break;
+	}
+	case WLR_SCENE_NODE_TREE: {
 		struct wlr_scene_tree *tree = wlr_scene_tree_from_node(node);
 		struct wlr_scene_node *node;
 		wl_list_for_each(node, &tree->children, link) {
 			output_configure_scene(output, node);
 		}
+		break;
+	}
 	}
 }
 
