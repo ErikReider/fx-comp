@@ -578,6 +578,12 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 		return;
 
 	case COMP_OBJECT_TYPE_TOPLEVEL: {
+		bool blur = has_effects;
+		if (toplevel->anim.resize.client->state == ANIMATION_STATE_RUNNING) {
+			if (data->is_saved) {
+				blur = false;
+			}
+		}
 		enum corner_location corners =
 			toplevel->using_csd
 				? CORNER_LOCATION_ALL
@@ -585,6 +591,18 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? toplevel->corner_radius : 0,
 			has_effects ? corners : CORNER_LOCATION_NONE);
+
+		// Blur
+		wlr_scene_buffer_set_backdrop_blur(buffer, blur);
+		switch (toplevel->tiling_mode) {
+		case COMP_TILING_MODE_FLOATING:
+			wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
+			break;
+		case COMP_TILING_MODE_TILED:
+			wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
+			break;
+		}
+		wlr_scene_buffer_set_backdrop_blur_ignore_transparent(buffer, true);
 		break;
 	}
 	case COMP_OBJECT_TYPE_WIDGET: {
@@ -606,6 +624,13 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? widget->corner_radius : 0,
 			has_effects ? CORNER_LOCATION_ALL : 0);
+
+		wlr_scene_buffer_set_backdrop_blur(buffer, has_effects &&
+													   widget->backdrop_blur);
+		wlr_scene_buffer_set_backdrop_blur_optimized(
+			buffer, widget->backdrop_blur_optimized);
+		wlr_scene_buffer_set_backdrop_blur_ignore_transparent(
+			buffer, widget->backdrop_blur_ignore_transparent);
 		break;
 	}
 	}
@@ -645,9 +670,9 @@ static void scene_node_apply_effects(struct wlr_scene_node *node, int lx,
 		apply_effects_scene_buffer(scene_buffer, lx, ly, data);
 		break;
 	}
-	case WLR_SCENE_NODE_RECT: {
+	case WLR_SCENE_NODE_RECT:
+	case WLR_SCENE_NODE_OPTIMIZED_BLUR:
 		break;
-	}
 	case WLR_SCENE_NODE_SHADOW: {
 		struct wlr_scene_shadow *scene_shadow =
 			wlr_scene_shadow_from_node(node);

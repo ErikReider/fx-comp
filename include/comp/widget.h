@@ -48,6 +48,9 @@ struct comp_widget {
 	float opacity;
 	int corner_radius;
 	struct shadow_data shadow_data;
+	bool backdrop_blur;
+	bool backdrop_blur_optimized;
+	bool backdrop_blur_ignore_transparent;
 };
 
 struct comp_widget_impl {

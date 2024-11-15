@@ -278,6 +278,12 @@ struct comp_ws_indicator *comp_ws_indicator_init(struct comp_server *server,
 									   EFFECTS_CORNER_RADII,
 									   CORNER_LOCATION_ALL);
 
+	indicator->widget.backdrop_blur = true;
+	indicator->widget.backdrop_blur_optimized = false;
+	indicator->widget.backdrop_blur_ignore_transparent = false;
+	wlr_scene_buffer_set_backdrop_blur(indicator->widget.scene_buffer,
+									   indicator->widget.backdrop_blur);
+
 	indicator->force_update = false;
 
 	// Disable input
