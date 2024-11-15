@@ -670,9 +670,9 @@ static void scene_node_apply_effects(struct wlr_scene_node *node, int lx,
 		apply_effects_scene_buffer(scene_buffer, lx, ly, data);
 		break;
 	}
-	case WLR_SCENE_NODE_RECT: {
+	case WLR_SCENE_NODE_RECT:
+	case WLR_SCENE_NODE_OPTIMIZED_BLUR:
 		break;
-	}
 	case WLR_SCENE_NODE_SHADOW: {
 		struct wlr_scene_shadow *scene_shadow =
 			wlr_scene_shadow_from_node(node);
