@@ -1,6 +1,8 @@
 # FX-Comp
 
-My compositor built primarily for testing [SceneFX](https://github.com/wlrfx/scenefx)
+My compositor built primarily for testing [SceneFX](https://github.com/wlrfx/scenefx).
+Follows [SceneFX](https://github.com/wlrfx/scenefx) main branch and the latest
+stable Wlroots release.
 
 Use at your own discretion...
 
@@ -32,8 +34,8 @@ Todo:
     - [X] Button icons
 - [x] Move/resize toplevels with MOD+mouse buttons
 - [ ] ext_workspace_unstable_v1
-- [ ] foreign toplevel for ironbar support
 - [x] Tiling
+- [ ] Restrict modal toplevels to parent (whole toplevel can't be positioned outside of parent)
 - [x] Lock support
 - [ ] Pointer Constraint
 - [x] Fullscreen
@@ -65,5 +67,39 @@ Todo:
     - [ ] Hypr protocols support
     - [ ] Hyprcursor support
     - [ ] Keep toplevels inside of output region when resizing (percentage of w/h instead of px while resizing?)
+    - [ ] rlimit_max
+- [ ] Protocols (at least all that Sway supports)
+    - [ ] alpha-modifier-v1
+    - [ ] wlr-virtual-pointer-unstable-v1
+    - [ ] wlr_linux_drm_sync
+    - [ ] wlr-output-power-managment
+    - [ ] fractional scaling
+    - [ ] tablet-v2
+    - [ ] content-type-hint
+    - [ ] cursor-shape-v1
+    - [ ] foreign toplevel list
+    - [ ] wlr toplevel list
+    - [ ] idle-notify
+    - [ ] security-context
+    - [ ] tearing
+    - [ ] transient seat
+    - [ ] xdg activation
+    - [ ] idle inhibit
+    - [ ] keyboard shortcuts inhibit
+    - [ ] Pointer constrints
+    - [ ] Primary selection
+    - [ ] XDG foreign v1
+    - [ ] XDG foreign v2
+    - [ ] Pointer gestures
+    - [ ] Xwayland shell
+    - [ ] XDG dialog
+    - [ ] XDG toplevel Drag
+    - [ ] XDG icon? (maybe just support and don't show it in decoration?)
+    - [ ] Output power managment
+    - [ ] Virtual Pointer
+    - [ ] KDE blur?
+    - [ ] xwp_input_method_manager_v2
+    - [ ] xwp_text_input_manager_v2
+    - [ ] xwp_virtual_keyboard_manager_v1
 
 Thanks to Sway, Hyprland, and TinyWL for showing how stuff needs to be done! :)
