@@ -29,6 +29,7 @@
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
+#include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/types/wlr_presentation_time.h>
 #include <wlr/types/wlr_relative_pointer_v1.h>
@@ -256,6 +257,13 @@ int main(int argc, char *argv[]) {
 
 	server.new_output.notify = comp_new_output;
 	wl_signal_add(&server.backend->events.new_output, &server.new_output);
+
+	server.output_power_manager_v1 =
+		wlr_output_power_manager_v1_create(server.wl_display);
+	server.output_power_manager_set_mode.notify =
+		comp_output_power_manager_set_mode;
+	wl_signal_add(&server.output_power_manager_v1->events.set_mode,
+				  &server.output_power_manager_set_mode);
 
 	/*
 	 * Scene

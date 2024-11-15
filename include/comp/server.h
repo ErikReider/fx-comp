@@ -74,6 +74,9 @@ struct comp_server {
 	struct wl_listener output_manager_apply;
 	struct wl_listener output_manager_test;
 
+	struct wlr_output_power_manager_v1 *output_power_manager_v1;
+	struct wl_listener output_power_manager_set_mode;
+
 	struct wlr_output_layout *output_layout;
 	struct wl_list outputs;
 	struct comp_output *active_output;

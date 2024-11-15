@@ -69,10 +69,10 @@ Todo:
     - [ ] Keep toplevels inside of output region when resizing (percentage of w/h instead of px while resizing?)
     - [ ] rlimit_max
 - [ ] Protocols (at least all that Sway supports)
-    - [ ] alpha-modifier-v1
+    - [x] alpha-modifier-v1
     - [ ] wlr-virtual-pointer-unstable-v1
     - [ ] wlr_linux_drm_sync
-    - [ ] wlr-output-power-managment
+    - [x] wlr-output-power-managment
     - [ ] fractional scaling
     - [ ] tablet-v2
     - [ ] content-type-hint
@@ -95,7 +95,6 @@ Todo:
     - [ ] XDG dialog
     - [ ] XDG toplevel Drag
     - [ ] XDG icon? (maybe just support and don't show it in decoration?)
-    - [ ] Output power managment
     - [ ] Virtual Pointer
     - [ ] KDE blur?
     - [ ] xwp_input_method_manager_v2

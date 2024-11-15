@@ -12,6 +12,7 @@
 #include <wlr/types/wlr_layer_shell_v1.h>
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
+#include <wlr/types/wlr_output_power_management_v1.h>
 #include <wlr/util/log.h>
 
 #include "comp/lock.h"
@@ -755,4 +756,27 @@ void comp_output_arrange_layers(struct comp_output *output) {
 			&seat->focused_layer_surface->object,
 			seat->focused_layer_surface->wlr_layer_surface->surface);
 	}
+}
+
+/*
+ * Protocols
+ */
+
+void comp_output_power_manager_set_mode(struct wl_listener *listener,
+										void *data) {
+	struct wlr_output_power_v1_set_mode_event *event = data;
+
+	struct wlr_output_state state;
+	wlr_output_state_init(&state);
+	switch (event->mode) {
+	case ZWLR_OUTPUT_POWER_V1_MODE_OFF:
+		wlr_output_state_set_enabled(&state, false);
+		break;
+	case ZWLR_OUTPUT_POWER_V1_MODE_ON:
+		wlr_output_state_set_enabled(&state, true);
+		break;
+	}
+
+	wlr_output_commit_state(event->output, &state);
+	wlr_output_state_finish(&state);
 }

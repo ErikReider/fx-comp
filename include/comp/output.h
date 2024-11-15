@@ -21,7 +21,7 @@ struct comp_output {
 	struct {
 		struct wlr_scene_tree *shell_background;
 		struct wlr_scene_tree *shell_bottom;
-		 // Renders blur of everything below (background and bottom layers)
+		// Renders blur of everything below (background and bottom layers)
 		struct wlr_scene_optimized_blur *optimized_blur_node;
 		struct wlr_scene_tree *workspaces;
 		// for unmanaged XWayland surfaces without a parent
@@ -101,5 +101,12 @@ struct comp_workspace *comp_output_next_workspace(struct comp_output *output,
 void comp_output_arrange_output(struct comp_output *output);
 
 void comp_output_arrange_layers(struct comp_output *output);
+
+/*
+ * Protocols
+ */
+
+void comp_output_power_manager_set_mode(struct wl_listener *listener,
+										  void *data);
 
 #endif // !FX_COMP_OUTPUT_H
