@@ -87,6 +87,12 @@ struct comp_server {
 	struct comp_animation_mgr *animation_mgr;
 
 	/*
+	 * Protocols
+	 */
+
+	struct wlr_ext_foreign_toplevel_list_v1 *ext_foreign_toplevel_list;
+
+	/*
 	 * Transaction
 	 */
 

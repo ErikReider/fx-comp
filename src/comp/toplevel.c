@@ -8,6 +8,7 @@
 #include <wayland-util.h>
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
@@ -1164,6 +1165,15 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 									   iter_scene_buffers_set_data, toplevel);
 	}
 
+	// Foreign protocols
+	struct wlr_ext_foreign_toplevel_handle_v1_state foreign_toplevel_state = {
+		.app_id = comp_toplevel_get_foreign_id(toplevel),
+		.title = comp_toplevel_get_title(toplevel),
+	};
+	toplevel->ext_foreign_toplevel = wlr_ext_foreign_toplevel_handle_v1_create(
+		server.ext_foreign_toplevel_list, &foreign_toplevel_state);
+	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
+
 	comp_toplevel_set_pid(toplevel);
 
 	bool fullscreen = comp_toplevel_get_is_fullscreen(toplevel);
@@ -1227,6 +1237,12 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 	toplevel->unmapped = true;
+
+	if (toplevel->ext_foreign_toplevel) {
+		wlr_ext_foreign_toplevel_handle_v1_destroy(
+			toplevel->ext_foreign_toplevel);
+		toplevel->ext_foreign_toplevel = NULL;
+	}
 
 	if (toplevel->fullscreen) {
 		comp_toplevel_set_fullscreen(toplevel, false);

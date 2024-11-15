@@ -23,6 +23,7 @@
 #include <wlr/types/wlr_data_control_v1.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
+#include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
@@ -329,13 +330,17 @@ int main(int argc, char *argv[]) {
 				  &server.new_xdg_toplevel);
 
 	/*
-	 * XDG Foreign
+	 * Foreign protocols
 	 */
 
 	struct wlr_xdg_foreign_registry *foreign_registry =
 		wlr_xdg_foreign_registry_create(server.wl_display);
 	wlr_xdg_foreign_v1_create(server.wl_display, foreign_registry);
 	wlr_xdg_foreign_v2_create(server.wl_display, foreign_registry);
+
+	server.ext_foreign_toplevel_list = wlr_ext_foreign_toplevel_list_v1_create(
+		server.wl_display, EXT_FOREIGN_TOPLEVEL_LIST_VERSION);
+
 
 	/*
 	 * Layer shell

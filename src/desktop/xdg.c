@@ -48,6 +48,14 @@ static struct wlr_surface *xdg_get_wlr_surface(struct comp_toplevel *toplevel) {
 	return toplevel_xdg->xdg_toplevel->base->surface;
 }
 
+static char *xdg_get_app_id(struct comp_toplevel *toplevel) {
+	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	if (toplevel_xdg->xdg_toplevel) {
+		return toplevel_xdg->xdg_toplevel->app_id;
+	}
+	return NULL;
+}
+
 static char *xdg_get_title(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
 	if (toplevel_xdg->xdg_toplevel) {
@@ -155,6 +163,9 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.get_geometry = xdg_get_geometry,
 	.get_constraints = xdg_get_constraints,
 	.get_wlr_surface = xdg_get_wlr_surface,
+	.get_foreign_id = xdg_get_app_id,
+	.get_class = NULL,
+	.get_app_id = xdg_get_app_id,
 	.get_title = xdg_get_title,
 	.get_always_floating = xdg_get_always_floating,
 	.get_parent_tree = xdg_get_parent_tree,
@@ -287,7 +298,17 @@ static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
 		wl_container_of(listener, toplevel_xdg, set_title);
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
+	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
+
 	comp_titlebar_change_title(toplevel->titlebar);
+}
+
+static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
+	struct comp_xdg_toplevel *toplevel_xdg =
+		wl_container_of(listener, toplevel_xdg, set_app_id);
+	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
+
+	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
@@ -329,6 +350,8 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 				  &toplevel_xdg->request_fullscreen);
 	toplevel_xdg->set_title.notify = xdg_toplevel_set_title;
 	wl_signal_add(&xdg_toplevel->events.set_title, &toplevel_xdg->set_title);
+	toplevel_xdg->set_app_id.notify = xdg_toplevel_set_app_id;
+	wl_signal_add(&xdg_toplevel->events.set_app_id, &toplevel_xdg->set_app_id);
 }
 
 static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {

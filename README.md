@@ -77,7 +77,7 @@ Todo:
     - [ ] tablet-v2
     - [ ] content-type-hint
     - [ ] cursor-shape-v1
-    - [ ] foreign toplevel list
+    - [x] ext_foreign_toplevel_list_v1
     - [ ] wlr toplevel list
     - [ ] idle-notify
     - [ ] security-context

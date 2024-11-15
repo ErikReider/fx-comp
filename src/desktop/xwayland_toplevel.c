@@ -76,6 +76,14 @@ xway_get_wlr_surface(struct comp_toplevel *toplevel) {
 	return xsurface->surface;
 }
 
+static char *xway_get_class(struct comp_toplevel *toplevel) {
+	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
+	if (xsurface) {
+		return xsurface->class;
+	}
+	return NULL;
+}
+
 static char *xway_get_title(struct comp_toplevel *toplevel) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 	if (xsurface) {
@@ -209,6 +217,9 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.get_geometry = xway_get_geometry,
 	.get_constraints = xway_get_constraints,
 	.get_wlr_surface = xway_get_wlr_surface,
+	.get_foreign_id = xway_get_class,
+	.get_class = xway_get_class,
+	.get_app_id = NULL,
 	.get_title = xway_get_title,
 	.get_always_floating = xway_get_always_floating,
 	.get_parent_tree = xway_get_parent_tree,
@@ -331,6 +342,8 @@ static void xway_toplevel_set_title(struct wl_listener *listener, void *data) {
 	if (xsurface->surface == NULL || !xsurface->surface->mapped) {
 		return;
 	}
+
+	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
 
 	comp_titlebar_change_title(toplevel->titlebar);
 }

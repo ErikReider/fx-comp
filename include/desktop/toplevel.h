@@ -66,6 +66,8 @@ struct comp_toplevel {
 	bool fullscreen;
 	pid_t pid;
 
+	struct wlr_ext_foreign_toplevel_handle_v1 *ext_foreign_toplevel;
+
 	// The decorated size of the toplevel, if no decorations are visible, the
 	// size will be the same as the state.
 	struct {
@@ -117,6 +119,9 @@ struct comp_toplevel_impl {
 	void (*get_constraints)(struct comp_toplevel *toplevel, int *min_width,
 							int *max_width, int *min_height, int *max_height);
 	struct wlr_surface *(*get_wlr_surface)(struct comp_toplevel *toplevel);
+	char *(*get_foreign_id)(struct comp_toplevel *toplevel);
+	char *(*get_class)(struct comp_toplevel *toplevel);
+	char *(*get_app_id)(struct comp_toplevel *toplevel);
 	char *(*get_title)(struct comp_toplevel *toplevel);
 	bool (*get_always_floating)(struct comp_toplevel *toplevel);
 	struct wlr_scene_tree *(*get_parent_tree)(struct comp_toplevel *toplevel);
@@ -178,6 +183,9 @@ struct wlr_box comp_toplevel_get_geometry(struct comp_toplevel *toplevel);
 void comp_toplevel_get_constraints(struct comp_toplevel *toplevel,
 								   int *min_width, int *max_width,
 								   int *min_height, int *max_height);
+char *comp_toplevel_get_foreign_id(struct comp_toplevel *toplevel);
+char *comp_toplevel_get_class(struct comp_toplevel *toplevel);
+char *comp_toplevel_get_app_id(struct comp_toplevel *toplevel);
 char *comp_toplevel_get_title(struct comp_toplevel *toplevel);
 /**
  * Checks if the toplevel always wants to be floating,
@@ -219,6 +227,8 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel);
 void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel);
 
 void comp_toplevel_refresh(struct comp_toplevel *toplevel, bool is_instruction);
+
+void comp_toplevel_refresh_ext_foreign_toplevel(struct comp_toplevel *toplevel);
 
 /*
  * Implementation generic functions

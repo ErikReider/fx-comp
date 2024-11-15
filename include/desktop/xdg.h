@@ -32,6 +32,7 @@ struct comp_xdg_toplevel {
 	struct wl_listener request_maximize;
 	struct wl_listener request_fullscreen;
 	struct wl_listener set_title;
+	struct wl_listener set_app_id;
 };
 
 void xdg_new_xdg_toplevel(struct wl_listener *listener, void *data);

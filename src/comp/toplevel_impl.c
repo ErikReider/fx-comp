@@ -1,4 +1,5 @@
 #include <glib.h>
+#include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
 
 #include "comp/object.h"
 #include "comp/tiling_node.h"
@@ -6,6 +7,39 @@
 #include "comp/workspace.h"
 #include "desktop/toplevel.h"
 #include "seat/cursor.h"
+
+char *comp_toplevel_get_foreign_id(struct comp_toplevel *toplevel) {
+	if (toplevel->object.destroying || toplevel->unmapped) {
+		return NULL;
+	}
+	if (toplevel->impl && toplevel->impl->get_foreign_id) {
+		return toplevel->impl->get_foreign_id(toplevel);
+	}
+
+	return NULL;
+}
+
+char *comp_toplevel_get_class(struct comp_toplevel *toplevel) {
+	if (toplevel->object.destroying || toplevel->unmapped) {
+		return NULL;
+	}
+	if (toplevel->impl && toplevel->impl->get_class) {
+		return toplevel->impl->get_class(toplevel);
+	}
+
+	return NULL;
+}
+
+char *comp_toplevel_get_app_id(struct comp_toplevel *toplevel) {
+	if (toplevel->object.destroying || toplevel->unmapped) {
+		return NULL;
+	}
+	if (toplevel->impl && toplevel->impl->get_app_id) {
+		return toplevel->impl->get_app_id(toplevel);
+	}
+
+	return NULL;
+}
 
 char *comp_toplevel_get_title(struct comp_toplevel *toplevel) {
 	if (toplevel->object.destroying || toplevel->unmapped) {
@@ -135,4 +169,18 @@ void comp_toplevel_close(struct comp_toplevel *toplevel) {
 	if (toplevel->impl && toplevel->impl->close) {
 		toplevel->impl->close(toplevel);
 	}
+}
+
+void comp_toplevel_refresh_ext_foreign_toplevel(
+	struct comp_toplevel *toplevel) {
+	if (!toplevel->ext_foreign_toplevel) {
+		return;
+	}
+
+	struct wlr_ext_foreign_toplevel_handle_v1_state toplevel_state = {
+		.app_id = comp_toplevel_get_foreign_id(toplevel),
+		.title = comp_toplevel_get_title(toplevel),
+	};
+	wlr_ext_foreign_toplevel_handle_v1_update_state(
+		toplevel->ext_foreign_toplevel, &toplevel_state);
 }
