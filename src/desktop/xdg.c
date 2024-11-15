@@ -347,32 +347,20 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	comp_toplevel_generic_unmap(toplevel);
 }
 
-void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
+void xdg_new_xdg_toplevel(struct wl_listener *listener, void *data) {
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
 	 * client, either a toplevel (application window) or popup. */
 	struct comp_server *server =
-		wl_container_of(listener, server, new_xdg_surface);
-	struct wlr_xdg_surface *xdg_surface = data;
-
-	switch (xdg_surface->role) {
-	case WLR_XDG_SURFACE_ROLE_NONE:
-		// Ignore surfaces with the role none
-		wlr_log(WLR_ERROR, "Unknown XDG Surface Role");
-		return;
-	case WLR_XDG_SURFACE_ROLE_POPUP:
-		// Ignore surfaces with the role popup and listen to signal after the
-		// toplevel has ben mapped
-		return;
-	case WLR_XDG_SURFACE_ROLE_TOPLEVEL:
-		break;
-	}
+		wl_container_of(listener, server, new_xdg_toplevel);
+	// struct wlr_xdg_surface *xdg_surface = data;
+	struct wlr_xdg_toplevel *xdg_toplevel = data;
 
 	struct comp_xdg_toplevel *toplevel_xdg = calloc(1, sizeof(*toplevel_xdg));
 	if (!toplevel_xdg) {
 		wlr_log(WLR_ERROR, "Could not allocate comp XDG toplevel");
 		return;
 	}
-	toplevel_xdg->xdg_toplevel = xdg_surface->toplevel;
+	toplevel_xdg->xdg_toplevel = xdg_toplevel;
 
 	// Add the toplevel to the tiled/floating layer
 	enum comp_tiling_mode tiling_mode = COMP_TILING_MODE_TILED;
@@ -398,7 +386,7 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 	toplevel->toplevel_scene_tree = wlr_scene_xdg_surface_create(
 		toplevel->object.content_tree, toplevel_xdg->xdg_toplevel->base);
 	toplevel->toplevel_scene_tree->node.data = &toplevel->object;
-	xdg_surface->data = toplevel->object.scene_tree;
+	xdg_toplevel->base->data = toplevel->object.scene_tree;
 
 	wlr_scene_node_raise_to_top(&toplevel->saved_scene_tree->node);
 	wlr_scene_node_raise_to_top(&toplevel->decoration_scene_tree->node);
@@ -411,11 +399,13 @@ void xdg_new_xdg_surface(struct wl_listener *listener, void *data) {
 
 	/* Listen to the various events it can emit */
 	toplevel_xdg->map.notify = xdg_toplevel_map;
-	wl_signal_add(&xdg_surface->surface->events.map, &toplevel_xdg->map);
+	wl_signal_add(&xdg_toplevel->base->surface->events.map, &toplevel_xdg->map);
 	toplevel_xdg->unmap.notify = xdg_toplevel_unmap;
-	wl_signal_add(&xdg_surface->surface->events.unmap, &toplevel_xdg->unmap);
+	wl_signal_add(&xdg_toplevel->base->surface->events.unmap,
+				  &toplevel_xdg->unmap);
 	toplevel_xdg->commit.notify = xdg_toplevel_commit;
-	wl_signal_add(&xdg_surface->surface->events.commit, &toplevel_xdg->commit);
+	wl_signal_add(&xdg_toplevel->base->surface->events.commit,
+				  &toplevel_xdg->commit);
 	toplevel_xdg->destroy.notify = xdg_toplevel_destroy;
-	wl_signal_add(&xdg_surface->events.destroy, &toplevel_xdg->destroy);
+	wl_signal_add(&xdg_toplevel->base->events.destroy, &toplevel_xdg->destroy);
 }

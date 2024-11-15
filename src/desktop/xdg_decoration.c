@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wayland-util.h>
+#include <wlr/util/log.h>
 
 #include "comp/object.h"
 #include "comp/tiling_node.h"
@@ -25,30 +26,25 @@ void set_xdg_decoration_mode(struct comp_xdg_decoration *deco) {
 	toplevel->using_csd =
 		client_mode == WLR_XDG_TOPLEVEL_DECORATION_V1_MODE_CLIENT_SIDE;
 
-	comp_toplevel_refresh_titlebar(toplevel);
-	comp_object_mark_dirty(&toplevel->object);
-	comp_transaction_commit_dirty(true);
-	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
-		toplevel->tiling_node) {
-		tiling_node_mark_workspace_dirty(toplevel->workspace);
+	// Skip updating if the toplevel isn't even initialized
+	if (!toplevel_xdg->xdg_toplevel->base->initialized) {
+		return;
 	}
 
 	if (toplevel->tiling_mode == COMP_TILING_MODE_TILED &&
 		toplevel->tiling_node) {
 		tiling_node_mark_workspace_dirty(toplevel->workspace);
 	}
+
+	comp_toplevel_refresh_titlebar(toplevel);
+	comp_object_mark_dirty(&toplevel->object);
+	comp_transaction_commit_dirty(true);
 
 	if (floating && client_mode) {
 		mode = client_mode;
 	}
 
-	if (!floating && toplevel->tiling_node && toplevel->workspace) {
-		tiling_node_mark_workspace_dirty(toplevel->workspace);
-	}
-
-	if (toplevel_xdg->xdg_toplevel->base->initialized) {
-		wlr_xdg_toplevel_decoration_v1_set_mode(deco->wlr_xdg_decoration, mode);
-	}
+	wlr_xdg_toplevel_decoration_v1_set_mode(deco->wlr_xdg_decoration, mode);
 }
 
 static void xdg_decoration_handle_destroy(struct wl_listener *listener,

@@ -39,10 +39,7 @@ void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
 	comp_animation_client_cancel(server.animation_mgr,
 								 toplevel->anim.fade.client);
 
-	toplevel->opacity = from;
-	toplevel->titlebar->widget.opacity = from;
-	comp_toplevel_mark_effects_dirty(toplevel);
-
+	toplevel->anim.fade.fade_opacity = from;
 	toplevel->anim.fade.from = from;
 	toplevel->anim.fade.to = to;
 	comp_animation_client_add(server.animation_mgr, toplevel->anim.fade.client,
@@ -55,8 +52,7 @@ static void fade_animation_update(struct comp_animation_mgr *mgr,
 
 	const float alpha = lerp(toplevel->anim.fade.from, toplevel->anim.fade.to,
 							 ease_out_cubic(client->progress));
-	toplevel->opacity = alpha;
-	toplevel->titlebar->widget.opacity = alpha;
+	toplevel->anim.fade.fade_opacity = alpha;
 
 	comp_toplevel_mark_effects_dirty(toplevel);
 }
@@ -66,8 +62,7 @@ static void fade_animation_done(struct comp_animation_mgr *mgr,
 								bool cancelled) {
 	struct comp_toplevel *toplevel = client->data;
 	comp_object_remove_buffer(&toplevel->object);
-	toplevel->opacity = toplevel->anim.fade.to;
-	toplevel->titlebar->widget.opacity = toplevel->anim.fade.to;
+	toplevel->anim.fade.fade_opacity = toplevel->anim.fade.to;
 
 	comp_toplevel_mark_effects_dirty(toplevel);
 
@@ -583,16 +578,12 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 		return;
 
 	case COMP_OBJECT_TYPE_TOPLEVEL: {
-		float opacity = has_effects ? toplevel->opacity : 1;
 		bool blur = has_effects;
 		if (toplevel->anim.resize.client->state == ANIMATION_STATE_RUNNING) {
 			if (data->is_saved) {
-				opacity *= toplevel->anim.resize.crossfade_opacity;
 				blur = false;
 			}
 		}
-		wlr_scene_buffer_set_opacity(buffer, opacity);
-
 		enum corner_location corners =
 			toplevel->using_csd
 				? CORNER_LOCATION_ALL
@@ -616,7 +607,12 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 	}
 	case COMP_OBJECT_TYPE_WIDGET: {
 		struct comp_widget *widget = obj->data;
-		wlr_scene_buffer_set_opacity(buffer, has_effects ? widget->opacity : 1);
+
+		float opacity = has_effects ? widget->opacity : 1;
+		if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
+			opacity *= toplevel->anim.fade.fade_opacity;
+		}
+		wlr_scene_buffer_set_opacity(buffer, opacity);
 
 		if (widget == &toplevel->titlebar->widget) {
 			comp_titlebar_refresh_corner_radii(toplevel->titlebar);
@@ -691,18 +687,25 @@ static void scene_node_apply_effects(struct wlr_scene_node *node, int lx,
 			break;
 		}
 
-		// Update opacity for saved shadow node
-		if (!data->is_saved) {
-			break;
-		}
+		// Update color for saved shadow node
 		struct comp_widget *widget = obj->data;
 		struct shadow_data *shadow_data = &widget->shadow_data;
-		wlr_scene_shadow_set_color(
-			scene_shadow,
-			(float[4]){shadow_data->color.r, shadow_data->color.g,
-					   shadow_data->color.b,
-					   shadow_data->color.a * widget->scene_buffer->opacity *
-						   widget->opacity});
+		if (data->is_saved ||
+			shadow_data_should_update_color(scene_shadow, shadow_data)) {
+
+			float alpha = shadow_data->color.a * widget->scene_buffer->opacity *
+						  widget->opacity;
+			if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
+				alpha *= toplevel->anim.fade.fade_opacity;
+			}
+
+			wlr_scene_shadow_set_color(scene_shadow, (float[4]){
+														 shadow_data->color.r,
+														 shadow_data->color.g,
+														 shadow_data->color.b,
+														 alpha,
+													 });
+		}
 		break;
 	}
 	}
@@ -1231,6 +1234,8 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 
 	// Don't animate if already destroying
 	if (!toplevel->object.destroying) {
+		// Refresh all of the widgets and sizes before saving the nodes
+		comp_toplevel_refresh(toplevel, false);
 		comp_toplevel_add_fade_animation(toplevel, toplevel->opacity, 0.0);
 		comp_object_save_buffer(&toplevel->object);
 	}

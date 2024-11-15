@@ -97,6 +97,7 @@ struct comp_toplevel {
 			struct comp_animation_client *client;
 			float to;
 			float from;
+			float fade_opacity;
 		} fade;
 		struct {
 			struct comp_animation_client *client;
