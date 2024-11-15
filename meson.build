@@ -52,13 +52,13 @@ wlroots = dependency('wlroots-0.18',
 )
 
 # Execute the scenefx subproject, if any
-scenefx_version = '0.2'
+scenefx_version = '0.1'
 subproject(
 	'scenefx',
 	required: false,
 	version: scenefx_version,
 )
-scenefx = dependency('scenefx-0.2', version: scenefx_version)
+scenefx = dependency('scenefx-0.1', version: scenefx_version)
 
 cc = meson.get_compiler('c')
 
