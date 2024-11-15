@@ -322,7 +322,8 @@ int main(int argc, char *argv[]) {
 	 * used for application windows. For more detail on shells, refer to
 	 * https://drewdevault.com/2018/07/29/Wayland-shells.html.
 	 */
-	server.xdg_shell = wlr_xdg_shell_create(server.wl_display, 5);
+	server.xdg_shell =
+		wlr_xdg_shell_create(server.wl_display, XDG_SHELL_VERSION);
 	server.new_xdg_toplevel.notify = xdg_new_xdg_toplevel;
 	wl_signal_add(&server.xdg_shell->events.new_toplevel,
 				  &server.new_xdg_toplevel);
@@ -340,7 +341,8 @@ int main(int argc, char *argv[]) {
 	 * Layer shell
 	 */
 
-	server.layer_shell = wlr_layer_shell_v1_create(server.wl_display, 4);
+	server.layer_shell =
+		wlr_layer_shell_v1_create(server.wl_display, LAYER_SHELL_VERSION);
 	server.new_layer_surface.notify = layer_shell_new_surface;
 	wl_signal_add(&server.layer_shell->events.new_surface,
 				  &server.new_layer_surface);
