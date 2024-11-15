@@ -40,6 +40,9 @@
 #include <wlr/types/wlr_viewporter.h>
 #include <wlr/types/wlr_xcursor_manager.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
+#include <wlr/types/wlr_xdg_foreign_registry.h>
+#include <wlr/types/wlr_xdg_foreign_v1.h>
+#include <wlr/types/wlr_xdg_foreign_v2.h>
 #include <wlr/types/wlr_xdg_output_v1.h>
 #include <wlr/util/log.h>
 #include <wlr/xwayland.h>
@@ -323,6 +326,15 @@ int main(int argc, char *argv[]) {
 	server.new_xdg_toplevel.notify = xdg_new_xdg_toplevel;
 	wl_signal_add(&server.xdg_shell->events.new_toplevel,
 				  &server.new_xdg_toplevel);
+
+	/*
+	 * XDG Foreign
+	 */
+
+	struct wlr_xdg_foreign_registry *foreign_registry =
+		wlr_xdg_foreign_registry_create(server.wl_display);
+	wlr_xdg_foreign_v1_create(server.wl_display, foreign_registry);
+	wlr_xdg_foreign_v2_create(server.wl_display, foreign_registry);
 
 	/*
 	 * Layer shell

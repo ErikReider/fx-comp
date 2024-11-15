@@ -88,8 +88,8 @@ Todo:
     - [ ] keyboard shortcuts inhibit
     - [ ] Pointer constrints
     - [ ] Primary selection
-    - [ ] XDG foreign v1
-    - [ ] XDG foreign v2
+    - [x] XDG foreign v1
+    - [x] XDG foreign v2
     - [ ] Pointer gestures
     - [ ] Xwayland shell
     - [ ] XDG dialog
