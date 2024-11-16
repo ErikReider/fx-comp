@@ -202,6 +202,8 @@ struct wlr_scene_tree *
 comp_toplevel_get_parent_tree(struct comp_toplevel *toplevel);
 struct wlr_surface *
 comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel);
+struct comp_toplevel *
+comp_toplevel_from_wlr_surface(struct wlr_surface *wlr_surface);
 uint32_t comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
 								 int height, int x, int y);
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);

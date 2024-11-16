@@ -368,61 +368,26 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 		wlr_log(WLR_ERROR, "Tried to unfocus NULL surface");
 		return;
 	}
-	// XDG Toplevel
-	struct wlr_xdg_surface *xdg_surface;
-	if ((xdg_surface = wlr_xdg_surface_try_from_wlr_surface(surface)) &&
-		xdg_surface->toplevel) {
-		struct wlr_scene_tree *scene_tree = xdg_surface->data;
-		struct comp_object *object = scene_tree->node.data;
-		struct comp_toplevel *toplevel;
-		if (object && object->type == COMP_OBJECT_TYPE_TOPLEVEL &&
-			(toplevel = object->data)) {
-			// Unfocus Toplevel
-			comp_toplevel_set_activated(toplevel, false);
 
-			if (toplevel == server.seat->focused_toplevel) {
-				server.seat->focused_toplevel = NULL;
-			}
+	// Toplevel
+	struct comp_toplevel *toplevel = comp_toplevel_from_wlr_surface(surface);
+	if (toplevel) {
+		// Unfocus Toplevel
+		comp_toplevel_set_activated(toplevel, false);
 
-			if (focus_previous) {
-				seat_focus_previous_toplevel(toplevel->workspace, surface);
-			}
-
-			/*
-			 * Redraw
-			 */
-			if (toplevel->titlebar) {
-				comp_widget_draw_full(&toplevel->titlebar->widget);
-			}
+		if (toplevel == server.seat->focused_toplevel) {
+			server.seat->focused_toplevel = NULL;
 		}
-		return;
-	}
 
-	// XWayland Toplevel
-	struct wlr_xwayland_surface *xsurface;
-	if ((xsurface = wlr_xwayland_surface_try_from_wlr_surface(surface))) {
-		struct wlr_scene_tree *scene_tree = xsurface->data;
-		struct comp_object *object = scene_tree->node.data;
-		struct comp_toplevel *toplevel;
-		if (object && object->type == COMP_OBJECT_TYPE_TOPLEVEL &&
-			(toplevel = object->data)) {
-			// Unfocus Toplevel
-			comp_toplevel_set_activated(toplevel, false);
+		if (focus_previous) {
+			seat_focus_previous_toplevel(toplevel->workspace, surface);
+		}
 
-			if (toplevel == server.seat->focused_toplevel) {
-				server.seat->focused_toplevel = NULL;
-			}
-
-			if (focus_previous) {
-				seat_focus_previous_toplevel(toplevel->workspace, surface);
-			}
-
-			/*
-			 * Redraw
-			 */
-			if (toplevel->titlebar) {
-				comp_widget_draw_full(&toplevel->titlebar->widget);
-			}
+		/*
+		 * Redraw
+		 */
+		if (toplevel->titlebar) {
+			comp_widget_draw_full(&toplevel->titlebar->widget);
 		}
 		return;
 	}

@@ -1,5 +1,7 @@
 #include <glib.h>
 #include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
+#include <wlr/types/wlr_xdg_decoration_v1.h>
+#include <wlr/util/log.h>
 
 #include "comp/object.h"
 #include "comp/tiling_node.h"
@@ -73,6 +75,45 @@ struct wlr_surface *
 comp_toplevel_get_wlr_surface(struct comp_toplevel *toplevel) {
 	if (toplevel->impl && toplevel->impl->get_wlr_surface) {
 		return toplevel->impl->get_wlr_surface(toplevel);
+	}
+
+	return NULL;
+}
+
+struct comp_toplevel *
+comp_toplevel_from_wlr_surface(struct wlr_surface *surface) {
+	struct wlr_scene_tree *scene_tree = NULL;
+
+	struct wlr_xdg_surface *xdg_surface;
+	if ((xdg_surface = wlr_xdg_surface_try_from_wlr_surface(surface)) &&
+		xdg_surface->toplevel && xdg_surface->data) {
+		scene_tree = xdg_surface->data;
+		goto done;
+	}
+
+	struct wlr_xwayland_surface *xsurface;
+	if ((xsurface = wlr_xwayland_surface_try_from_wlr_surface(surface))) {
+		scene_tree = xsurface->data;
+		goto done;
+	}
+
+	struct wlr_subsurface *subsurface;
+	if ((subsurface = wlr_subsurface_try_from_wlr_surface(surface))) {
+		return comp_toplevel_from_wlr_surface(subsurface->parent);
+	}
+
+	const char *role = surface->role ? surface->role->name : NULL;
+	wlr_log(WLR_DEBUG, "Trying to get Toplevel from surface (%p) with role: %s",
+			surface, role);
+
+done:
+	if (!scene_tree) {
+		return NULL;
+	}
+
+	struct comp_object *object = scene_tree->node.data;
+	if (object && object->type == COMP_OBJECT_TYPE_TOPLEVEL && object->data) {
+		return object->data;
 	}
 
 	return NULL;
