@@ -12,6 +12,7 @@
 #include "comp/object.h"
 #include "comp/output.h"
 #include "comp/workspace.h"
+#include "desktop/layer_shell.h"
 #include "desktop/xdg.h"
 #include "scenefx/types/fx/corner_location.h"
 #include "seat/cursor.h"
@@ -21,21 +22,22 @@
  * XDG Popup
  */
 
-static struct comp_toplevel *get_root_toplevel(struct comp_xdg_popup *popup) {
+static struct comp_object *get_root_object(struct comp_xdg_popup *popup) {
 	struct comp_object *parent_object = popup->parent_object;
 	switch (parent_object->type) {
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_UNMANAGED:
-	case COMP_OBJECT_TYPE_LAYER_SURFACE:
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 	case COMP_OBJECT_TYPE_DND_ICON:
 		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:
-		return get_root_toplevel(parent_object->data);
+		return get_root_object(parent_object->data);
+	case COMP_OBJECT_TYPE_LAYER_SURFACE:
+		return parent_object;
 	case COMP_OBJECT_TYPE_TOPLEVEL:
-		return parent_object->data;
+		return parent_object;
 	}
 
 	return NULL;
@@ -103,21 +105,50 @@ static void xdg_popup_new_popup(struct wl_listener *listener, void *data) {
 }
 
 static void popup_unconstrain(struct comp_xdg_popup *popup) {
-	struct comp_toplevel *toplevel = get_root_toplevel(popup);
-	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
-
-	if (!toplevel || !toplevel->workspace || !toplevel->workspace->output) {
+	struct comp_object *object = get_root_object(popup);
+	if (!object) {
+		wlr_log(WLR_ERROR, "Tried to position popup without parent object!");
 		return;
 	}
-	struct comp_workspace *workspace = toplevel->workspace;
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup
+	struct wlr_output *wlr_output;
+	int x, y;
+
+	switch (object->type) {
+	default:
+		wlr_log(WLR_INFO,
+				"Tried to position popup on unsupported parent type: %i!",
+				popup->parent_object->type);
+		return;
+	case COMP_OBJECT_TYPE_TOPLEVEL: {
+		struct comp_toplevel *toplevel = object->data;
+		if (!toplevel || !toplevel->workspace || !toplevel->workspace->output) {
+			return;
+		}
+
+		wlr_output = toplevel->workspace->output->wlr_output;
+		x = -toplevel->state.x + toplevel->geometry.x;
+		y = -toplevel->state.y + toplevel->geometry.y;
+		break;
+	}
+	case COMP_OBJECT_TYPE_LAYER_SURFACE: {
+		struct comp_layer_surface *layer = object->data;
+		wlr_output = layer->output->wlr_output;
+		int lx, ly;
+		wlr_scene_node_coords(&layer->scene_layer->tree->node, &lx, &ly);
+		x = -lx;
+		y = -ly;
+		break;
+	}
+	}
+
+	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
 	struct wlr_box output_box;
-	wlr_output_layout_get_box(server.output_layout,
-							  workspace->output->wlr_output, &output_box);
-	output_box.x = -toplevel->state.x + toplevel->geometry.x;
-	output_box.y = -toplevel->state.y + toplevel->geometry.y;
+	wlr_output_layout_get_box(server.output_layout, wlr_output, &output_box);
+	output_box.x = x;
+	output_box.y = y;
 
 	wlr_xdg_popup_unconstrain_from_box(wlr_popup, &output_box);
 }
