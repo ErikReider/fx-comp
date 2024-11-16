@@ -207,19 +207,14 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 					n->box.width, n->box.height * SPLIT_RATIO);
 			}
 
-			// A 2x2 px even box
-			const pixman_box32_t center = {
-				.x1 = center_x - 1,
-				.x2 = center_x + 2,
-				.y1 = center_y - 1,
-				.y2 = center_y + 2,
-			};
-			if (pixman_region32_contains_rectangle(&region1, &center)) {
+			if (pixman_region32_contains_point(&region1, center_x, center_y,
+											   NULL)) {
 				// Insert as parent to node
 				parent_node = n;
 				split_first = true;
 				break;
-			} else if (pixman_region32_contains_rectangle(&region2, &center)) {
+			} else if (pixman_region32_contains_point(&region2, center_x,
+													  center_y, NULL)) {
 				// Insert as child to node
 				parent_node = n;
 				split_first = false;
