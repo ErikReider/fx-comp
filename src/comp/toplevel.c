@@ -853,6 +853,11 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 
 	// Update the output
 	comp_output_arrange_output(toplevel->workspace->output);
+
+	if (toplevel->wlr_foreign_toplevel) {
+		wlr_foreign_toplevel_handle_v1_set_fullscreen(
+			toplevel->wlr_foreign_toplevel, state);
+	}
 }
 
 void comp_toplevel_set_tiled(struct comp_toplevel *toplevel, bool state,
@@ -1047,6 +1052,61 @@ post_deocations:
 	comp_toplevel_mark_effects_dirty(toplevel);
 }
 
+/*
+ * WLR Foreign handlers
+ */
+
+static void handle_wlr_foreign_activate_request(struct wl_listener *listener,
+												void *data) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(listener, toplevel, wlr_foreign_activate_request);
+	struct wlr_foreign_toplevel_handle_v1_activated_event *event = data;
+
+	if (server.seat->wlr_seat != event->seat) {
+		wlr_log(WLR_ERROR,
+				"Could not activate foreign toplevel, not the same seat");
+		return;
+	}
+
+	// TODO: Un-minimize
+	comp_seat_surface_focus(&toplevel->object,
+							comp_toplevel_get_wlr_surface(toplevel));
+}
+
+static void handle_wlr_foreign_fullscreen_request(struct wl_listener *listener,
+												  void *data) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(listener, toplevel, wlr_foreign_fullscreen_request);
+	struct wlr_foreign_toplevel_handle_v1_fullscreen_event *event = data;
+
+	// Ignore the event output hint
+	// TODO: Use hint in future
+	comp_toplevel_set_fullscreen(toplevel, event->fullscreen);
+}
+
+static void handle_wlr_foreign_close_request(struct wl_listener *listener,
+											 void *data) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(listener, toplevel, wlr_foreign_close_request);
+
+	comp_toplevel_close(toplevel);
+}
+
+static void handle_wlr_foreign_destroy(struct wl_listener *listener,
+									   void *data) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(listener, toplevel, wlr_foreign_destroy);
+
+	listener_remove(&toplevel->wlr_foreign_activate_request);
+	listener_remove(&toplevel->wlr_foreign_fullscreen_request);
+	listener_remove(&toplevel->wlr_foreign_close_request);
+	listener_remove(&toplevel->wlr_foreign_destroy);
+}
+
+/*
+ * Toplevel
+ */
+
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	toplevel->object.destroying = true;
 	if (toplevel->anim.fade.client->state != ANIMATION_STATE_NONE) {
@@ -1061,10 +1121,6 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 
 	free(toplevel);
 }
-
-/*
- * Toplevel
- */
 
 struct comp_toplevel *
 comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
@@ -1123,6 +1179,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 
 	// Titlebar
 	toplevel->titlebar = comp_titlebar_init(toplevel->server, toplevel);
+	assert(toplevel->titlebar);
 	// Resize borders
 	const enum xdg_toplevel_resize_edge edges[NUMBER_OF_RESIZE_TARGETS] = {
 		XDG_TOPLEVEL_RESIZE_EDGE_TOP,
@@ -1165,7 +1222,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 									   iter_scene_buffers_set_data, toplevel);
 	}
 
-	// Foreign protocols
+	// EXT Foreign protocol
 	struct wlr_ext_foreign_toplevel_handle_v1_state foreign_toplevel_state = {
 		.app_id = comp_toplevel_get_foreign_id(toplevel),
 		.title = comp_toplevel_get_title(toplevel),
@@ -1173,6 +1230,26 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	toplevel->ext_foreign_toplevel = wlr_ext_foreign_toplevel_handle_v1_create(
 		server.ext_foreign_toplevel_list, &foreign_toplevel_state);
 	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
+
+	// WLR Foreign protocol
+	toplevel->wlr_foreign_toplevel = wlr_foreign_toplevel_handle_v1_create(
+		server.wlr_foreign_toplevel_manager);
+	listener_connect_init(
+		&toplevel->wlr_foreign_toplevel->events.request_activate,
+		&toplevel->wlr_foreign_activate_request,
+		handle_wlr_foreign_activate_request);
+	listener_connect_init(
+		&toplevel->wlr_foreign_toplevel->events.request_fullscreen,
+		&toplevel->wlr_foreign_fullscreen_request,
+		handle_wlr_foreign_fullscreen_request);
+	listener_connect_init(&toplevel->wlr_foreign_toplevel->events.request_close,
+						  &toplevel->wlr_foreign_close_request,
+						  handle_wlr_foreign_close_request);
+	listener_connect_init(&toplevel->wlr_foreign_toplevel->events.destroy,
+						  &toplevel->wlr_foreign_destroy,
+						  handle_wlr_foreign_destroy);
+	wlr_foreign_toplevel_handle_v1_set_app_id(
+		toplevel->wlr_foreign_toplevel, comp_toplevel_get_foreign_id(toplevel));
 
 	comp_toplevel_set_pid(toplevel);
 
@@ -1242,6 +1319,11 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 		wlr_ext_foreign_toplevel_handle_v1_destroy(
 			toplevel->ext_foreign_toplevel);
 		toplevel->ext_foreign_toplevel = NULL;
+	}
+
+	if (toplevel->wlr_foreign_toplevel) {
+		wlr_foreign_toplevel_handle_v1_destroy(toplevel->wlr_foreign_toplevel);
+		toplevel->wlr_foreign_toplevel = NULL;
 	}
 
 	if (toplevel->fullscreen) {

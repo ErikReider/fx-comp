@@ -5,6 +5,7 @@
 #include <wayland-server-core.h>
 #include <wayland-util.h>
 #include <wlr/types/wlr_compositor.h>
+#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 
 #include "comp/animation_mgr.h"
 #include "comp/object.h"
@@ -67,6 +68,11 @@ struct comp_toplevel {
 	pid_t pid;
 
 	struct wlr_ext_foreign_toplevel_handle_v1 *ext_foreign_toplevel;
+	struct wlr_foreign_toplevel_handle_v1 *wlr_foreign_toplevel;
+	struct wl_listener wlr_foreign_activate_request;
+	struct wl_listener wlr_foreign_fullscreen_request;
+	struct wl_listener wlr_foreign_close_request;
+	struct wl_listener wlr_foreign_destroy;
 
 	// The decorated size of the toplevel, if no decorations are visible, the
 	// size will be the same as the state.

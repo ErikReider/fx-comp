@@ -24,6 +24,7 @@
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_export_dmabuf_v1.h>
 #include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
+#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
 #include <wlr/types/wlr_fractional_scale_v1.h>
 #include <wlr/types/wlr_gamma_control_v1.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
@@ -340,7 +341,8 @@ int main(int argc, char *argv[]) {
 
 	server.ext_foreign_toplevel_list = wlr_ext_foreign_toplevel_list_v1_create(
 		server.wl_display, EXT_FOREIGN_TOPLEVEL_LIST_VERSION);
-
+	server.wlr_foreign_toplevel_manager =
+		wlr_foreign_toplevel_manager_v1_create(server.wl_display);
 
 	/*
 	 * Layer shell

@@ -23,6 +23,7 @@ struct comp_output {
 		struct wlr_scene_tree *shell_bottom;
 		// Renders blur of everything below (background and bottom layers)
 		struct wlr_scene_optimized_blur *optimized_blur_node;
+		// TODO: Make fullscreen a layer
 		struct wlr_scene_tree *workspaces;
 		// for unmanaged XWayland surfaces without a parent
 		struct wlr_scene_tree *unmanaged;

@@ -78,7 +78,7 @@ Todo:
     - [ ] content-type-hint
     - [ ] cursor-shape-v1
     - [x] ext_foreign_toplevel_list_v1
-    - [ ] wlr toplevel list
+    - [x] wlr_foreign_toplevel_manager
     - [ ] idle-notify
     - [ ] security-context
     - [ ] tearing

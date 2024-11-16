@@ -91,6 +91,7 @@ struct comp_server {
 	 */
 
 	struct wlr_ext_foreign_toplevel_list_v1 *ext_foreign_toplevel_list;
+	struct wlr_foreign_toplevel_manager_v1 *wlr_foreign_toplevel_manager;
 
 	/*
 	 * Transaction

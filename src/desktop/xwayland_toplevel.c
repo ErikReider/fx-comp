@@ -345,6 +345,12 @@ static void xway_toplevel_set_title(struct wl_listener *listener, void *data) {
 
 	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
 
+	if (toplevel->wlr_foreign_toplevel) {
+		wlr_foreign_toplevel_handle_v1_set_title(
+			toplevel->wlr_foreign_toplevel,
+			toplevel_xway->xwayland_surface->title);
+	}
+
 	comp_titlebar_change_title(toplevel->titlebar);
 }
 

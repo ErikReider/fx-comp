@@ -9,7 +9,7 @@
 #include "seat/cursor.h"
 
 char *comp_toplevel_get_foreign_id(struct comp_toplevel *toplevel) {
-	if (toplevel->object.destroying || toplevel->unmapped) {
+	if (toplevel->object.destroying) {
 		return NULL;
 	}
 	if (toplevel->impl && toplevel->impl->get_foreign_id) {
@@ -107,6 +107,11 @@ uint32_t comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state) {
 	if (toplevel->impl && toplevel->impl->set_activated) {
 		toplevel->impl->set_activated(toplevel, state);
+	}
+
+	if (toplevel->wlr_foreign_toplevel) {
+		wlr_foreign_toplevel_handle_v1_set_activated(
+			toplevel->wlr_foreign_toplevel, state);
 	}
 }
 

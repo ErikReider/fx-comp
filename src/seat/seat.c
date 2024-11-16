@@ -372,13 +372,14 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 	struct wlr_xdg_surface *xdg_surface;
 	if ((xdg_surface = wlr_xdg_surface_try_from_wlr_surface(surface)) &&
 		xdg_surface->toplevel) {
-		wlr_xdg_toplevel_set_activated(xdg_surface->toplevel, false);
-
 		struct wlr_scene_tree *scene_tree = xdg_surface->data;
 		struct comp_object *object = scene_tree->node.data;
 		struct comp_toplevel *toplevel;
 		if (object && object->type == COMP_OBJECT_TYPE_TOPLEVEL &&
 			(toplevel = object->data)) {
+			// Unfocus Toplevel
+			comp_toplevel_set_activated(toplevel, false);
+
 			if (toplevel == server.seat->focused_toplevel) {
 				server.seat->focused_toplevel = NULL;
 			}
@@ -400,13 +401,14 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 	// XWayland Toplevel
 	struct wlr_xwayland_surface *xsurface;
 	if ((xsurface = wlr_xwayland_surface_try_from_wlr_surface(surface))) {
-		wlr_xwayland_surface_activate(xsurface, false);
-
 		struct wlr_scene_tree *scene_tree = xsurface->data;
 		struct comp_object *object = scene_tree->node.data;
 		struct comp_toplevel *toplevel;
 		if (object && object->type == COMP_OBJECT_TYPE_TOPLEVEL &&
 			(toplevel = object->data)) {
+			// Unfocus Toplevel
+			comp_toplevel_set_activated(toplevel, false);
+
 			if (toplevel == server.seat->focused_toplevel) {
 				server.seat->focused_toplevel = NULL;
 			}

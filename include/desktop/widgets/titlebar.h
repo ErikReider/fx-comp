@@ -33,6 +33,9 @@ struct comp_titlebar {
 	} buttons;
 
 	PangoFontDescription *font;
+
+	struct wl_listener output_enter;
+	struct wl_listener output_leave;
 };
 
 struct comp_titlebar *comp_titlebar_init(struct comp_server *server,

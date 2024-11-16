@@ -300,6 +300,11 @@ static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
 
 	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
 
+	if (toplevel->wlr_foreign_toplevel) {
+		wlr_foreign_toplevel_handle_v1_set_title(
+			toplevel->wlr_foreign_toplevel, toplevel_xdg->xdg_toplevel->title);
+	}
+
 	comp_titlebar_change_title(toplevel->titlebar);
 }
 
@@ -309,6 +314,11 @@ static void xdg_toplevel_set_app_id(struct wl_listener *listener, void *data) {
 	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
 
 	comp_toplevel_refresh_ext_foreign_toplevel(toplevel);
+
+	if (toplevel->wlr_foreign_toplevel) {
+		wlr_foreign_toplevel_handle_v1_set_app_id(
+			toplevel->wlr_foreign_toplevel, toplevel_xdg->xdg_toplevel->app_id);
+	}
 }
 
 static void xdg_toplevel_map(struct wl_listener *listener, void *data) {

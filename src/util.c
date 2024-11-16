@@ -89,6 +89,13 @@ void listener_connect(struct wl_signal *signal, struct wl_listener *listener,
 	wl_signal_add(signal, listener);
 }
 
+void listener_connect_init(struct wl_signal *signal,
+						   struct wl_listener *listener,
+						   wl_notify_func_t notify) {
+	listener_init(listener);
+	listener_connect(signal, listener, notify);
+}
+
 void listener_remove(struct wl_listener *listener) {
 	assert(listener);
 	if (listener_is_connected(listener)) {

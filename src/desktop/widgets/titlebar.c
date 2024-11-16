@@ -455,6 +455,9 @@ static void titlebar_destroy(struct comp_widget *widget) {
 	free(titlebar->buttons.fullscreen.data);
 	free(titlebar->buttons.minimize.data);
 
+	listener_remove(&titlebar->output_enter);
+	listener_remove(&titlebar->output_leave);
+
 	pango_font_description_free(titlebar->font);
 	free(titlebar);
 }
@@ -487,6 +490,36 @@ static void handle_minimize_click(struct comp_widget *widget,
 	// TODO: Add wlr_foreign_toplevel_handle_v1
 }
 
+static void handle_output_enter(struct wl_listener *listener, void *data) {
+	struct comp_titlebar *titlebar =
+		wl_container_of(listener, titlebar, output_enter);
+	if (!titlebar->toplevel) {
+		wlr_log(WLR_ERROR, "Titlebar doesn't have a Toplevel!");
+		return;
+	}
+
+	if (titlebar->toplevel->wlr_foreign_toplevel) {
+		struct wlr_scene_output *output = data;
+		wlr_foreign_toplevel_handle_v1_output_enter(
+			titlebar->toplevel->wlr_foreign_toplevel, output->output);
+	}
+}
+
+static void handle_output_leave(struct wl_listener *listener, void *data) {
+	struct comp_titlebar *titlebar =
+		wl_container_of(listener, titlebar, output_leave);
+	if (!titlebar->toplevel) {
+		wlr_log(WLR_ERROR, "Titlebar doesn't have a Toplevel!");
+		return;
+	}
+
+	if (titlebar->toplevel->wlr_foreign_toplevel) {
+		struct wlr_scene_output *output = data;
+		wlr_foreign_toplevel_handle_v1_output_leave(
+			titlebar->toplevel->wlr_foreign_toplevel, output->output);
+	}
+}
+
 struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 										 struct comp_toplevel *toplevel) {
 	struct comp_titlebar *titlebar = calloc(1, sizeof(struct comp_titlebar));
@@ -512,6 +545,14 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 
 	wlr_scene_node_set_enabled(&titlebar->widget.scene_buffer->node, true);
 	titlebar->toplevel = toplevel;
+
+	// Make the decorations the output enter/leave event holders
+	// TODO: Will this get all messed up when titlebar is disabled due to the
+	// toplevel being fullscreen?
+	listener_connect_init(&titlebar->widget.scene_buffer->events.output_enter,
+						  &titlebar->output_enter, handle_output_enter);
+	listener_connect_init(&titlebar->widget.scene_buffer->events.output_leave,
+						  &titlebar->output_leave, handle_output_leave);
 
 	comp_titlebar_calculate_bar_height(titlebar);
 
