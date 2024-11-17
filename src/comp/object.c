@@ -29,11 +29,11 @@ struct comp_object *comp_object_at(struct comp_server *server, double lx,
 
 	/* Find the node corresponding to the comp_toplevel at the root of this
 	 * surface tree, it is the only one for which we set the data field. */
-	struct wlr_scene_tree *tree = node->parent;
-	while (tree != NULL && tree->node.data == NULL) {
-		tree = tree->node.parent;
+	struct wlr_scene_node *current = node;
+	while (current != NULL && current->data == NULL) {
+		current = &current->parent->node;
 	}
-	return tree->node.data;
+	return current->data;
 }
 
 void comp_object_save_buffer(struct comp_object *object) {

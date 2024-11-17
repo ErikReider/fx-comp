@@ -3,6 +3,7 @@
 #include <stdlib.h>
 #include <wayland-server-protocol.h>
 #include <wlr/types/wlr_cursor.h>
+#include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/util/log.h>
 #include <xdg-shell-protocol.h>
 
@@ -56,6 +57,26 @@ static void edge_destroy(struct comp_widget *widget) {
 	free(edge);
 }
 
+static bool edge_handle_accepts_input(struct comp_widget *widget,
+									  struct wlr_scene_buffer *buffer,
+									  double *x, double *y) {
+	struct comp_resize_edge *edge = wl_container_of(widget, edge, widget);
+	struct comp_toplevel *toplevel = edge->toplevel;
+
+	// Disable input if the toplevel requires cursor constraint
+	struct wlr_pointer_constraint_v1 *constraint =
+		server.seat->cursor->active_constraint;
+	if (constraint) {
+		struct comp_toplevel *constraint_toplevel =
+			comp_toplevel_from_wlr_surface(constraint->surface);
+		if (constraint_toplevel == toplevel) {
+			return false;
+		}
+	}
+
+	return true;
+}
+
 static void edge_pointer_button(struct comp_widget *widget, double x, double y,
 								struct wlr_pointer_button_event *event) {
 	if (event->state != WL_POINTER_BUTTON_STATE_PRESSED ||
@@ -92,6 +113,7 @@ static const struct comp_widget_impl comp_resize_edge_widget_impl = {
 	.handle_pointer_leave = edge_pointer_leave,
 	.handle_pointer_motion = edge_pointer_motion,
 	.handle_pointer_button = edge_pointer_button,
+	.handle_point_accepts_input = edge_handle_accepts_input,
 	.destroy = edge_destroy,
 };
 

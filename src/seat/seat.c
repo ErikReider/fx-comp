@@ -6,6 +6,7 @@
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_data_device.h>
 #include <wlr/types/wlr_layer_shell_v1.h>
+#include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/types/wlr_seat.h>
 #include <wlr/types/wlr_session_lock_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
@@ -375,6 +376,9 @@ void comp_seat_surface_unfocus(struct wlr_surface *surface,
 		// Unfocus Toplevel
 		comp_toplevel_set_activated(toplevel, false);
 
+		// Unconstrain
+		comp_cursor_constrain(server.seat->cursor, NULL);
+
 		if (toplevel == server.seat->focused_toplevel) {
 			server.seat->focused_toplevel = NULL;
 		}
@@ -549,6 +553,13 @@ void comp_seat_surface_focus(struct comp_object *object,
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		struct comp_toplevel *toplevel = object->data;
+
+		// Set pointer constraint
+		struct wlr_pointer_constraint_v1 *constraint =
+			wlr_pointer_constraints_v1_constraint_for_surface(
+				server.pointer_constraints, surface, seat->wlr_seat);
+		comp_cursor_constrain(seat->cursor, constraint);
+
 		/*
 		 * Redraw
 		 */
@@ -589,7 +600,10 @@ struct comp_seat *comp_seat_create(struct comp_server *server) {
 	wl_list_init(&seat->keyboards);
 	seat->new_input.notify = seat_new_input;
 	wl_signal_add(&server->backend->events.new_input, &seat->new_input);
+
 	seat->wlr_seat = wlr_seat_create(server->wl_display, "seat0");
+	seat->wlr_seat->data = seat;
+
 	seat->request_cursor.notify = seat_request_cursor;
 	wl_signal_add(&seat->wlr_seat->events.request_set_cursor,
 				  &seat->request_cursor);

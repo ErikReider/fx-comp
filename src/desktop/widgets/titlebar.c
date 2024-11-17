@@ -13,6 +13,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <wlr/types/wlr_buffer.h>
+#include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/box.h>
 #include <wlr/util/log.h>
@@ -432,6 +433,17 @@ static bool titlebar_handle_accepts_input(struct comp_widget *widget,
 										  double *x, double *y) {
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
 	struct comp_toplevel *toplevel = titlebar->toplevel;
+
+	// Disable input if the toplevel requires cursor constraint
+	struct wlr_pointer_constraint_v1 *constraint =
+		server.seat->cursor->active_constraint;
+	if (constraint) {
+		struct comp_toplevel *constraint_toplevel =
+			comp_toplevel_from_wlr_surface(constraint->surface);
+		if (constraint_toplevel == toplevel) {
+			return false;
+		}
+	}
 
 	double titlebar_height = BORDER_WIDTH;
 	if (!toplevel->using_csd) {

@@ -9,6 +9,7 @@
 #include <wlr/types/wlr_compositor.h>
 #include <wlr/types/wlr_cursor.h>
 #include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
+#include <wlr/types/wlr_pointer_constraints_v1.h>
 #include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/edges.h>
 #include <wlr/util/log.h>
@@ -1370,6 +1371,14 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 	if (parent_toplevel) {
 		comp_seat_surface_focus(&parent_toplevel->object,
 								comp_toplevel_get_wlr_surface(parent_toplevel));
+	}
+
+	if (server.seat->cursor->active_constraint) {
+		struct wlr_surface *constrain_surface =
+			server.seat->cursor->active_constraint->surface;
+		if (comp_toplevel_from_wlr_surface(constrain_surface) == toplevel) {
+			comp_cursor_constrain(server.seat->cursor, NULL);
+		}
 	}
 
 	wl_list_remove(&toplevel->workspace_link);

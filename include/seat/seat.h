@@ -23,6 +23,14 @@ struct comp_drag {
 	struct wl_listener destroy;
 };
 
+struct comp_pointer_constraint {
+	struct comp_cursor *cursor;
+	struct wlr_pointer_constraint_v1 *constraint;
+
+	struct wl_listener set_region;
+	struct wl_listener destroy;
+};
+
 struct comp_seat {
 	struct comp_server *server;
 

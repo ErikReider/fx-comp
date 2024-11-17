@@ -52,4 +52,14 @@ void comp_cursor_destroy(struct comp_cursor *cursor);
 
 struct comp_cursor *comp_cursor_create(struct comp_seat *seat);
 
+/*
+ * Protocols
+ */
+
+void comp_cursor_handle_pointer_constraint(struct wl_listener *listener,
+										   void *data);
+
+void comp_cursor_constrain(struct comp_cursor *cursor,
+						   struct wlr_pointer_constraint_v1 *constraint);
+
 #endif // !FX_COMP_SEAT_CURSOR_H

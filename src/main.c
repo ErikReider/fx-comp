@@ -380,10 +380,9 @@ int main(int argc, char *argv[]) {
 
 	server.pointer_constraints =
 		wlr_pointer_constraints_v1_create(server.wl_display);
-	// TODO: Pointer constraint
-	// server.pointer_constraint.notify = handle_pointer_constraint;
-	// wl_signal_add(&server.pointer_constraints->events.new_constraint,
-	// 			  &server.pointer_constraint);
+	server.pointer_constraint.notify = comp_cursor_handle_pointer_constraint;
+	wl_signal_add(&server.pointer_constraints->events.new_constraint,
+				  &server.pointer_constraint);
 
 	/*
 	 * Seat

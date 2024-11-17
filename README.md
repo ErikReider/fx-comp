@@ -37,7 +37,6 @@ Todo:
 - [x] Tiling
 - [ ] Restrict modal toplevels to parent (whole toplevel can't be positioned outside of parent)
 - [x] Lock support
-- [ ] Pointer Constraint
 - [x] Fullscreen
 - [ ] Fullscreen titlebar on top hover
     - [ ] Delay
@@ -86,7 +85,7 @@ Todo:
     - [ ] xdg activation
     - [ ] idle inhibit
     - [ ] keyboard shortcuts inhibit
-    - [ ] Pointer constrints
+    - [x] Pointer constrints
     - [ ] Primary selection
     - [x] XDG foreign v1
     - [x] XDG foreign v2
