@@ -227,7 +227,6 @@ void comp_server_output_manager_apply(struct wl_listener *listener,
 	struct wlr_output_configuration_v1 *output_config = data;
 
 	server_apply_output_config(server, output_config, false);
-	wlr_output_configuration_v1_destroy(output_config);
 }
 
 void comp_server_output_manager_test(struct wl_listener *listener, void *data) {
@@ -236,7 +235,6 @@ void comp_server_output_manager_test(struct wl_listener *listener, void *data) {
 	struct wlr_output_configuration_v1 *output_config = data;
 
 	server_apply_output_config(server, output_config, true);
-	wlr_output_configuration_v1_destroy(output_config);
 }
 
 struct comp_output *get_active_output(struct comp_server *server) {
