@@ -26,6 +26,7 @@
 #include "desktop/xdg.h"
 #include "desktop/xwayland.h"
 #include "seat/cursor.h"
+#include "seat/input.h"
 #include "seat/keyboard.h"
 #include "seat/seat.h"
 #include "util.h"
@@ -89,6 +90,8 @@ static void seat_new_input(struct wl_listener *listener, void *data) {
 	struct comp_seat *seat = wl_container_of(listener, seat, new_input);
 	struct wlr_input_device *device = data;
 
+	device->data = seat;
+
 	switch (device->type) {
 	case WLR_INPUT_DEVICE_KEYBOARD:
 		comp_keyboard_create(seat, device);
@@ -136,6 +139,9 @@ static void seat_new_input(struct wl_listener *listener, void *data) {
 		caps |= WL_SEAT_CAPABILITY_KEYBOARD;
 	}
 	wlr_seat_set_capabilities(seat->wlr_seat, caps);
+
+	// Input configuration
+	comp_input_configure_device(device);
 }
 
 static void seat_request_cursor(struct wl_listener *listener, void *data) {

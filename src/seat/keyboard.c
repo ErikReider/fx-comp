@@ -276,7 +276,6 @@ void comp_keyboard_create(struct comp_seat *seat,
 	wlr_keyboard_set_keymap(wlr_keyboard, keymap);
 	xkb_keymap_unref(keymap);
 	xkb_context_unref(context);
-	wlr_keyboard_set_repeat_info(wlr_keyboard, 25, 600);
 
 	/* Here we set up listeners for keyboard events. */
 	keyboard->modifiers.notify = keyboard_handle_modifiers;

@@ -54,6 +54,7 @@ Todo:
 - [ ] Tearing support
 - [ ] Adaptive sync support
 - [ ] WLR Portal support
+- [X] Input configuration
 - [ ] Config
     - [ ] Output
     - [ ] Hotkeys
