@@ -156,8 +156,12 @@ void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state) {
 	}
 }
 
+void comp_toplevel_toggle_minimized(struct comp_toplevel *toplevel) {
+	comp_toplevel_set_minimized(toplevel, !toplevel->minimized);
+}
+
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel) {
-	comp_toplevel_set_fullscreen(toplevel, !toplevel->fullscreen);
+	comp_toplevel_set_fullscreen(toplevel, !toplevel->fullscreen, false);
 }
 
 bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel) {

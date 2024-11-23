@@ -499,7 +499,7 @@ static void handle_fullscreen_click(struct comp_widget *widget,
 static void handle_minimize_click(struct comp_widget *widget,
 								  struct comp_widget_click_region *region) {
 	struct comp_titlebar *titlebar = wl_container_of(widget, titlebar, widget);
-	// TODO: Add wlr_foreign_toplevel_handle_v1
+	comp_toplevel_toggle_minimized(titlebar->toplevel);
 }
 
 static void handle_output_enter(struct wl_listener *listener, void *data) {

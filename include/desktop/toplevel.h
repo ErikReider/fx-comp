@@ -64,6 +64,7 @@ struct comp_toplevel {
 	struct tiling_node *tiling_node;
 	enum comp_tiling_mode tiling_mode;
 	bool dragging_tiled;
+	bool minimized;
 	bool fullscreen;
 	pid_t pid;
 
@@ -71,6 +72,7 @@ struct comp_toplevel {
 	struct wlr_foreign_toplevel_handle_v1 *wlr_foreign_toplevel;
 	struct wl_listener wlr_foreign_activate_request;
 	struct wl_listener wlr_foreign_fullscreen_request;
+	struct wl_listener wlr_foreign_minimize_request;
 	struct wl_listener wlr_foreign_close_request;
 	struct wl_listener wlr_foreign_destroy;
 
@@ -135,6 +137,7 @@ struct comp_toplevel_impl {
 						  int x, int y);
 	void (*set_resizing)(struct comp_toplevel *toplevel, bool state);
 	void (*set_activated)(struct comp_toplevel *toplevel, bool state);
+	void (*set_minimized)(struct comp_toplevel *toplevel, bool state);
 	void (*set_fullscreen)(struct comp_toplevel *toplevel, bool state);
 	bool (*get_is_fullscreen)(struct comp_toplevel *toplevel);
 	void (*set_tiled)(struct comp_toplevel *toplevel, bool state);
@@ -207,7 +210,10 @@ comp_toplevel_from_wlr_surface(struct wlr_surface *wlr_surface);
 uint32_t comp_toplevel_configure(struct comp_toplevel *toplevel, int width,
 								 int height, int x, int y);
 void comp_toplevel_set_activated(struct comp_toplevel *toplevel, bool state);
-void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state);
+void comp_toplevel_set_minimized(struct comp_toplevel *toplevel, bool state);
+void comp_toplevel_toggle_minimized(struct comp_toplevel *toplevel);
+void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state,
+								  bool force);
 void comp_toplevel_toggle_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_can_fullscreen(struct comp_toplevel *toplevel);
 bool comp_toplevel_get_is_fullscreen(struct comp_toplevel *toplevel);

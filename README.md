@@ -41,7 +41,7 @@ Todo:
 - [ ] Fullscreen titlebar on top hover
     - [ ] Delay
     - [ ] Animation
-- [ ] Minimize
+- [X] Minimize
 - [X] XWayland
     - [X] Regular surfaces
     - [X] Popups

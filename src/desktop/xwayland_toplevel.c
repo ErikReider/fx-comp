@@ -163,6 +163,11 @@ static void xway_set_activated(struct comp_toplevel *toplevel, bool state) {
 	wlr_xwayland_surface_restack(xsurface, NULL, XCB_STACK_MODE_ABOVE);
 }
 
+static void xway_set_minimized(struct comp_toplevel *toplevel, bool state) {
+	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
+	wlr_xwayland_surface_set_minimized(xsurface, state);
+}
+
 static void xway_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
 	wlr_xwayland_surface_set_fullscreen(xsurface, state);
@@ -226,6 +231,7 @@ static const struct comp_toplevel_impl xwayland_impl = {
 	.configure = xway_configure,
 	.set_resizing = xway_set_resizing,
 	.set_activated = xway_set_activated,
+	.set_minimized = xway_set_minimized,
 	.set_fullscreen = xway_set_fullscreen,
 	.get_is_fullscreen = xway_get_is_fullscreen,
 	.set_tiled = xway_set_tiled,
@@ -249,22 +255,20 @@ static void xway_toplevel_request_fullscreen(struct wl_listener *listener,
 		return;
 	}
 
-	comp_toplevel_set_fullscreen(toplevel, xsurface->fullscreen);
+	comp_toplevel_set_fullscreen(toplevel, xsurface->fullscreen, false);
 }
 
 static void xway_toplevel_request_minimize(struct wl_listener *listener,
 										   void *data) {
 	struct comp_xwayland_toplevel *toplevel_xway =
 		wl_container_of(listener, toplevel_xway, request_minimize);
-	struct comp_toplevel *toplevel = toplevel_xway->toplevel;
 	struct wlr_xwayland_minimize_event *event = data;
 	struct wlr_xwayland_surface *xsurface = toplevel_xway->xwayland_surface;
 	if (xsurface->surface == NULL || !xsurface->surface->mapped) {
 		return;
 	}
 
-	bool focused = server.seat->focused_toplevel == toplevel;
-	wlr_xwayland_surface_set_minimized(xsurface, !focused && event->minimize);
+	wlr_xwayland_surface_set_minimized(xsurface, event->minimize);
 }
 
 static void xway_toplevel_request_activate(struct wl_listener *listener,

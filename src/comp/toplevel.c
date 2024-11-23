@@ -51,6 +51,7 @@ void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
 static void fade_animation_update(struct comp_animation_mgr *mgr,
 								  struct comp_animation_client *client) {
 	struct comp_toplevel *toplevel = client->data;
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
 
 	const float alpha = lerp(toplevel->anim.fade.from, toplevel->anim.fade.to,
 							 ease_out_cubic(client->progress));
@@ -815,8 +816,64 @@ void comp_toplevel_remove_buffer(struct comp_toplevel *toplevel) {
 	wlr_scene_node_set_enabled(&toplevel->toplevel_scene_tree->node, true);
 }
 
-void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
-	if (toplevel->fullscreen == state ||
+void comp_toplevel_set_minimized(struct comp_toplevel *toplevel, bool state) {
+	if (toplevel->minimized == state) {
+		return;
+	}
+
+	// HACK: Come up with a way of restoring to tiled state
+	if (state) {
+		comp_toplevel_set_tiled(toplevel, false, true);
+	}
+	toplevel->minimized = state;
+
+	if (toplevel->impl && toplevel->impl->set_minimized) {
+		toplevel->impl->set_minimized(toplevel, state);
+	}
+
+	if (state) {
+		// Save the floating state when not fullscreen. The fullscreen logic
+		// already saved the floating position
+		if (toplevel->fullscreen) {
+			comp_toplevel_set_fullscreen(toplevel, false, true);
+			toplevel->fullscreen = true;
+		} else {
+			save_state(toplevel, &toplevel->pending_state);
+		}
+	} else {
+		// Move to the focused workspace and output
+		struct comp_output *output = get_active_output(&server);
+		struct comp_workspace *workspace =
+			comp_output_get_active_ws(output, false);
+		if (workspace != toplevel->workspace) {
+			comp_workspace_move_toplevel_to(workspace, toplevel);
+		}
+
+		// Restore fullscreen state
+		if (toplevel->fullscreen) {
+			comp_toplevel_set_fullscreen(toplevel, true, true);
+		} else {
+			restore_state(toplevel);
+		}
+	}
+
+	// TODO: Minimize animation
+	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, !state);
+
+	if (!toplevel->fullscreen) {
+		comp_object_mark_dirty(&toplevel->object);
+		comp_transaction_commit_dirty(true);
+	}
+
+	if (toplevel->wlr_foreign_toplevel) {
+		wlr_foreign_toplevel_handle_v1_set_minimized(
+			toplevel->wlr_foreign_toplevel, state);
+	}
+}
+
+void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state,
+								  bool force) {
+	if ((toplevel->fullscreen == state && !force) ||
 		!comp_toplevel_can_fullscreen(toplevel)) {
 		return;
 	}
@@ -830,7 +887,6 @@ void comp_toplevel_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	if (toplevel->impl && toplevel->impl->set_fullscreen) {
 		toplevel->impl->set_fullscreen(toplevel, state);
 	}
-	// TODO: Also call foreign toplevel fullscreen function
 
 	if (state) {
 		// Save the floating state
@@ -986,8 +1042,6 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 		toplevel->state = toplevel->pending_state;
 	}
 
-	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
-
 	if (toplevel->impl && toplevel->impl->marked_dirty_cb) {
 		toplevel->impl->marked_dirty_cb(toplevel);
 	}
@@ -1069,9 +1123,20 @@ static void handle_wlr_foreign_activate_request(struct wl_listener *listener,
 		return;
 	}
 
-	// TODO: Un-minimize
+	// Un-minimize
+	comp_toplevel_set_minimized(toplevel, false);
+
 	comp_seat_surface_focus(&toplevel->object,
 							comp_toplevel_get_wlr_surface(toplevel));
+}
+
+static void handle_wlr_foreign_minimize_request(struct wl_listener *listener,
+												void *data) {
+	struct comp_toplevel *toplevel =
+		wl_container_of(listener, toplevel, wlr_foreign_minimize_request);
+	struct wlr_foreign_toplevel_handle_v1_minimized_event *event = data;
+
+	comp_toplevel_set_minimized(toplevel, event->minimized);
 }
 
 static void handle_wlr_foreign_fullscreen_request(struct wl_listener *listener,
@@ -1081,8 +1146,8 @@ static void handle_wlr_foreign_fullscreen_request(struct wl_listener *listener,
 	struct wlr_foreign_toplevel_handle_v1_fullscreen_event *event = data;
 
 	// Ignore the event output hint
-	// TODO: Use hint in future
-	comp_toplevel_set_fullscreen(toplevel, event->fullscreen);
+	// TODO: Use output hint in future
+	comp_toplevel_set_fullscreen(toplevel, event->fullscreen, false);
 }
 
 static void handle_wlr_foreign_close_request(struct wl_listener *listener,
@@ -1099,6 +1164,7 @@ static void handle_wlr_foreign_destroy(struct wl_listener *listener,
 		wl_container_of(listener, toplevel, wlr_foreign_destroy);
 
 	listener_remove(&toplevel->wlr_foreign_activate_request);
+	listener_remove(&toplevel->wlr_foreign_minimize_request);
 	listener_remove(&toplevel->wlr_foreign_fullscreen_request);
 	listener_remove(&toplevel->wlr_foreign_close_request);
 	listener_remove(&toplevel->wlr_foreign_destroy);
@@ -1240,6 +1306,10 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 		&toplevel->wlr_foreign_activate_request,
 		handle_wlr_foreign_activate_request);
 	listener_connect_init(
+		&toplevel->wlr_foreign_toplevel->events.request_minimize,
+		&toplevel->wlr_foreign_minimize_request,
+		handle_wlr_foreign_minimize_request);
+	listener_connect_init(
 		&toplevel->wlr_foreign_toplevel->events.request_fullscreen,
 		&toplevel->wlr_foreign_fullscreen_request,
 		handle_wlr_foreign_fullscreen_request);
@@ -1283,7 +1353,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 							comp_toplevel_get_wlr_surface(toplevel));
 
 	if (fullscreen && comp_toplevel_can_fullscreen(toplevel)) {
-		comp_toplevel_set_fullscreen(toplevel, true);
+		comp_toplevel_set_fullscreen(toplevel, true, false);
 		toplevel->unmapped = false;
 	} else {
 		toplevel->fullscreen = false;
@@ -1328,7 +1398,7 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 	}
 
 	if (toplevel->fullscreen) {
-		comp_toplevel_set_fullscreen(toplevel, false);
+		comp_toplevel_set_fullscreen(toplevel, false, false);
 	}
 
 	// Don't animate if already destroying

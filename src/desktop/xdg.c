@@ -106,6 +106,10 @@ static void xdg_set_activated(struct comp_toplevel *toplevel, bool state) {
 	wlr_xdg_toplevel_set_activated(toplevel_xdg->xdg_toplevel, state);
 }
 
+static void xdg_set_minimized(struct comp_toplevel *toplevel, bool state) {
+	/* noop */
+}
+
 static void xdg_set_fullscreen(struct comp_toplevel *toplevel, bool state) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
 	wlr_xdg_toplevel_set_fullscreen(toplevel_xdg->xdg_toplevel, state);
@@ -172,6 +176,7 @@ static const struct comp_toplevel_impl xdg_impl = {
 	.configure = xdg_configure,
 	.set_resizing = xdg_set_resizing,
 	.set_activated = xdg_set_activated,
+	.set_minimized = xdg_set_minimized,
 	.set_fullscreen = xdg_set_fullscreen,
 	.get_is_fullscreen = xdg_get_is_fullscreen,
 	.set_tiled = xdg_set_tiled,
@@ -278,6 +283,21 @@ static void xdg_toplevel_request_maximize(struct wl_listener *listener,
 	wlr_xdg_surface_schedule_configure(toplevel_xdg->xdg_toplevel->base);
 }
 
+static void xdg_toplevel_request_minimize(struct wl_listener *listener,
+										  void *data) {
+	struct comp_xdg_toplevel *toplevel_xdg =
+		wl_container_of(listener, toplevel_xdg, request_minimize);
+	struct comp_toplevel *toplevel = toplevel_xdg->toplevel;
+	struct wlr_xdg_toplevel *xdg_toplevel = toplevel_xdg->xdg_toplevel;
+
+	if (!xdg_toplevel->base->surface->mapped) {
+		return;
+	}
+
+	struct wlr_xdg_toplevel_requested *req = &xdg_toplevel->requested;
+	comp_toplevel_set_minimized(toplevel, req->minimized);
+}
+
 static void xdg_toplevel_request_fullscreen(struct wl_listener *listener,
 											void *data) {
 	struct comp_xdg_toplevel *toplevel_xdg =
@@ -290,7 +310,7 @@ static void xdg_toplevel_request_fullscreen(struct wl_listener *listener,
 	}
 
 	struct wlr_xdg_toplevel_requested *req = &xdg_toplevel->requested;
-	comp_toplevel_set_fullscreen(toplevel, req->fullscreen);
+	comp_toplevel_set_fullscreen(toplevel, req->fullscreen, false);
 }
 
 static void xdg_toplevel_set_title(struct wl_listener *listener, void *data) {
@@ -355,6 +375,9 @@ static void xdg_toplevel_map(struct wl_listener *listener, void *data) {
 	toplevel_xdg->request_maximize.notify = xdg_toplevel_request_maximize;
 	wl_signal_add(&xdg_toplevel->events.request_maximize,
 				  &toplevel_xdg->request_maximize);
+	toplevel_xdg->request_minimize.notify = xdg_toplevel_request_minimize;
+	wl_signal_add(&xdg_toplevel->events.request_minimize,
+				  &toplevel_xdg->request_minimize);
 	toplevel_xdg->request_fullscreen.notify = xdg_toplevel_request_fullscreen;
 	wl_signal_add(&xdg_toplevel->events.request_fullscreen,
 				  &toplevel_xdg->request_fullscreen);
@@ -374,6 +397,7 @@ static void xdg_toplevel_unmap(struct wl_listener *listener, void *data) {
 	wl_list_remove(&toplevel_xdg->request_move.link);
 	wl_list_remove(&toplevel_xdg->request_resize.link);
 	wl_list_remove(&toplevel_xdg->request_maximize.link);
+	wl_list_remove(&toplevel_xdg->request_minimize.link);
 	wl_list_remove(&toplevel_xdg->request_fullscreen.link);
 	wl_list_remove(&toplevel_xdg->set_title.link);
 

@@ -84,6 +84,13 @@ static bool handle_keybinding(struct comp_server *server, int modifier,
 			}
 			return true;
 
+		case XKB_KEY_h:
+			// Set minimized
+			if (focused_toplevel) {
+				comp_toplevel_set_minimized(focused_toplevel, true);
+			}
+			return true;
+
 		case XKB_KEY_F:;
 			// Toggle fullscreen
 			if (focused_toplevel) {
