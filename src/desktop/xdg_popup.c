@@ -113,7 +113,7 @@ static void popup_unconstrain(struct comp_xdg_popup *popup) {
 
 	// the output box expressed in the coordinate system of the toplevel parent
 	// of the popup
-	struct wlr_output *wlr_output;
+	struct comp_output *output;
 	int x, y;
 
 	switch (object->type) {
@@ -128,27 +128,27 @@ static void popup_unconstrain(struct comp_xdg_popup *popup) {
 			return;
 		}
 
-		wlr_output = toplevel->workspace->output->wlr_output;
+		output = toplevel->workspace->output;
 		x = -toplevel->state.x + toplevel->geometry.x;
 		y = -toplevel->state.y + toplevel->geometry.y;
 		break;
 	}
 	case COMP_OBJECT_TYPE_LAYER_SURFACE: {
 		struct comp_layer_surface *layer = object->data;
-		wlr_output = layer->output->wlr_output;
-		int lx, ly;
-		wlr_scene_node_coords(&layer->scene_layer->tree->node, &lx, &ly);
-		x = -lx;
-		y = -ly;
+		output = layer->output;
+		x = -layer->scene_layer->tree->node.x;
+		y = -layer->scene_layer->tree->node.y;
 		break;
 	}
 	}
 
 	struct wlr_xdg_popup *wlr_popup = popup->wlr_popup;
-	struct wlr_box output_box;
-	wlr_output_layout_get_box(server.output_layout, wlr_output, &output_box);
-	output_box.x = x;
-	output_box.y = y;
+	struct wlr_box output_box = {
+		.width = output->usable_area.width,
+		.height = output->usable_area.height,
+		.x = x,
+		.y = y,
+	};
 
 	wlr_xdg_popup_unconstrain_from_box(wlr_popup, &output_box);
 }
