@@ -588,9 +588,7 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 			}
 		}
 		enum corner_location corners =
-			toplevel->using_csd
-				? CORNER_LOCATION_ALL
-				: CORNER_LOCATION_BOTTOM_LEFT | CORNER_LOCATION_BOTTOM_RIGHT;
+			toplevel->using_csd ? CORNER_LOCATION_ALL : CORNER_LOCATION_BOTTOM;
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? toplevel->corner_radius : 0,
 			has_effects ? corners : CORNER_LOCATION_NONE);
@@ -626,7 +624,7 @@ static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
 
 		wlr_scene_buffer_set_corner_radius(
 			buffer, has_effects ? widget->corner_radius : 0,
-			has_effects ? CORNER_LOCATION_ALL : 0);
+			has_effects ? CORNER_LOCATION_ALL : CORNER_LOCATION_NONE);
 
 		wlr_scene_buffer_set_backdrop_blur(buffer, has_effects &&
 													   widget->backdrop_blur);
