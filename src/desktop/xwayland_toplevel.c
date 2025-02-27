@@ -22,6 +22,9 @@ static inline struct wlr_xwayland_surface *
 get_xsurface(struct comp_toplevel *toplevel) {
 	switch (toplevel->type) {
 	case COMP_TOPLEVEL_TYPE_XWAYLAND:
+		if (!toplevel->toplevel_xway) {
+			return NULL;
+		}
 		return toplevel->toplevel_xway->xwayland_surface;
 	case COMP_TOPLEVEL_TYPE_XDG:
 		abort();

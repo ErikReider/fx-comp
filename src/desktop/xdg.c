@@ -45,7 +45,10 @@ static void xdg_get_constraints(struct comp_toplevel *toplevel, int *min_width,
 
 static struct wlr_surface *xdg_get_wlr_surface(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
-	return toplevel_xdg->xdg_toplevel->base->surface;
+	if (toplevel_xdg && toplevel_xdg->xdg_toplevel && toplevel_xdg->xdg_toplevel->base) {
+		return toplevel_xdg->xdg_toplevel->base->surface;
+	}
+	return NULL;
 }
 
 static char *xdg_get_app_id(struct comp_toplevel *toplevel) {
