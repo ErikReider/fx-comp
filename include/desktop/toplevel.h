@@ -172,7 +172,7 @@ void comp_toplevel_begin_interactive(struct comp_toplevel *toplevel,
 struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel);
 
 /** Re-apply the effects to each child buffer */
-void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel);
+void comp_toplevel_refresh_titlebar_effects(struct comp_toplevel *toplevel);
 /**
  * Moves the toplevel into it's parent tree if it exists. Otherwise, move it
  * into the correct layer.
@@ -230,9 +230,6 @@ void comp_toplevel_set_resizing(struct comp_toplevel *toplevel, bool state);
 void comp_toplevel_refresh_titlebar(struct comp_toplevel *toplevel);
 
 void comp_toplevel_send_frame_done(struct comp_toplevel *toplevel);
-
-// void comp_toplevel_commit_transaction(struct comp_toplevel *toplevel,
-// 									  bool run_now);
 
 void comp_toplevel_set_position(struct comp_toplevel *toplevel, int x, int y);
 

@@ -13,6 +13,7 @@
 #include <wlr/types/wlr_output.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_power_management_v1.h>
+#include <wlr/types/wlr_xdg_shell.h>
 #include <wlr/util/log.h>
 
 #include "comp/lock.h"
@@ -140,56 +141,117 @@ static void output_configure_scene(struct comp_output *output,
 		if (!obj) {
 			wlr_log(WLR_DEBUG,
 					"Tried to apply effects to buffer with unknown data");
-			return;
+			break;
 		}
-		if (obj->type == COMP_OBJECT_TYPE_TOPLEVEL) {
-			struct comp_toplevel *toplevel = obj->data;
-			bool has_effects = !toplevel->fullscreen;
-			bool is_saved =
-				// saved_scene_tree has a single tree as child which
-				// contains all of the saved nodes.
-				node->parent->node.parent == toplevel->saved_scene_tree ||
-				node->parent == toplevel->object.saved_tree;
+		if (obj->type != COMP_OBJECT_TYPE_TOPLEVEL) {
+			break;
+		}
 
-			// Set opacity here due to the buffers opacity being reset every
-			// commit... 🙃
-			// https://gitlab.freedesktop.org/wlroots/wlroots/-/blob/0.18.1/types/scene/surface.c?ref_type=tags#L160
-			float opacity = has_effects ? toplevel->opacity : 1;
+		struct comp_toplevel *toplevel = obj->data;
+		bool has_effects = !toplevel->fullscreen;
+		bool is_in_saved_tree =
+			// saved_scene_tree has a single tree as child which
+			// contains all of the saved nodes.
+			node->parent->node.parent == toplevel->saved_scene_tree ||
+			node->parent == toplevel->object.saved_tree;
+
+		// Stretch the saved toplevel buffer to fit the toplevel state
+		if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+			int width = toplevel->state.width;
+			int height = toplevel->state.height;
+			if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
+				wlr_scene_buffer_set_dest_size(buffer, height, width);
+			} else {
+				wlr_scene_buffer_set_dest_size(buffer, width, height);
+			}
+		}
+
+		//
+		// Opacity
+		//
+
+		float opacity = has_effects ? toplevel->opacity : 1;
+		if (toplevel->anim.resize.client->state == ANIMATION_STATE_RUNNING) {
+			if (is_in_saved_tree) {
+				opacity *= toplevel->anim.resize.crossfade_opacity;
+			}
+		}
+		if (toplevel->anim.fade.client->state ==
+			ANIMATION_STATE_RUNNING) {
+			opacity *= toplevel->anim.fade.fade_opacity;
+		}
+
+		// Alpha modifier support
+		struct wlr_scene_surface *surface =
+			wlr_scene_surface_try_from_buffer(buffer);
+		if (surface) {
+			const struct wlr_alpha_modifier_surface_v1_state
+				*alpha_modifier_state =
+					wlr_alpha_modifier_v1_get_surface_state(surface->surface);
+			if (alpha_modifier_state) {
+				opacity *= (float)alpha_modifier_state->multiplier;
+			}
+		}
+		wlr_scene_buffer_set_opacity(buffer, opacity);
+
+		//
+		// Toplevel only effects
+		//
+
+		bool is_main_surface = false;
+
+		struct wlr_scene_surface *scene_surface =
+			wlr_scene_surface_try_from_buffer(buffer);
+		if (scene_surface) {
+			switch (toplevel->type) {
+			case COMP_TOPLEVEL_TYPE_XDG:;
+				struct wlr_xdg_surface *xdg_surface =
+					wlr_xdg_surface_try_from_wlr_surface(
+						scene_surface->surface);
+				is_main_surface =
+					xdg_surface &&
+					xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL;
+				break;
+			case COMP_TOPLEVEL_TYPE_XWAYLAND:
+				is_main_surface =
+					wlr_xwayland_surface_try_from_wlr_surface(surface->surface);
+				break;
+			}
+		}
+
+		// Ignore other unknown types
+		if (is_in_saved_tree || is_main_surface) {
+			// Blur
+			bool blur = has_effects;
 			if (toplevel->anim.resize.client->state ==
 				ANIMATION_STATE_RUNNING) {
-				if (is_saved) {
-					opacity *= toplevel->anim.resize.crossfade_opacity;
+				if (is_in_saved_tree) {
+					blur = false;
 				}
 			}
-			if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
-				opacity *= toplevel->anim.fade.fade_opacity;
+			wlr_scene_buffer_set_backdrop_blur(buffer, blur);
+			switch (toplevel->tiling_mode) {
+			case COMP_TILING_MODE_FLOATING:
+				wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
+				break;
+			case COMP_TILING_MODE_TILED:
+				wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
+				break;
 			}
+			wlr_scene_buffer_set_backdrop_blur_ignore_transparent(buffer, true);
+		}
 
-			// Alpha modifier support
-			struct wlr_scene_surface *surface =
-				wlr_scene_surface_try_from_buffer(buffer);
-			if (surface) {
-				const struct wlr_alpha_modifier_surface_v1_state
-					*alpha_modifier_state =
-						wlr_alpha_modifier_v1_get_surface_state(
-							surface->surface);
-				if (alpha_modifier_state) {
-					opacity *= (float)alpha_modifier_state->multiplier;
-				}
-			}
-
-			wlr_scene_buffer_set_opacity(buffer, opacity);
-
-			// Stretch the saved toplevel buffer to fit the toplevel state
-			if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
-				int width = toplevel->state.width;
-				int height = toplevel->state.height;
-				if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
-					wlr_scene_buffer_set_dest_size(buffer, height, width);
-				} else {
-					wlr_scene_buffer_set_dest_size(buffer, width, height);
-				}
-			}
+		// Set corners for subsurfaces as well. Fixes Firefox weirdness :/
+		if (is_main_surface ||
+			(surface && surface->surface &&
+			 wlr_subsurface_try_from_wlr_surface(surface->surface))) {
+			// Corners
+			enum corner_location corners = toplevel->using_csd
+											   ? CORNER_LOCATION_ALL
+											   : CORNER_LOCATION_BOTTOM;
+			wlr_scene_buffer_set_corner_radius(
+				buffer, has_effects ? toplevel->corner_radius : 0,
+				has_effects ? corners : CORNER_LOCATION_NONE);
 		}
 		break;
 	}

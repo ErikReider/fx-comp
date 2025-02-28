@@ -45,7 +45,6 @@ struct comp_widget {
 	pixman_region32_t damage;
 
 	// Effects
-	float opacity;
 	int corner_radius;
 	struct shadow_data shadow_data;
 	bool backdrop_blur;

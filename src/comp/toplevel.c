@@ -105,7 +105,7 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 								 toplevel->anim.resize.client);
 
 	// Save the initial buffer
-	comp_toplevel_mark_effects_dirty(toplevel);
+	comp_toplevel_refresh_titlebar_effects(toplevel);
 	comp_toplevel_save_buffer(toplevel);
 
 	toplevel->anim.resize.crossfade_opacity = 1.0f;
@@ -155,7 +155,7 @@ static void resize_animation_done(struct comp_animation_mgr *mgr,
 
 	toplevel->anim.resize.crossfade_opacity = 1.0f;
 	comp_toplevel_remove_buffer(toplevel);
-	comp_toplevel_mark_effects_dirty(toplevel);
+	comp_toplevel_refresh_titlebar_effects(toplevel);
 }
 
 const struct comp_animation_client_impl resize_animation_impl = {
@@ -537,199 +537,31 @@ struct wlr_scene_tree *comp_toplevel_get_layer(struct comp_toplevel *toplevel) {
 	return NULL;
 }
 
-struct apply_effects_data {
-	struct comp_toplevel *toplevel;
-	bool is_saved;
-};
-
-static void apply_effects_scene_buffer(struct wlr_scene_buffer *buffer, int sx,
-									   int sy, void *user_data) {
-	struct apply_effects_data *data = user_data;
-	struct comp_toplevel *toplevel = data->toplevel;
-
-	struct wlr_scene_surface *scene_surface =
-		wlr_scene_surface_try_from_buffer(buffer);
-	if (scene_surface) {
-		switch (toplevel->type) {
-		case COMP_TOPLEVEL_TYPE_XDG:;
-			struct wlr_xdg_surface *xdg_surface;
-			if (!(xdg_surface = wlr_xdg_surface_try_from_wlr_surface(
-					  scene_surface->surface)) ||
-				xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL) {
-				return;
-			}
-			break;
-		case COMP_TOPLEVEL_TYPE_XWAYLAND:
-			// TODO: Check here
-			break;
-		}
-	}
-
+void comp_toplevel_refresh_titlebar_effects(struct comp_toplevel *toplevel) {
+	// Refresh titlebar, no need to step through the entire toplevel tree
 	bool has_effects = !toplevel->fullscreen;
+	struct comp_titlebar *titlebar = toplevel->titlebar;
+	struct wlr_scene_buffer *buffer = titlebar->widget.scene_buffer;
+	float opacity = 1;
 
-	// The node data should be NULL if it's a toplevel buffer
-	struct comp_object *obj = buffer->node.data;
-	if (!obj) {
-		wlr_log(WLR_DEBUG,
-				"Tried to apply effects to buffer with unknown data");
-		return;
+	if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
+		opacity *= toplevel->anim.fade.fade_opacity;
 	}
-	switch (obj->type) {
-	default:
-		wlr_log(WLR_ERROR, "Tried to apply effects to unsupported type: %i",
-				obj->type);
-		return;
+	wlr_scene_buffer_set_opacity(buffer, opacity);
 
-	case COMP_OBJECT_TYPE_TOPLEVEL: {
-		bool blur = has_effects;
-		if (toplevel->anim.resize.client->state == ANIMATION_STATE_RUNNING) {
-			if (data->is_saved) {
-				blur = false;
-			}
-		}
-		enum corner_location corners =
-			toplevel->using_csd ? CORNER_LOCATION_ALL : CORNER_LOCATION_BOTTOM;
-		wlr_scene_buffer_set_corner_radius(
-			buffer, has_effects ? toplevel->corner_radius : 0,
-			has_effects ? corners : CORNER_LOCATION_NONE);
+	comp_titlebar_refresh_corner_radii(toplevel->titlebar);
+	wlr_scene_buffer_set_corner_radius(
+		buffer, has_effects ? titlebar->widget.corner_radius : 0,
+		has_effects ? CORNER_LOCATION_ALL : CORNER_LOCATION_NONE);
 
-		// Blur
-		wlr_scene_buffer_set_backdrop_blur(buffer, blur);
-		switch (toplevel->tiling_mode) {
-		case COMP_TILING_MODE_FLOATING:
-			wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
-			break;
-		case COMP_TILING_MODE_TILED:
-			wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
-			break;
-		}
-		wlr_scene_buffer_set_backdrop_blur_ignore_transparent(buffer, true);
-		break;
-	}
-	case COMP_OBJECT_TYPE_WIDGET: {
-		struct comp_widget *widget = obj->data;
+	wlr_scene_buffer_set_backdrop_blur(
+		buffer, has_effects && titlebar->widget.backdrop_blur);
+	wlr_scene_buffer_set_backdrop_blur_optimized(
+		buffer, titlebar->widget.backdrop_blur_optimized);
+	wlr_scene_buffer_set_backdrop_blur_ignore_transparent(
+		buffer, titlebar->widget.backdrop_blur_ignore_transparent);
 
-		float opacity = has_effects ? widget->opacity : 1;
-		if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
-			opacity *= toplevel->anim.fade.fade_opacity;
-		}
-		wlr_scene_buffer_set_opacity(buffer, opacity);
-
-		if (widget == &toplevel->titlebar->widget) {
-			comp_titlebar_refresh_corner_radii(toplevel->titlebar);
-			if (!data->is_saved) {
-				comp_widget_refresh_shadow(widget);
-			}
-		}
-
-		wlr_scene_buffer_set_corner_radius(
-			buffer, has_effects ? widget->corner_radius : 0,
-			has_effects ? CORNER_LOCATION_ALL : CORNER_LOCATION_NONE);
-
-		wlr_scene_buffer_set_backdrop_blur(buffer, has_effects &&
-													   widget->backdrop_blur);
-		wlr_scene_buffer_set_backdrop_blur_optimized(
-			buffer, widget->backdrop_blur_optimized);
-		wlr_scene_buffer_set_backdrop_blur_ignore_transparent(
-			buffer, widget->backdrop_blur_ignore_transparent);
-		break;
-	}
-	}
-}
-
-static void scene_node_apply_effects(struct wlr_scene_node *node, int lx,
-									 int ly, struct apply_effects_data *data) {
-	struct comp_toplevel *toplevel = data->toplevel;
-
-	if (!node->enabled) {
-		return;
-	}
-
-	lx += node->x;
-	ly += node->y;
-
-	switch (node->type) {
-	case WLR_SCENE_NODE_TREE: {
-		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
-
-		struct apply_effects_data saved_data = *data;
-		saved_data.is_saved = true;
-		if (scene_tree == toplevel->saved_scene_tree ||
-			scene_tree == toplevel->object.saved_tree) {
-			data = &saved_data;
-		}
-
-		struct wlr_scene_node *child;
-		wl_list_for_each(child, &scene_tree->children, link) {
-			scene_node_apply_effects(child, lx, ly, data);
-		}
-		break;
-	}
-	case WLR_SCENE_NODE_BUFFER: {
-		struct wlr_scene_buffer *scene_buffer =
-			wlr_scene_buffer_from_node(node);
-		apply_effects_scene_buffer(scene_buffer, lx, ly, data);
-		break;
-	}
-	case WLR_SCENE_NODE_RECT:
-	case WLR_SCENE_NODE_OPTIMIZED_BLUR:
-		break;
-	case WLR_SCENE_NODE_SHADOW: {
-		struct wlr_scene_shadow *scene_shadow =
-			wlr_scene_shadow_from_node(node);
-		struct comp_object *obj = scene_shadow->node.data;
-		if (!obj) {
-			wlr_log(WLR_DEBUG,
-					"Tried to apply effects to buffer with unknown data");
-			break;
-		}
-		if (obj->type != COMP_OBJECT_TYPE_WIDGET) {
-			wlr_log(WLR_DEBUG, "Tried to apply effects to non Widget shadow");
-			break;
-		}
-
-		// Update color for saved shadow node
-		struct comp_widget *widget = obj->data;
-		struct shadow_data *shadow_data = &widget->shadow_data;
-		if (data->is_saved ||
-			shadow_data_should_update_color(scene_shadow, shadow_data)) {
-
-			float alpha = shadow_data->color.a * widget->scene_buffer->opacity *
-						  widget->opacity;
-			if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
-				alpha *= toplevel->anim.fade.fade_opacity;
-			}
-
-			wlr_scene_shadow_set_color(scene_shadow, (float[4]){
-														 shadow_data->color.r,
-														 shadow_data->color.g,
-														 shadow_data->color.b,
-														 alpha,
-													 });
-		}
-		break;
-	}
-	}
-}
-
-void comp_toplevel_mark_effects_dirty(struct comp_toplevel *toplevel) {
-	struct apply_effects_data data = {
-		.toplevel = toplevel,
-		.is_saved = false,
-	};
-	if (toplevel->object.saved_tree) {
-		data.is_saved = true;
-		scene_node_apply_effects(&toplevel->object.saved_tree->node, 0, 0,
-								 &data);
-		return;
-	}
-	if (toplevel->object.destroying) {
-		wlr_log(WLR_DEBUG,
-				"Skipping setting effects due to toplevel being destroyed");
-		return;
-	}
-
-	scene_node_apply_effects(&toplevel->object.content_tree->node, 0, 0, &data);
+	comp_widget_refresh_shadow(&titlebar->widget);
 }
 
 void comp_toplevel_move_into_parent_tree(struct comp_toplevel *toplevel,
@@ -1033,7 +865,6 @@ void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel) {
 
 void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 						   bool is_instruction) {
-	// struct comp_toplevel_state original_state = toplevel->state;
 	// Assume that there's a pending state. Update the decorations with said
 	// pending state
 	if (!is_instruction) {
@@ -1102,7 +933,7 @@ void comp_toplevel_refresh(struct comp_toplevel *toplevel,
 	}
 
 post_deocations:
-	comp_toplevel_mark_effects_dirty(toplevel);
+	comp_toplevel_refresh_titlebar_effects(toplevel);
 }
 
 /*
@@ -1335,7 +1166,7 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	// Move into the predefined layer
 	comp_toplevel_move_into_parent_tree(toplevel, NULL);
 
-	comp_toplevel_mark_effects_dirty(toplevel);
+	comp_toplevel_refresh_titlebar_effects(toplevel);
 
 	// Open new floating toplevels in the center of the output/parent with the
 	// natural size. If tiling, save the centered state so untiling would center

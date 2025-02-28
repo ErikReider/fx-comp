@@ -52,8 +52,7 @@ void comp_widget_refresh_shadow(struct comp_widget *widget) {
 		widget->shadow_node,
 		(float[4]){shadow_data->color.r, shadow_data->color.g,
 				   shadow_data->color.b,
-				   shadow_data->color.a * widget->scene_buffer->opacity *
-					   widget->opacity});
+				   shadow_data->color.a * widget->scene_buffer->opacity});
 
 	wlr_scene_node_set_position(
 		&widget->shadow_node->node,
@@ -62,16 +61,17 @@ void comp_widget_refresh_shadow(struct comp_widget *widget) {
 	wlr_scene_shadow_set_size(widget->shadow_node,
 							  widget->width + shadow_data->blur_sigma * 2,
 							  widget->height + shadow_data->blur_sigma * 2);
-	wlr_scene_shadow_set_clipped_region(widget->shadow_node, (struct clipped_region) {
-		.corners = CORNER_LOCATION_ALL,
-		.corner_radius = widget->corner_radius,
-		.area = {
-			.x = shadow_data->blur_sigma - shadow_data->offset_x,
-			.y = shadow_data->blur_sigma - shadow_data->offset_y,
-			.width = widget->width,
-			.height = widget->height,
-		}
-	});
+	wlr_scene_shadow_set_clipped_region(
+		widget->shadow_node,
+		(struct clipped_region){
+			.corners = CORNER_LOCATION_ALL,
+			.corner_radius = widget->corner_radius,
+			.area = {
+				.x = shadow_data->blur_sigma - shadow_data->offset_x,
+				.y = shadow_data->blur_sigma - shadow_data->offset_y,
+				.width = widget->width,
+				.height = widget->height,
+			}});
 }
 
 bool comp_widget_init(struct comp_widget *widget, struct comp_server *server,

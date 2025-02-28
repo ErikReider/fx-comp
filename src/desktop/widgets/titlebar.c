@@ -576,7 +576,6 @@ struct comp_titlebar *comp_titlebar_init(struct comp_server *server,
 											 TITLEBAR_TEXT_SIZE * PANGO_SCALE);
 
 	// Set the titlebar decoration data
-	titlebar->widget.opacity = 1;
 	comp_titlebar_refresh_corner_radii(titlebar);
 	if (toplevel->corner_radius == 0) {
 		titlebar->widget.corner_radius = 0;
