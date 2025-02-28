@@ -30,6 +30,11 @@ enum comp_toplevel_type {
 	COMP_TOPLEVEL_TYPE_XWAYLAND,
 };
 
+struct animation_open_close_data {
+	float opacity;
+	struct comp_toplevel_state state;
+};
+
 // TODO: Make more generic for XWayland and others...
 struct comp_toplevel {
 	struct wl_list workspace_link;
@@ -107,10 +112,10 @@ struct comp_toplevel {
 	struct {
 		struct {
 			struct comp_animation_client *client;
-			float to;
-			float from;
+			struct animation_open_close_data to;
+			struct animation_open_close_data from;
 			float fade_opacity;
-		} fade;
+		} open_close;
 		struct {
 			struct comp_animation_client *client;
 			struct comp_toplevel_state to;
@@ -258,8 +263,9 @@ void comp_toplevel_generic_set_natural_size(struct comp_toplevel *toplevel,
  * Animation
  */
 
-void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
-									  float from, float to);
+void comp_toplevel_add_open_close_animation(
+	struct comp_toplevel *toplevel, struct animation_open_close_data from,
+	struct animation_open_close_data to);
 
 void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 									  struct comp_toplevel_state from,

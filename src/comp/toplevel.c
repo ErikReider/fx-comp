@@ -34,40 +34,79 @@
  * Animations
  */
 
-/* Fade Animation */
-
-void comp_toplevel_add_fade_animation(struct comp_toplevel *toplevel,
-									  float from, float to) {
-	comp_animation_client_cancel(server.animation_mgr,
-								 toplevel->anim.fade.client);
-
-	toplevel->anim.fade.fade_opacity = from;
-	toplevel->anim.fade.from = from;
-	toplevel->anim.fade.to = to;
-	comp_animation_client_add(server.animation_mgr, toplevel->anim.fade.client,
-							  true);
+/** Get the dest/initial toplevel size for the scale (un)map animation */
+static struct comp_toplevel_state
+get_open_close_small_state(struct comp_toplevel_state pending) {
+	const int small_width = pending.width / 2;
+	const int small_height = pending.height / 2;
+	return (struct comp_toplevel_state){
+		.x = pending.x + (pending.width - small_width) / 2,
+		.y = pending.y + (pending.height - small_height) / 2,
+		.width = small_width,
+		.height = small_height,
+	};
 }
 
-static void fade_animation_update(struct comp_animation_mgr *mgr,
-								  struct comp_animation_client *client) {
+static void cancel_all_resize_animations(struct comp_toplevel *toplevel) {
+	comp_animation_client_cancel(server.animation_mgr,
+								 toplevel->anim.open_close.client);
+	comp_animation_client_cancel(server.animation_mgr,
+								 toplevel->anim.resize.client);
+}
+
+/* Open/Close Animation */
+
+void comp_toplevel_add_open_close_animation(
+	struct comp_toplevel *toplevel, struct animation_open_close_data from,
+	struct animation_open_close_data to) {
+
+	cancel_all_resize_animations(toplevel);
+
+	toplevel->anim.open_close.fade_opacity = from.opacity;
+	toplevel->anim.open_close.from = from;
+	toplevel->anim.open_close.to = to;
+
+	comp_animation_client_add(server.animation_mgr,
+							  toplevel->anim.open_close.client, true);
+}
+
+static void open_close_animation_update(struct comp_animation_mgr *mgr,
+										struct comp_animation_client *client) {
 	struct comp_toplevel *toplevel = client->data;
 	wlr_scene_node_set_enabled(&toplevel->object.scene_tree->node, true);
 
-	const float alpha = lerp(toplevel->anim.fade.from, toplevel->anim.fade.to,
-							 ease_out_cubic(client->progress));
-	toplevel->anim.fade.fade_opacity = alpha;
+	const float progress = ease_out_cubic(client->progress);
 
-	comp_toplevel_mark_effects_dirty(toplevel);
+	const float opacity = lerp(toplevel->anim.open_close.from.opacity,
+							   toplevel->anim.open_close.to.opacity, progress);
+	toplevel->anim.open_close.fade_opacity = opacity;
+
+	const struct comp_toplevel_state *from_state =
+		&toplevel->anim.open_close.from.state;
+	const struct comp_toplevel_state *to_state =
+		&toplevel->anim.open_close.to.state;
+
+	int x = from_state->x + (to_state->x - from_state->x) * progress;
+	int y = from_state->y + (to_state->y - from_state->y) * progress;
+	int width =
+		from_state->width + (to_state->width - from_state->width) * progress;
+	int height =
+		from_state->height + (to_state->height - from_state->height) * progress;
+
+	comp_toplevel_set_size(toplevel, width, height);
+	comp_toplevel_set_position(toplevel, x, y);
+	comp_toplevel_refresh(toplevel, false);
 }
 
-static void fade_animation_done(struct comp_animation_mgr *mgr,
-								struct comp_animation_client *client,
-								bool cancelled) {
+static void open_close_animation_done(struct comp_animation_mgr *mgr,
+									  struct comp_animation_client *client,
+									  bool cancelled) {
 	struct comp_toplevel *toplevel = client->data;
-	comp_object_remove_buffer(&toplevel->object);
-	toplevel->anim.fade.fade_opacity = toplevel->anim.fade.to;
+	comp_toplevel_remove_buffer(toplevel);
+	toplevel->anim.open_close.fade_opacity =
+		toplevel->anim.open_close.to.opacity;
 
-	comp_toplevel_mark_effects_dirty(toplevel);
+	comp_toplevel_refresh_titlebar_effects(toplevel);
 
 	// Continue destroying the toplevel
 	if (toplevel->object.destroying) {
@@ -75,9 +114,9 @@ static void fade_animation_done(struct comp_animation_mgr *mgr,
 	}
 }
 
-const struct comp_animation_client_impl fade_animation_impl = {
-	.done = fade_animation_done,
-	.update = fade_animation_update,
+const struct comp_animation_client_impl open_close_animation_impl = {
+	.done = open_close_animation_done,
+	.update = open_close_animation_update,
 };
 
 /* Resize Animation */
@@ -101,8 +140,7 @@ void comp_toplevel_add_size_animation(struct comp_toplevel *toplevel,
 		run_now = true;
 	}
 
-	comp_animation_client_cancel(server.animation_mgr,
-								 toplevel->anim.resize.client);
+	cancel_all_resize_animations(toplevel);
 
 	// Save the initial buffer
 	comp_toplevel_refresh_titlebar_effects(toplevel);
@@ -544,8 +582,8 @@ void comp_toplevel_refresh_titlebar_effects(struct comp_toplevel *toplevel) {
 	struct wlr_scene_buffer *buffer = titlebar->widget.scene_buffer;
 	float opacity = 1;
 
-	if (toplevel->anim.fade.client->state == ANIMATION_STATE_RUNNING) {
-		opacity *= toplevel->anim.fade.fade_opacity;
+	if (toplevel->anim.open_close.client->state == ANIMATION_STATE_RUNNING) {
+		opacity *= toplevel->anim.open_close.fade_opacity;
 	}
 	wlr_scene_buffer_set_opacity(buffer, opacity);
 
@@ -615,7 +653,7 @@ void comp_toplevel_center(struct comp_toplevel *toplevel, int width, int height,
 }
 
 void comp_toplevel_save_buffer(struct comp_toplevel *toplevel) {
-	if (toplevel->unmapped || toplevel->object.destroying) {
+	if (toplevel->object.destroying) {
 		return;
 	}
 	if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
@@ -856,10 +894,18 @@ static void comp_toplevel_center_and_clip(struct comp_toplevel *toplevel,
 }
 
 void comp_toplevel_transaction_timed_out(struct comp_toplevel *toplevel) {
-	// Run the fade-in animation if the first visible commit timed out
+	// Run the open/close animation if the first visible commit timed out
 	if (!toplevel->object.destroying && toplevel->unmapped) {
 		toplevel->unmapped = false;
-		comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+		struct animation_open_close_data from = {
+			.opacity = 0.0,
+			.state = get_open_close_small_state(toplevel->pending_state),
+		};
+		struct animation_open_close_data to = {
+			.opacity = 1.0,
+			.state = toplevel->pending_state,
+		};
+		comp_toplevel_add_open_close_animation(toplevel, from, to);
 	}
 }
 
@@ -1005,12 +1051,12 @@ static void handle_wlr_foreign_destroy(struct wl_listener *listener,
 
 void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	toplevel->object.destroying = true;
-	if (toplevel->anim.fade.client->state != ANIMATION_STATE_NONE) {
+	if (toplevel->anim.open_close.client->state != ANIMATION_STATE_NONE) {
 		wlr_log(WLR_DEBUG, "Delaying destroy until animation finishes");
 		return;
 	}
 
-	comp_animation_client_destroy(toplevel->anim.fade.client);
+	comp_animation_client_destroy(toplevel->anim.open_close.client);
 	comp_animation_client_destroy(toplevel->anim.resize.client);
 
 	wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
@@ -1063,9 +1109,9 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 
 	toplevel->pending_state = (struct comp_toplevel_state){0};
 
-	toplevel->anim.fade.client = comp_animation_client_init(
-		server.animation_mgr, TOPLEVEL_ANIMATION_FADE_DURATION_MS,
-		&fade_animation_impl, toplevel);
+	toplevel->anim.open_close.client = comp_animation_client_init(
+		server.animation_mgr, TOPLEVEL_ANIMATION_OPEN_CLOSE_DURATION_MS,
+		&open_close_animation_impl, toplevel);
 	toplevel->anim.resize.client = comp_animation_client_init(
 		server.animation_mgr, TOPLEVEL_ANIMATION_RESIZE_DURATION_MS,
 		&resize_animation_impl, toplevel);
@@ -1205,7 +1251,15 @@ void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 								   !pending_size_change);
 		toplevel->unmapped = pending_size_change;
 		if (!pending_size_change) {
-			comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+			struct animation_open_close_data from = {
+				.opacity = 0.0,
+				.state = get_open_close_small_state(toplevel->pending_state),
+			};
+			struct animation_open_close_data to = {
+				.opacity = 1.0,
+				.state = toplevel->pending_state,
+			};
+			comp_toplevel_add_open_close_animation(toplevel, from, to);
 		}
 
 		comp_object_mark_dirty(&toplevel->object);
@@ -1235,8 +1289,16 @@ void comp_toplevel_generic_unmap(struct comp_toplevel *toplevel) {
 	if (!toplevel->object.destroying) {
 		// Refresh all of the widgets and sizes before saving the nodes
 		comp_toplevel_refresh(toplevel, false);
-		comp_toplevel_add_fade_animation(toplevel, toplevel->opacity, 0.0);
-		comp_object_save_buffer(&toplevel->object);
+		struct animation_open_close_data from = {
+			.opacity = toplevel->opacity,
+			.state = toplevel->state,
+		};
+		struct animation_open_close_data to = {
+			.opacity = 0.0,
+			.state = get_open_close_small_state(toplevel->state),
+		};
+		comp_toplevel_add_open_close_animation(toplevel, from, to);
+		comp_toplevel_save_buffer(toplevel);
 	}
 
 	/* Reset the cursor mode if the grabbed toplevel was unmapped. */
@@ -1319,7 +1381,16 @@ void comp_toplevel_generic_commit(struct comp_toplevel *toplevel) {
 			if (toplevel->unmapped) {
 				toplevel->unmapped = false;
 				comp_toplevel_refresh(toplevel, false);
-				comp_toplevel_add_fade_animation(toplevel, 0.0, 1.0);
+				struct animation_open_close_data from = {
+					.opacity = 0.0,
+					.state =
+						get_open_close_small_state(toplevel->pending_state),
+				};
+				struct animation_open_close_data to = {
+					.opacity = 1.0,
+					.state = toplevel->pending_state,
+				};
+				comp_toplevel_add_open_close_animation(toplevel, from, to);
 			}
 
 			// Start the resize animation

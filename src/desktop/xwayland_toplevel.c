@@ -39,6 +39,9 @@ get_xsurface(struct comp_toplevel *toplevel) {
 
 static struct wlr_box xway_get_geometry(struct comp_toplevel *toplevel) {
 	struct wlr_xwayland_surface *xsurface = get_xsurface(toplevel);
+	if (!xsurface) {
+		return toplevel->geometry;
+	}
 	return (struct wlr_box){
 		.x = 0,
 		.y = 0,

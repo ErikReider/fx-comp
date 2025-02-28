@@ -27,6 +27,9 @@
 
 static struct wlr_box xdg_get_geometry(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	if (!toplevel_xdg) {
+		return toplevel->geometry;
+	}
 	struct wlr_box geometry;
 	wlr_xdg_surface_get_geometry(toplevel_xdg->xdg_toplevel->base, &geometry);
 	return geometry;
@@ -148,6 +151,9 @@ static void xdg_close(struct comp_toplevel *toplevel) {
 
 static void xdg_marked_dirty_cb(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
+	if (!toplevel_xdg) {
+		return;
+	}
 	// TODO: Remove?
 	if (toplevel_xdg->xdg_toplevel->base->client->shell->version >=
 			XDG_TOPLEVEL_CONFIGURE_BOUNDS_SINCE_VERSION &&

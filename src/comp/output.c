@@ -176,9 +176,9 @@ static void output_configure_scene(struct comp_output *output,
 				opacity *= toplevel->anim.resize.crossfade_opacity;
 			}
 		}
-		if (toplevel->anim.fade.client->state ==
+		if (toplevel->anim.open_close.client->state ==
 			ANIMATION_STATE_RUNNING) {
-			opacity *= toplevel->anim.fade.fade_opacity;
+			opacity *= toplevel->anim.open_close.fade_opacity;
 		}
 
 		// Alpha modifier support
