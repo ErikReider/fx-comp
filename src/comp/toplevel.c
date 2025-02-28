@@ -1203,6 +1203,7 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->fullscreen = false;
 	toplevel->unmapped = true;
 	toplevel->impl = impl;
+	memset(toplevel->title, 0, sizeof(toplevel->title));
 
 	/* Set the scene_nodes decoration data */
 	toplevel->opacity = 1;

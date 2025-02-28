@@ -1,4 +1,5 @@
 #include <glib.h>
+#include <string.h>
 #include <wlr/types/wlr_ext_foreign_toplevel_list_v1.h>
 #include <wlr/types/wlr_xdg_decoration_v1.h>
 #include <wlr/util/log.h>
@@ -44,14 +45,17 @@ char *comp_toplevel_get_app_id(struct comp_toplevel *toplevel) {
 }
 
 char *comp_toplevel_get_title(struct comp_toplevel *toplevel) {
-	if (toplevel->object.destroying || toplevel->unmapped) {
-		return NULL;
-	}
-	if (toplevel->impl && toplevel->impl->get_title) {
-		return toplevel->impl->get_title(toplevel);
+	if (!toplevel->object.destroying &&
+		(toplevel->impl && toplevel->impl->get_title)) {
+		char *title = toplevel->impl->get_title(toplevel);
+		if (title) {
+			strncpy(toplevel->title, title, sizeof(toplevel->title));
+		} else {
+			memset(toplevel->title, 0, sizeof(toplevel->title));
+		}
 	}
 
-	return NULL;
+	return toplevel->title;
 }
 
 bool comp_toplevel_get_always_floating(struct comp_toplevel *toplevel) {

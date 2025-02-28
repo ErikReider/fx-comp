@@ -18,6 +18,7 @@
 #define TOPLEVEL_MIN_WIDTH 75
 #define TOPLEVEL_MIN_HEIGHT 50
 #define TOPLEVEL_TILED_DRAG_SIZE 1.1
+#define TOPLEVEL_TITLEBAR_LEN 128
 
 enum comp_tiling_mode {
 	COMP_TILING_MODE_FLOATING, // Only floating
@@ -67,6 +68,7 @@ struct comp_toplevel {
 	bool minimized;
 	bool fullscreen;
 	pid_t pid;
+	char title[TOPLEVEL_TITLEBAR_LEN];
 
 	struct wlr_ext_foreign_toplevel_handle_v1 *ext_foreign_toplevel;
 	struct wlr_foreign_toplevel_handle_v1 *wlr_foreign_toplevel;
