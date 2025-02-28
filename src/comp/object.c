@@ -2,6 +2,7 @@
 #include <wlr/util/log.h>
 
 #include "comp/object.h"
+#include "comp/saved_object.h"
 #include "util.h"
 
 struct comp_object *comp_object_at(struct comp_server *server, double lx,
@@ -46,12 +47,14 @@ void comp_object_save_buffer(struct comp_object *object) {
 	wlr_scene_node_set_enabled(&object->content_tree->node, true);
 	object->saved_tree = wlr_scene_tree_snapshot(&object->content_tree->node,
 												 object->scene_tree);
+	object->saved_tree->node.data = comp_saved_object_init(object);
 
 	wlr_scene_node_set_enabled(&object->content_tree->node, false);
 	wlr_scene_node_set_enabled(&object->saved_tree->node, true);
 }
 
 void comp_object_remove_buffer(struct comp_object *object) {
+	comp_saved_object_destroy(object->saved_tree->node.data);
 	wlr_scene_node_destroy(&object->saved_tree->node);
 	object->saved_tree = NULL;
 	wlr_scene_node_set_enabled(&object->content_tree->node, true);

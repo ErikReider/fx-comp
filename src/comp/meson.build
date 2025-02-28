@@ -7,6 +7,7 @@ sources += files(
 	'toplevel.c',
 	'toplevel_impl.c',
 	'tiling_node.c',
+	'saved_object.c',
 	'server.c',
 	'transaction.c',
 	'widget.c',

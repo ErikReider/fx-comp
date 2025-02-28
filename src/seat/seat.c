@@ -17,6 +17,7 @@
 #include "comp/lock.h"
 #include "comp/object.h"
 #include "comp/output.h"
+#include "comp/saved_object.h"
 #include "comp/server.h"
 #include "comp/widget.h"
 #include "comp/workspace.h"
@@ -34,6 +35,7 @@
 
 bool comp_seat_object_is_focus(struct comp_seat *seat,
 							   struct comp_object *object) {
+	comp_saved_object_try_extract(object);
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_WORKSPACE:
 		if (server.active_output == NULL ||
@@ -70,6 +72,7 @@ bool comp_seat_object_is_focus(struct comp_seat *seat,
 		break;
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_DND_ICON:
+	case COMP_OBJECT_TYPE_SAVED_OBJECT:
 		break;
 	}
 	return false;
@@ -460,6 +463,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	struct comp_layer_surface *layer_surface = object->data;
 	struct comp_layer_surface *focused_layer = seat->focused_layer_surface;
 
+	comp_saved_object_try_extract(object);
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		// Check for locked is checked above, so not needed here
@@ -498,6 +502,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_DND_ICON:
+	case COMP_OBJECT_TYPE_SAVED_OBJECT:
 		return;
 	}
 
@@ -516,6 +521,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 		comp_seat_surface_unfocus(prev_surface, false);
 	}
 
+	comp_saved_object_try_extract(object);
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		seat->focused_toplevel = toplevel;
@@ -548,6 +554,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_DND_ICON:
+	case COMP_OBJECT_TYPE_SAVED_OBJECT:
 		return;
 	}
 
@@ -556,6 +563,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 
 	seat_focus_surface(surface);
 
+	comp_saved_object_try_extract(object);
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		struct comp_toplevel *toplevel = object->data;
@@ -579,6 +587,7 @@ void comp_seat_surface_focus(struct comp_object *object,
 	case COMP_OBJECT_TYPE_WORKSPACE:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 	case COMP_OBJECT_TYPE_DND_ICON:
+	case COMP_OBJECT_TYPE_SAVED_OBJECT:
 		return;
 	}
 }

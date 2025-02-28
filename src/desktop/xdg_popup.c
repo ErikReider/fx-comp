@@ -11,6 +11,7 @@
 
 #include "comp/object.h"
 #include "comp/output.h"
+#include "comp/saved_object.h"
 #include "comp/workspace.h"
 #include "desktop/layer_shell.h"
 #include "desktop/xdg.h"
@@ -24,6 +25,7 @@
 
 static struct comp_object *get_root_object(struct comp_xdg_popup *popup) {
 	struct comp_object *parent_object = popup->parent_object;
+	comp_saved_object_try_extract(parent_object);
 	switch (parent_object->type) {
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
@@ -31,6 +33,7 @@ static struct comp_object *get_root_object(struct comp_xdg_popup *popup) {
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 	case COMP_OBJECT_TYPE_DND_ICON:
+	case COMP_OBJECT_TYPE_SAVED_OBJECT:
 		break;
 	case COMP_OBJECT_TYPE_XDG_POPUP:
 		return get_root_object(parent_object->data);

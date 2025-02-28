@@ -17,6 +17,7 @@
 #include "comp/animation_mgr.h"
 #include "comp/object.h"
 #include "comp/output.h"
+#include "comp/saved_object.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
 #include "comp/transaction.h"
@@ -1059,6 +1060,8 @@ void comp_toplevel_destroy(struct comp_toplevel *toplevel) {
 	comp_animation_client_destroy(toplevel->anim.open_close.client);
 	comp_animation_client_destroy(toplevel->anim.resize.client);
 
+	comp_saved_object_destroy(toplevel->saved_scene_tree->node.data);
+
 	wlr_scene_node_destroy(&toplevel->object.scene_tree->node);
 
 	free(toplevel);
@@ -1099,6 +1102,8 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
 	toplevel->object.destroying = false;
 
 	toplevel->saved_scene_tree = alloc_tree(toplevel->object.content_tree);
+	toplevel->saved_scene_tree->node.data =
+		comp_saved_object_init(&toplevel->object);
 	toplevel->decoration_scene_tree = alloc_tree(toplevel->object.content_tree);
 
 	// Initialize saved position/size
@@ -1145,25 +1150,8 @@ comp_toplevel_init(struct comp_output *output, struct comp_workspace *workspace,
  * Implementation generic functions
  */
 
-static void iter_scene_buffers_set_data(struct wlr_scene_buffer *buffer, int sx,
-										int sy, void *user_data) {
-	struct comp_toplevel *toplevel = user_data;
-
-	struct wlr_scene_surface *scene_surface =
-		wlr_scene_surface_try_from_buffer(buffer);
-	if (scene_surface &&
-		scene_surface->surface == comp_toplevel_get_wlr_surface(toplevel)) {
-		buffer->node.data = &toplevel->object;
-	}
-}
-
 void comp_toplevel_generic_map(struct comp_toplevel *toplevel) {
 	struct comp_workspace *ws = toplevel->workspace;
-
-	if (comp_toplevel_get_wlr_surface(toplevel)) {
-		wlr_scene_node_for_each_buffer(&toplevel->toplevel_scene_tree->node,
-									   iter_scene_buffers_set_data, toplevel);
-	}
 
 	// EXT Foreign protocol
 	struct wlr_ext_foreign_toplevel_handle_v1_state foreign_toplevel_state = {

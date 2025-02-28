@@ -18,6 +18,7 @@ enum comp_object_type {
 	COMP_OBJECT_TYPE_WIDGET,
 	COMP_OBJECT_TYPE_LOCK_OUTPUT, // ext-session-lock-v1 output
 	COMP_OBJECT_TYPE_DND_ICON,
+	COMP_OBJECT_TYPE_SAVED_OBJECT,
 };
 
 struct comp_object {

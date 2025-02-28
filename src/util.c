@@ -144,7 +144,7 @@ static bool scene_node_snapshot(struct wlr_scene_node *node, int lx, int ly,
 
 	struct wlr_scene_node *snapshot_node = NULL;
 	switch (node->type) {
-	case WLR_SCENE_NODE_TREE:;
+	case WLR_SCENE_NODE_TREE: {
 		struct wlr_scene_tree *scene_tree = wlr_scene_tree_from_node(node);
 
 		struct wlr_scene_node *child;
@@ -152,7 +152,8 @@ static bool scene_node_snapshot(struct wlr_scene_node *node, int lx, int ly,
 			scene_node_snapshot(child, lx, ly, snapshot_tree);
 		}
 		break;
-	case WLR_SCENE_NODE_RECT:;
+	}
+	case WLR_SCENE_NODE_RECT: {
 		struct wlr_scene_rect *scene_rect = wlr_scene_rect_from_node(node);
 
 		struct wlr_scene_rect *snapshot_rect =
@@ -175,7 +176,8 @@ static bool scene_node_snapshot(struct wlr_scene_node *node, int lx, int ly,
 
 		snapshot_node = &snapshot_rect->node;
 		break;
-	case WLR_SCENE_NODE_BUFFER:;
+	}
+	case WLR_SCENE_NODE_BUFFER: {
 		struct wlr_scene_buffer *scene_buffer =
 			wlr_scene_buffer_from_node(node);
 
@@ -222,11 +224,8 @@ static bool scene_node_snapshot(struct wlr_scene_node *node, int lx, int ly,
 			wlr_scene_buffer_set_buffer(snapshot_buffer, scene_buffer->buffer);
 		}
 		break;
-
-	case WLR_SCENE_NODE_OPTIMIZED_BLUR:
-		break;
-
-	case WLR_SCENE_NODE_SHADOW:;
+	}
+	case WLR_SCENE_NODE_SHADOW: {
 		struct wlr_scene_shadow *scene_shadow =
 			wlr_scene_shadow_from_node(node);
 
@@ -245,6 +244,9 @@ static bool scene_node_snapshot(struct wlr_scene_node *node, int lx, int ly,
 		snapshot_shadow->node.data = scene_shadow->node.data;
 
 		break;
+	}
+	case WLR_SCENE_NODE_OPTIMIZED_BLUR:
+		return true;
 	}
 
 	if (snapshot_node != NULL) {

@@ -14,6 +14,7 @@
 
 #include "comp/object.h"
 #include "comp/output.h"
+#include "comp/saved_object.h"
 #include "comp/server.h"
 #include "comp/widget.h"
 #include "constants.h"
@@ -84,9 +85,11 @@ static void process_cursor_motion(struct comp_cursor *cursor, uint32_t time) {
 			server->seat->hovered_widget = NULL;
 		}
 	} else {
+		comp_saved_object_try_extract(object);
 		switch (object->type) {
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		case COMP_OBJECT_TYPE_DND_ICON:
+		case COMP_OBJECT_TYPE_SAVED_OBJECT:
 			break;
 		case COMP_OBJECT_TYPE_TOPLEVEL:
 		case COMP_OBJECT_TYPE_XDG_POPUP:
@@ -244,6 +247,7 @@ static bool try_resize_or_move_toplevel(struct comp_object *object,
 
 	struct comp_toplevel *toplevel = NULL;
 	// Get Toplevel
+	comp_saved_object_try_extract(object);
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_TOPLEVEL:
 		toplevel = object->data;
@@ -259,6 +263,7 @@ static bool try_resize_or_move_toplevel(struct comp_object *object,
 	case COMP_OBJECT_TYPE_UNMANAGED:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 	case COMP_OBJECT_TYPE_DND_ICON:
+	case COMP_OBJECT_TYPE_SAVED_OBJECT:
 		return false;
 	}
 
@@ -316,6 +321,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		}
 
 		if (object) {
+			comp_saved_object_try_extract(object);
 			switch (object->type) {
 			case COMP_OBJECT_TYPE_WIDGET:
 				comp_widget_pointer_button(object->data, sx, sy, event);
@@ -328,6 +334,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 			case COMP_OBJECT_TYPE_WORKSPACE:
 			case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 			case COMP_OBJECT_TYPE_DND_ICON:
+			case COMP_OBJECT_TYPE_SAVED_OBJECT:
 				break;
 			}
 		}
@@ -345,6 +352,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		/* If you released any buttons, we exit interactive move/resize mode. */
 		comp_cursor_reset_cursor_mode(server->seat);
 	} else if (object) {
+		comp_saved_object_try_extract(object);
 		switch (object->type) {
 		case COMP_OBJECT_TYPE_TOPLEVEL:;
 			if (try_resize_or_move_toplevel(object, event, cursor)) {
@@ -391,6 +399,7 @@ static void comp_server_cursor_button(struct wl_listener *listener,
 		case COMP_OBJECT_TYPE_WORKSPACE:
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		case COMP_OBJECT_TYPE_DND_ICON:
+		case COMP_OBJECT_TYPE_SAVED_OBJECT:
 			break;
 		}
 	}

@@ -6,6 +6,7 @@
 
 #include "comp/animation_mgr.h"
 #include "comp/object.h"
+#include "comp/saved_object.h"
 #include "comp/server.h"
 #include "comp/transaction.h"
 #include "constants.h"
@@ -107,6 +108,7 @@ static void transaction_add_node(struct comp_transaction *transaction,
 	}
 
 	// Copy toplevel state
+	comp_saved_object_try_extract(object);
 	switch (object->type) {
 	case COMP_OBJECT_TYPE_OUTPUT:
 	case COMP_OBJECT_TYPE_WORKSPACE:
@@ -116,6 +118,7 @@ static void transaction_add_node(struct comp_transaction *transaction,
 	case COMP_OBJECT_TYPE_WIDGET:
 	case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 	case COMP_OBJECT_TYPE_DND_ICON:
+	case COMP_OBJECT_TYPE_SAVED_OBJECT:
 		break;
 	case COMP_OBJECT_TYPE_TOPLEVEL:;
 		struct comp_toplevel *toplevel = object->data;
@@ -145,6 +148,7 @@ static void transaction_apply(struct comp_transaction *transaction) {
 							 transaction_link) {
 		struct comp_object *object = instruction->object;
 
+		comp_saved_object_try_extract(object);
 		switch (object->type) {
 		case COMP_OBJECT_TYPE_OUTPUT:
 		case COMP_OBJECT_TYPE_WORKSPACE:
@@ -154,6 +158,7 @@ static void transaction_apply(struct comp_transaction *transaction) {
 		case COMP_OBJECT_TYPE_WIDGET:
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		case COMP_OBJECT_TYPE_DND_ICON:
+		case COMP_OBJECT_TYPE_SAVED_OBJECT:
 			break;
 		case COMP_OBJECT_TYPE_TOPLEVEL:;
 			struct comp_toplevel *toplevel = object->data;
@@ -217,6 +222,7 @@ static int timed_out_func(void *data) {
 							 transaction_link) {
 		struct comp_object *object = instruction->object;
 
+		comp_saved_object_try_extract(object);
 		switch (object->type) {
 		case COMP_OBJECT_TYPE_OUTPUT:
 		case COMP_OBJECT_TYPE_WORKSPACE:
@@ -226,6 +232,7 @@ static int timed_out_func(void *data) {
 		case COMP_OBJECT_TYPE_WIDGET:
 		case COMP_OBJECT_TYPE_LOCK_OUTPUT:
 		case COMP_OBJECT_TYPE_DND_ICON:
+		case COMP_OBJECT_TYPE_SAVED_OBJECT:
 			break;
 		case COMP_OBJECT_TYPE_TOPLEVEL:;
 			struct comp_toplevel *toplevel = object->data;

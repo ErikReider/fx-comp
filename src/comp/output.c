@@ -19,6 +19,7 @@
 #include "comp/lock.h"
 #include "comp/object.h"
 #include "comp/output.h"
+#include "comp/saved_object.h"
 #include "comp/server.h"
 #include "comp/tiling_node.h"
 #include "comp/widget.h"
@@ -127,9 +128,18 @@ struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 }
 
 static void output_configure_scene(struct comp_output *output,
-								   struct wlr_scene_node *node) {
+								   struct wlr_scene_node *node,
+								   bool is_in_saved_tree,
+								   struct comp_object *closest_object) {
 	if (!node->enabled) {
 		return;
+	}
+
+	if (node->data) {
+		closest_object = node->data;
+		if (closest_object->type == COMP_OBJECT_TYPE_SAVED_OBJECT) {
+			is_in_saved_tree = true;
+		}
 	}
 
 	switch (node->type) {
@@ -137,23 +147,18 @@ static void output_configure_scene(struct comp_output *output,
 		break;
 	case WLR_SCENE_NODE_BUFFER: {
 		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
-		struct comp_object *obj = node->data;
-		if (!obj) {
+		if (!closest_object) {
 			wlr_log(WLR_DEBUG,
 					"Tried to apply effects to buffer with unknown data");
 			break;
 		}
-		if (obj->type != COMP_OBJECT_TYPE_TOPLEVEL) {
+		comp_saved_object_try_extract(closest_object);
+		if (closest_object->type != COMP_OBJECT_TYPE_TOPLEVEL) {
 			break;
 		}
 
-		struct comp_toplevel *toplevel = obj->data;
+		struct comp_toplevel *toplevel = closest_object->data;
 		bool has_effects = !toplevel->fullscreen;
-		bool is_in_saved_tree =
-			// saved_scene_tree has a single tree as child which
-			// contains all of the saved nodes.
-			node->parent->node.parent == toplevel->saved_scene_tree ||
-			node->parent == toplevel->object.saved_tree;
 
 		// Stretch the saved toplevel buffer to fit the toplevel state
 		if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
@@ -259,7 +264,8 @@ static void output_configure_scene(struct comp_output *output,
 		struct wlr_scene_tree *tree = wlr_scene_tree_from_node(node);
 		struct wlr_scene_node *node;
 		wl_list_for_each(node, &tree->children, link) {
-			output_configure_scene(output, node);
+			output_configure_scene(output, node, is_in_saved_tree,
+								   closest_object);
 		}
 		break;
 	}
@@ -278,7 +284,7 @@ static void output_frame(struct wl_listener *listener, void *data) {
 	struct wlr_scene_output *scene_output =
 		wlr_scene_get_scene_output(scene, output->wlr_output);
 
-	output_configure_scene(output, &server.root_scene->tree.node);
+	output_configure_scene(output, &server.root_scene->tree.node, false, NULL);
 	/* Render the scene if needed and commit the output */
 	wlr_scene_output_commit(scene_output, NULL);
 
