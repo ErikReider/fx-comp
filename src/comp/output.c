@@ -31,6 +31,10 @@
 #include "seat/seat.h"
 #include "util.h"
 
+#define buffer_change_option(changed_bool, a, b)                               \
+	changed_bool |= a != b;                                                    \
+	a = b;
+
 static void output_get_identifier(char *identifier, size_t len,
 								  struct comp_output *output) {
 	struct wlr_output *wlr_output = output->wlr_output;
@@ -160,15 +164,21 @@ static void output_configure_scene(struct comp_output *output,
 		struct comp_toplevel *toplevel = closest_object->data;
 		bool has_effects = !toplevel->fullscreen;
 
+		// HACK: Force an node update after setting all other effects. This
+		// avoids re-damaging the same region multiple times for each buffer,
+		// each frame.
+		bool options_changed = false;
+
 		// Stretch the saved toplevel buffer to fit the toplevel state
 		if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
 			int width = toplevel->state.width;
 			int height = toplevel->state.height;
 			if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
-				wlr_scene_buffer_set_dest_size(buffer, height, width);
-			} else {
-				wlr_scene_buffer_set_dest_size(buffer, width, height);
+				width = toplevel->state.height;
+				height = toplevel->state.width;
 			}
+			buffer_change_option(options_changed, buffer->dst_width, width);
+			buffer_change_option(options_changed, buffer->dst_height, height);
 		}
 
 		//
@@ -186,6 +196,13 @@ static void output_configure_scene(struct comp_output *output,
 			opacity *= toplevel->anim.open_close.fade_opacity;
 		}
 
+		// Don't let alpha modifier adjust the blur alpha/strength
+		float blur_alpha = ease_out_cubic(opacity);
+		buffer_change_option(options_changed, buffer->backdrop_blur_alpha,
+							 blur_alpha);
+		buffer_change_option(options_changed, buffer->backdrop_blur_strength,
+							 opacity);
+
 		// Alpha modifier support
 		struct wlr_scene_surface *surface =
 			wlr_scene_surface_try_from_buffer(buffer);
@@ -197,7 +214,7 @@ static void output_configure_scene(struct comp_output *output,
 				opacity *= (float)alpha_modifier_state->multiplier;
 			}
 		}
-		wlr_scene_buffer_set_opacity(buffer, opacity);
+		buffer_change_option(options_changed, buffer->opacity, opacity);
 
 		//
 		// Toplevel only effects
@@ -234,16 +251,20 @@ static void output_configure_scene(struct comp_output *output,
 					blur = false;
 				}
 			}
-			wlr_scene_buffer_set_backdrop_blur(buffer, blur);
+			buffer_change_option(options_changed, buffer->backdrop_blur, blur);
 			switch (toplevel->tiling_mode) {
 			case COMP_TILING_MODE_FLOATING:
-				wlr_scene_buffer_set_backdrop_blur_optimized(buffer, false);
+				buffer_change_option(options_changed,
+									 buffer->backdrop_blur_optimized, false);
 				break;
 			case COMP_TILING_MODE_TILED:
-				wlr_scene_buffer_set_backdrop_blur_optimized(buffer, true);
+				buffer_change_option(options_changed,
+									 buffer->backdrop_blur_optimized, true);
 				break;
 			}
-			wlr_scene_buffer_set_backdrop_blur_ignore_transparent(buffer, true);
+			buffer_change_option(options_changed,
+								 buffer->backdrop_blur_ignore_transparent,
+								 true);
 		}
 
 		// Set corners for subsurfaces as well. Fixes Firefox weirdness :/
@@ -251,13 +272,22 @@ static void output_configure_scene(struct comp_output *output,
 			(surface && surface->surface &&
 			 wlr_subsurface_try_from_wlr_surface(surface->surface))) {
 			// Corners
+			float corner_radius = has_effects ? toplevel->corner_radius : 0;
+			buffer_change_option(options_changed, buffer->corner_radius,
+								 corner_radius);
 			enum corner_location corners = toplevel->using_csd
 											   ? CORNER_LOCATION_ALL
 											   : CORNER_LOCATION_BOTTOM;
-			wlr_scene_buffer_set_corner_radius(
-				buffer, has_effects ? toplevel->corner_radius : 0,
-				has_effects ? corners : CORNER_LOCATION_NONE);
+			corners = has_effects ? corners : CORNER_LOCATION_NONE;
+			buffer_change_option(options_changed, buffer->corners, corners);
 		}
+
+		// HACK: Lastly, force update the node if there were changes made
+		if (options_changed) {
+			buffer->opacity = -1;
+		}
+		wlr_scene_buffer_set_opacity(buffer, opacity);
+
 		break;
 	}
 	case WLR_SCENE_NODE_TREE: {
