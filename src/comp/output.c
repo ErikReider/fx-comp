@@ -131,6 +131,133 @@ struct comp_workspace *comp_output_get_active_ws(struct comp_output *output,
 	return active_ws;
 }
 
+static void
+configure_apply_alpha_modifier(struct wlr_scene_surface *scene_surface,
+							   float *opacity) {
+	if (!scene_surface) {
+		return;
+	}
+
+	const struct wlr_alpha_modifier_surface_v1_state *alpha_modifier_state =
+		wlr_alpha_modifier_v1_get_surface_state(scene_surface->surface);
+	if (alpha_modifier_state) {
+		*opacity *= (float)alpha_modifier_state->multiplier;
+	}
+}
+
+static void configure_apply_toplevel(struct comp_toplevel *toplevel,
+									 struct wlr_scene_buffer *buffer,
+									 struct wlr_scene_surface *scene_surface,
+									 bool is_in_saved_tree) {
+	bool has_effects = !toplevel->fullscreen;
+
+	// HACK: Force an node update after setting all other effects. This
+	// avoids re-damaging the same region multiple times for each buffer,
+	// each frame.
+	bool options_changed = false;
+
+	// Stretch the saved toplevel buffer to fit the toplevel state
+	if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
+		int width = toplevel->state.width;
+		int height = toplevel->state.height;
+		if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
+			width = toplevel->state.height;
+			height = toplevel->state.width;
+		}
+		buffer_change_option(options_changed, buffer->dst_width, width);
+		buffer_change_option(options_changed, buffer->dst_height, height);
+	}
+
+	//
+	// Opacity
+	//
+
+	float opacity = has_effects ? toplevel->opacity : 1;
+	if (toplevel->anim.resize.client->state == ANIMATION_STATE_RUNNING) {
+		if (is_in_saved_tree) {
+			opacity *= toplevel->anim.resize.crossfade_opacity;
+		}
+	}
+	if (toplevel->anim.open_close.client->state == ANIMATION_STATE_RUNNING) {
+		opacity *= toplevel->anim.open_close.fade_opacity;
+	}
+
+	// Don't let alpha modifier adjust the blur alpha/strength
+	float blur_alpha = ease_out_cubic(opacity);
+	buffer_change_option(options_changed, buffer->backdrop_blur_alpha,
+						 blur_alpha);
+	buffer_change_option(options_changed, buffer->backdrop_blur_strength,
+						 opacity);
+
+	// Alpha modifier support
+	configure_apply_alpha_modifier(scene_surface, &opacity);
+	buffer_change_option(options_changed, buffer->opacity, opacity);
+
+	//
+	// Toplevel only effects
+	//
+
+	bool is_main_surface = false;
+	if (scene_surface) {
+		switch (toplevel->type) {
+		case COMP_TOPLEVEL_TYPE_XDG:;
+			struct wlr_xdg_surface *xdg_surface =
+				wlr_xdg_surface_try_from_wlr_surface(scene_surface->surface);
+			is_main_surface = xdg_surface && xdg_surface->role ==
+												 WLR_XDG_SURFACE_ROLE_TOPLEVEL;
+			break;
+		case COMP_TOPLEVEL_TYPE_XWAYLAND:
+			is_main_surface = wlr_xwayland_surface_try_from_wlr_surface(
+				scene_surface->surface);
+			break;
+		}
+	}
+
+	// Ignore other unknown types
+	if (is_in_saved_tree || is_main_surface) {
+		// Blur
+		bool blur = has_effects;
+		if (toplevel->anim.resize.client->state == ANIMATION_STATE_RUNNING) {
+			if (is_in_saved_tree) {
+				blur = false;
+			}
+		}
+		buffer_change_option(options_changed, buffer->backdrop_blur, blur);
+		switch (toplevel->tiling_mode) {
+		case COMP_TILING_MODE_FLOATING:
+			buffer_change_option(options_changed,
+								 buffer->backdrop_blur_optimized, false);
+			break;
+		case COMP_TILING_MODE_TILED:
+			buffer_change_option(options_changed,
+								 buffer->backdrop_blur_optimized, true);
+			break;
+		}
+		buffer_change_option(options_changed,
+							 buffer->backdrop_blur_ignore_transparent, true);
+	}
+
+	// Set corners for subsurfaces as well. Fixes Firefox weirdness :/
+	if (is_main_surface ||
+		(scene_surface && scene_surface->surface &&
+		 wlr_subsurface_try_from_wlr_surface(scene_surface->surface))) {
+		// Corners
+		float corner_radius = has_effects ? toplevel->corner_radius : 0;
+		buffer_change_option(options_changed, buffer->corner_radius,
+							 corner_radius);
+		enum corner_location corners =
+			toplevel->using_csd ? CORNER_LOCATION_ALL : CORNER_LOCATION_BOTTOM;
+		corners = has_effects ? corners : CORNER_LOCATION_NONE;
+		buffer_change_option(options_changed, buffer->corners, corners);
+	}
+
+	// HACK: Lastly, force update the node if there were changes made
+	if (options_changed) {
+		buffer->opacity = -1;
+	}
+	wlr_scene_buffer_set_opacity(buffer, opacity);
+}
+
 static void output_configure_scene(struct comp_output *output,
 								   struct wlr_scene_node *node,
 								   bool is_in_saved_tree,
@@ -146,159 +273,39 @@ static void output_configure_scene(struct comp_output *output,
 		}
 	}
 
-	switch (node->type) {
-	default:
-		break;
-	case WLR_SCENE_NODE_BUFFER: {
+	if (node->type == WLR_SCENE_NODE_BUFFER) {
 		struct wlr_scene_buffer *buffer = wlr_scene_buffer_from_node(node);
-		if (!closest_object) {
-			wlr_log(WLR_DEBUG,
-					"Tried to apply effects to buffer with unknown data");
-			break;
-		}
-		comp_saved_object_try_extract(closest_object);
-		if (closest_object->type != COMP_OBJECT_TYPE_TOPLEVEL) {
-			break;
-		}
-
-		struct comp_toplevel *toplevel = closest_object->data;
-		bool has_effects = !toplevel->fullscreen;
-
-		// HACK: Force an node update after setting all other effects. This
-		// avoids re-damaging the same region multiple times for each buffer,
-		// each frame.
-		bool options_changed = false;
-
-		// Stretch the saved toplevel buffer to fit the toplevel state
-		if (!wl_list_empty(&toplevel->saved_scene_tree->children)) {
-			int width = toplevel->state.width;
-			int height = toplevel->state.height;
-			if (buffer->transform & WL_OUTPUT_TRANSFORM_90) {
-				width = toplevel->state.height;
-				height = toplevel->state.width;
-			}
-			buffer_change_option(options_changed, buffer->dst_width, width);
-			buffer_change_option(options_changed, buffer->dst_height, height);
-		}
-
-		//
-		// Opacity
-		//
-
-		float opacity = has_effects ? toplevel->opacity : 1;
-		if (toplevel->anim.resize.client->state == ANIMATION_STATE_RUNNING) {
-			if (is_in_saved_tree) {
-				opacity *= toplevel->anim.resize.crossfade_opacity;
-			}
-		}
-		if (toplevel->anim.open_close.client->state ==
-			ANIMATION_STATE_RUNNING) {
-			opacity *= toplevel->anim.open_close.fade_opacity;
-		}
-
-		// Don't let alpha modifier adjust the blur alpha/strength
-		float blur_alpha = ease_out_cubic(opacity);
-		buffer_change_option(options_changed, buffer->backdrop_blur_alpha,
-							 blur_alpha);
-		buffer_change_option(options_changed, buffer->backdrop_blur_strength,
-							 opacity);
-
-		// Alpha modifier support
-		struct wlr_scene_surface *surface =
-			wlr_scene_surface_try_from_buffer(buffer);
-		if (surface) {
-			const struct wlr_alpha_modifier_surface_v1_state
-				*alpha_modifier_state =
-					wlr_alpha_modifier_v1_get_surface_state(surface->surface);
-			if (alpha_modifier_state) {
-				opacity *= (float)alpha_modifier_state->multiplier;
-			}
-		}
-		buffer_change_option(options_changed, buffer->opacity, opacity);
-
-		//
-		// Toplevel only effects
-		//
-
-		bool is_main_surface = false;
-
 		struct wlr_scene_surface *scene_surface =
 			wlr_scene_surface_try_from_buffer(buffer);
-		if (scene_surface) {
-			switch (toplevel->type) {
-			case COMP_TOPLEVEL_TYPE_XDG:;
-				struct wlr_xdg_surface *xdg_surface =
-					wlr_xdg_surface_try_from_wlr_surface(
-						scene_surface->surface);
-				is_main_surface =
-					xdg_surface &&
-					xdg_surface->role == WLR_XDG_SURFACE_ROLE_TOPLEVEL;
+		if (closest_object) {
+			comp_saved_object_try_extract(closest_object);
+			switch (closest_object->type) {
+			case COMP_OBJECT_TYPE_TOPLEVEL:
+				configure_apply_toplevel(closest_object->data, buffer,
+										 scene_surface, is_in_saved_tree);
+				return;
+			case COMP_OBJECT_TYPE_WIDGET:
+				return;
+			case COMP_OBJECT_TYPE_LAYER_SURFACE: {
+				// TODO: Layer effects
 				break;
-			case COMP_TOPLEVEL_TYPE_XWAYLAND:
-				is_main_surface =
-					wlr_xwayland_surface_try_from_wlr_surface(surface->surface);
+			}
+			default:
 				break;
 			}
 		}
 
-		// Ignore other unknown types
-		if (is_in_saved_tree || is_main_surface) {
-			// Blur
-			bool blur = has_effects;
-			if (toplevel->anim.resize.client->state ==
-				ANIMATION_STATE_RUNNING) {
-				if (is_in_saved_tree) {
-					blur = false;
-				}
-			}
-			buffer_change_option(options_changed, buffer->backdrop_blur, blur);
-			switch (toplevel->tiling_mode) {
-			case COMP_TILING_MODE_FLOATING:
-				buffer_change_option(options_changed,
-									 buffer->backdrop_blur_optimized, false);
-				break;
-			case COMP_TILING_MODE_TILED:
-				buffer_change_option(options_changed,
-									 buffer->backdrop_blur_optimized, true);
-				break;
-			}
-			buffer_change_option(options_changed,
-								 buffer->backdrop_blur_ignore_transparent,
-								 true);
-		}
-
-		// Set corners for subsurfaces as well. Fixes Firefox weirdness :/
-		if (is_main_surface ||
-			(surface && surface->surface &&
-			 wlr_subsurface_try_from_wlr_surface(surface->surface))) {
-			// Corners
-			float corner_radius = has_effects ? toplevel->corner_radius : 0;
-			buffer_change_option(options_changed, buffer->corner_radius,
-								 corner_radius);
-			enum corner_location corners = toplevel->using_csd
-											   ? CORNER_LOCATION_ALL
-											   : CORNER_LOCATION_BOTTOM;
-			corners = has_effects ? corners : CORNER_LOCATION_NONE;
-			buffer_change_option(options_changed, buffer->corners, corners);
-		}
-
-		// HACK: Lastly, force update the node if there were changes made
-		if (options_changed) {
-			buffer->opacity = -1;
-		}
+		// Alpha modifier support for other surfaces
+		float opacity = 1.0;
+		configure_apply_alpha_modifier(scene_surface, &opacity);
 		wlr_scene_buffer_set_opacity(buffer, opacity);
-
-		break;
-	}
-	case WLR_SCENE_NODE_TREE: {
+	} else if (node->type == WLR_SCENE_NODE_TREE) {
 		struct wlr_scene_tree *tree = wlr_scene_tree_from_node(node);
 		struct wlr_scene_node *node;
 		wl_list_for_each(node, &tree->children, link) {
 			output_configure_scene(output, node, is_in_saved_tree,
 								   closest_object);
 		}
-		break;
-	}
 	}
 }
 
