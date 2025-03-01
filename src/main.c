@@ -224,8 +224,8 @@ int main(int argc, char *argv[]) {
 	 * to dig your fingers in and play with their behavior if you want. Note
 	 * that the clients cannot set the selection directly without compositor
 	 * approval, see the handling of the request_set_selection event below.*/
-	server.compositor =
-		wlr_compositor_create(server.wl_display, 5, server.renderer);
+	server.compositor = wlr_compositor_create(
+		server.wl_display, WL_COMPOSITOR_VERSION, server.renderer);
 	wlr_subcompositor_create(server.wl_display);
 	wlr_data_device_manager_create(server.wl_display);
 

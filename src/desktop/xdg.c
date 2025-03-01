@@ -48,7 +48,7 @@ static void xdg_get_constraints(struct comp_toplevel *toplevel, int *min_width,
 
 static struct wlr_surface *xdg_get_wlr_surface(struct comp_toplevel *toplevel) {
 	struct comp_xdg_toplevel *toplevel_xdg = toplevel->toplevel_xdg;
-	if (toplevel_xdg && toplevel_xdg->xdg_toplevel && toplevel_xdg->xdg_toplevel->base) {
+	if (toplevel_xdg && toplevel_xdg->xdg_toplevel) {
 		return toplevel_xdg->xdg_toplevel->base->surface;
 	}
 	return NULL;
@@ -223,9 +223,6 @@ static void xdg_toplevel_commit(struct wl_listener *listener, void *data) {
 			set_xdg_decoration_mode(toplevel_xdg->xdg_decoration);
 		}
 		wlr_xdg_surface_schedule_configure(xdg_surface);
-		wlr_xdg_toplevel_set_wm_capabilities(
-			toplevel_xdg->xdg_toplevel,
-			XDG_TOPLEVEL_WM_CAPABILITIES_FULLSCREEN);
 		return;
 	}
 
