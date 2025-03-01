@@ -603,19 +603,14 @@ void comp_output_update_sizes(struct comp_output *output) {
 	wlr_scene_node_set_position(&output->object.scene_tree->node,
 								output->geometry.x, output->geometry.y);
 
-	// Also marks the blur as dirty
-	wlr_scene_optimized_blur_set_size(output->layers.optimized_blur_node,
-									  output->geometry.width,
-									  output->geometry.height);
-
 	comp_output_arrange_layers(output);
 	comp_output_arrange_output(output);
 
 	// TODO: Update toplevel positions/tiling/sizes Only enable for actual
 	// outputs
-	// printf("GEO: %i %i %ix%i\n", output->geometry.width,
-	// 	   output->geometry.height, output->geometry.x,
-	// output->geometry.y);
+
+	// Also marks the blur as dirty
+	wlr_scene_optimized_blur_mark_dirty(output->layers.optimized_blur_node);
 }
 
 void comp_output_move_workspace_to(struct comp_output *dest_output,
@@ -777,6 +772,12 @@ void comp_output_arrange_output(struct comp_output *output) {
 	wlr_scene_node_set_enabled(&output->layers.shell_top->node,
 							   !is_fullscreen && !is_locked);
 	wlr_scene_node_set_enabled(&output->layers.shell_overlay->node, !is_locked);
+
+	int output_width, output_height;
+	wlr_output_effective_resolution(output->wlr_output, &output_width,
+									&output_height);
+	wlr_scene_optimized_blur_set_size(output->layers.optimized_blur_node,
+									  output_width, output_height);
 }
 
 static void arrange_layer_surfaces(struct comp_output *output,
