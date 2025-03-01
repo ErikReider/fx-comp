@@ -158,6 +158,47 @@ void tiling_node_mark_workspace_dirty(struct comp_workspace *workspace) {
 	}
 }
 
+/**
+ * Check if the toplevel will fit into the tiling size.
+ * Returns false if the tiling size exceeds the max/min size of the toplevel.
+ */
+static bool is_size_compatible(struct comp_toplevel *toplevel,
+							   struct tiling_node *container) {
+	if (comp_toplevel_get_always_floating(toplevel)) {
+		return false;
+	}
+
+	struct wlr_box tiling_box = get_final_tiling_toplevel_size(container);
+	int max_width, max_height, min_width, min_height;
+	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
+								  &max_height);
+
+	// If the min/max size is equal to 0, there's not limit, so don't check
+	// those conditions
+
+	if (min_width > 0 && tiling_box.width < min_width) {
+		goto too_small;
+	} else if (max_width > 0 && tiling_box.width > max_width) {
+		goto too_small;
+	}
+
+	if (min_height > 0 && tiling_box.height < min_height) {
+		goto too_small;
+	} else if (max_height > 0 && tiling_box.height > max_height) {
+		goto too_small;
+	}
+
+	return true;
+
+too_small:
+	wlr_log(WLR_DEBUG,
+			"Toplevel %s (%p) (Max: %ix%i, Min: %ix%i) doesn't fit in tiling "
+			"rect (Size: %ix%i), setting as floating",
+			comp_toplevel_get_title(toplevel), toplevel, max_width, max_height,
+			min_width, min_height, tiling_box.width, tiling_box.height);
+	return false;
+}
+
 void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 							  const bool insert_floating) {
 	toplevel->tiling_node = tiling_node_init(toplevel->workspace, false);
@@ -254,7 +295,13 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 			.y = output->usable_area.y + TILING_GAPS_OUTER,
 		};
 
-		apply_node_data_to_toplevel(container);
+		// Don't tile if the tiling container size exceeds the min/max toplevel
+		// size
+		if (is_size_compatible(toplevel, container)) {
+			apply_node_data_to_toplevel(container);
+		} else {
+			comp_toplevel_set_tiled(toplevel, false, true);
+		}
 		return;
 	}
 
@@ -315,21 +362,10 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 	parent_node->parent = new_parent;
 	container->parent = new_parent;
 
-	// Don't tile if the tiled size if too small for the toplevel
-	int max_width, max_height, min_width, min_height;
-	comp_toplevel_get_constraints(toplevel, &min_width, &max_width, &min_height,
-								  &max_height);
-	if (!(min_width != 0 && min_height != 0 &&
-		  (min_width == max_width || min_height == max_height))) {
-		struct wlr_box tiling_box = get_final_tiling_toplevel_size(container);
-		if (tiling_box.width < min_width || tiling_box.height < min_height) {
-			wlr_log(WLR_DEBUG,
-					"Toplevel %s (%p) is too large for tiling rect, setting as "
-					"floating",
-					comp_toplevel_get_title(toplevel), toplevel);
-			comp_toplevel_set_tiled(toplevel, false, true);
-			return;
-		}
+	// Don't tile if the tiling container size exceeds the min/max toplevel size
+	if (!is_size_compatible(toplevel, container)) {
+		comp_toplevel_set_tiled(toplevel, false, true);
+		return;
 	}
 
 	calc_size_pos_recursive(new_parent, true);
