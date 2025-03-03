@@ -89,6 +89,7 @@ glib_version = '>=2.7'
 glib = dependency('glib-2.0', version: glib_version, required: true)
 gio = dependency('gio-2.0', version: glib_version, required: true)
 gtk3 = dependency('gtk+-3.0', version: '>=3.24', required: true)
+cjson = dependency('libcjson', version: '>=1.7.0', required: true)
 
 inc_dirs = include_directories('include')
 

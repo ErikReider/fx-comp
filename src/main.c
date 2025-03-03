@@ -53,6 +53,7 @@
 #include "comp/lock.h"
 #include "comp/output.h"
 #include "comp/server.h"
+#include "config/config.h"
 #include "constants.h"
 #include "desktop/layer_shell.h"
 #include "desktop/xdg.h"
@@ -168,6 +169,11 @@ int main(int argc, char *argv[]) {
 	server.wl_event_loop = wl_display_get_event_loop(server.wl_display);
 	// Initialize animation manager
 	server.animation_mgr = comp_animation_mgr_init();
+
+	// Config
+	if (!(server.config = comp_config_init(startup_cmd))) {
+		return 1;
+	}
 
 	// Transactions
 	wl_list_init(&server.dirty_objects);
