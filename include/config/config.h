@@ -9,4 +9,6 @@ struct comp_config {
 
 struct comp_config *comp_config_init(char *custom_config_path);
 
+void comp_config_destroy(void);
+
 #endif // !FX_COMP_CONFIG_CONFIG_H

@@ -123,7 +123,8 @@ int main(int argc, char *argv[]) {
 	while ((c = getopt(argc, argv, "s:o:l:D:h")) != -1) {
 		switch (c) {
 		case 's':
-			startup_cmd = optarg;
+			free(startup_cmd);
+			startup_cmd = strdup(optarg);
 			break;
 		case 'l':
 			if (strcmp(optarg, "DEBUG") == 0) {
@@ -169,11 +170,6 @@ int main(int argc, char *argv[]) {
 	server.wl_event_loop = wl_display_get_event_loop(server.wl_display);
 	// Initialize animation manager
 	server.animation_mgr = comp_animation_mgr_init();
-
-	// Config
-	if (!(server.config = comp_config_init(startup_cmd))) {
-		return 1;
-	}
 
 	// Transactions
 	wl_list_init(&server.dirty_objects);
@@ -461,6 +457,13 @@ int main(int argc, char *argv[]) {
 		if (fork() == 0) {
 			execl("/bin/sh", "/bin/sh", "-c", startup_cmd, (void *)NULL);
 		}
+
+	// Config
+	if (!(server.config = comp_config_init(startup_cmd))) {
+		free(startup_cmd);
+		wlr_backend_destroy(server.backend);
+		wl_display_destroy(server.wl_display);
+		return 1;
 	}
 
 	// Create additional outputs
@@ -483,6 +486,7 @@ int main(int argc, char *argv[]) {
 	// Once wl_display_run returns, we destroy all clients then shut down the
 	// server.
 
+	free(startup_cmd);
 	pthread_cancel(init_gtk_thread);
 	wlr_xwayland_destroy(server.xwayland_mgr.wlr_xwayland);
 	wl_display_destroy_clients(server.wl_display);
@@ -491,6 +495,7 @@ int main(int argc, char *argv[]) {
 	comp_animation_mgr_destroy(server.animation_mgr);
 	wl_display_destroy(server.wl_display);
 	wlr_scene_node_destroy(&server.root_scene->tree.node);
+	comp_config_destroy();
 
 	return 0;
 }
