@@ -6,6 +6,7 @@ sources = files(
 subdir('comp')
 subdir('desktop')
 subdir('seat')
+subdir('config')
 
 deps = [
 	cairo,
@@ -29,6 +30,7 @@ deps = [
 	glib,
 	gio,
 	gtk3,
+	cjson,
 ]
 
 executable(

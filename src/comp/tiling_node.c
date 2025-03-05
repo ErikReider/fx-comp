@@ -48,11 +48,14 @@ static struct wlr_box get_final_tiling_toplevel_size(struct tiling_node *node) {
 		BORDER_WIDTH * 2 + toplevel->decorated_size.top_border_height;
 
 	return (struct wlr_box){
-		.width = container->box.width - WIDTH_OFFSET - TILING_GAPS_INNER * 2,
-		.height = container->box.height - HEIGHT_OFFSET - TILING_GAPS_INNER * 2,
-		.x = container->box.x + BORDER_WIDTH + TILING_GAPS_INNER,
+		.width = container->box.width - WIDTH_OFFSET -
+				 server.config->tiling_gaps_inner,
+		.height = container->box.height - HEIGHT_OFFSET -
+				  server.config->tiling_gaps_inner,
+		.x = container->box.x + BORDER_WIDTH +
+			 server.config->tiling_gaps_inner / 2,
 		.y = container->box.y + toplevel->decorated_size.top_border_height +
-			 TILING_GAPS_INNER,
+			 server.config->tiling_gaps_inner / 2,
 	};
 }
 
@@ -149,10 +152,12 @@ void tiling_node_mark_workspace_dirty(struct comp_workspace *workspace) {
 	if (root) {
 		struct comp_output *output = workspace->output;
 		root->box = (struct wlr_box){
-			.width = output->usable_area.width - TILING_GAPS_OUTER * 2,
-			.height = output->usable_area.height - TILING_GAPS_OUTER * 2,
-			.x = output->usable_area.x + TILING_GAPS_OUTER,
-			.y = output->usable_area.y + TILING_GAPS_OUTER,
+			.width =
+				output->usable_area.width - server.config->tiling_gaps_outer,
+			.height =
+				output->usable_area.height - server.config->tiling_gaps_outer,
+			.x = output->usable_area.x + server.config->tiling_gaps_outer / 2,
+			.y = output->usable_area.y + server.config->tiling_gaps_outer / 2,
 		};
 		calc_size_pos_recursive(root, true);
 	}
@@ -229,8 +234,9 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 				continue;
 			}
 
-			const double SPLIT_RATIO =
-				n->parent ? n->parent->split_ratio : TILING_SPLIT_RATIO;
+			const double SPLIT_RATIO = n->parent
+										   ? n->parent->split_ratio
+										   : server.config->tiling_split_ratio;
 
 			if (n->box.width > n->box.height) {
 				pixman_region32_init_rect(&region1, n->box.x, n->box.y,
@@ -289,10 +295,12 @@ void tiling_node_add_toplevel(struct comp_toplevel *toplevel,
 		// No tiled nodes, don't split first node
 		struct comp_output *output = toplevel->workspace->output;
 		container->box = (struct wlr_box){
-			.width = output->usable_area.width - TILING_GAPS_OUTER * 2,
-			.height = output->usable_area.height - TILING_GAPS_OUTER * 2,
-			.x = output->usable_area.x + TILING_GAPS_OUTER,
-			.y = output->usable_area.y + TILING_GAPS_OUTER,
+			.width =
+				output->usable_area.width - server.config->tiling_gaps_outer,
+			.height =
+				output->usable_area.height - server.config->tiling_gaps_outer,
+			.x = output->usable_area.x + server.config->tiling_gaps_outer / 2,
+			.y = output->usable_area.y + server.config->tiling_gaps_outer / 2,
 		};
 
 		// Don't tile if the tiling container size exceeds the min/max toplevel
@@ -548,7 +556,7 @@ struct tiling_node *tiling_node_init(struct comp_workspace *ws, bool is_node) {
 	node->parent = NULL;
 	node->ws = ws;
 	node->is_node = is_node;
-	node->split_ratio = CLAMP(TILING_SPLIT_RATIO, 0.1, 1.9);
+	node->split_ratio = CLAMP(server.config->tiling_split_ratio, 0.1, 1.9);
 	node->split_vertical = false;
 	node->box = ws->output->usable_area;
 
