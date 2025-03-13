@@ -6,6 +6,8 @@ stable Wlroots release.
 
 Use at your own discretion...
 
+https://github.com/user-attachments/assets/74f2ad47-25a3-47a1-93c6-363e5fceae54
+
 Running:
 
 ```sh
