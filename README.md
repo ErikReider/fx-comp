@@ -74,6 +74,7 @@ Todo:
     - [x] alpha-modifier-v1
     - [ ] wlr-virtual-pointer-unstable-v1
     - [ ] wlr_linux_drm_sync
+    - [ ] linux-explicit-syncronization-unstable-v1
     - [x] wlr-output-power-managment
     - [ ] fractional scaling
     - [ ] tablet-v2
