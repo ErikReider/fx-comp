@@ -7,6 +7,7 @@
 
 #include "comp/animation_mgr.h"
 #include "comp/xwayland_mgr.h"
+#include "config/config.h"
 
 /* For brevity's sake, struct members are annotated where they are used. */
 enum comp_cursor_mode {
@@ -41,6 +42,8 @@ struct comp_server {
 	struct wlr_allocator *allocator;
 	struct wl_event_loop *wl_event_loop;
 	struct wlr_compositor *compositor;
+
+	struct comp_config *config;
 
 	struct wlr_scene *root_scene;
 	struct {

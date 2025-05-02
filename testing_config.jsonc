@@ -1,0 +1,164 @@
+{
+	"variables": {
+		"$terminal": "kitty",
+		// man 5 sway: /Mod4
+		"$mod": "Super",
+		"$layer-effects": {
+			"blur": {
+				"enabled": true,
+				"ignore-transparent": true
+			},
+			"shadow": {
+				"enabled": true
+			},
+			"corners": {
+				"radius": 14,
+				"round": "ALL"
+			}
+		},
+		"$swaync-layer-effects": {
+			"blur": {
+				"enabled": true,
+				"ignore-transparent": true
+			}
+		}
+	},
+	"compositor": {
+		"tiling": {
+			"split-ratio": 0.5,
+			"gaps": {
+				// Should be divided by 2
+				"inner": 12,
+				// Should be divided by 2
+				"outer": 12
+			}
+		}
+	},
+	"input-devices": {
+		"mouse": {
+
+		},
+		"trackpad": {
+			
+		}
+	},
+	"outputs": {
+		// Regex adapter name
+		"*": {
+			// Fullscreen tearing
+			"tearing": true,
+			// enum: FULLSCREEN, ALWAYS, NEVER
+			"adaptive-sync": "FULLSCREEN"
+		}
+	},
+	"gestures": {
+
+	},
+	"keymap": {
+		// Name of keymap
+		"open terminal": {
+			"keys": "$mod+Return",
+			"action": {
+				"type": "exec",
+				"command": "$term"
+			},
+			"options": {
+				// Like locked and such...
+			}
+		}
+	},
+	"appearance": {
+		"animations": {
+			"open-close": {
+				"duration-ms": 250,
+				"properites": {
+					"opacity": {
+						"easing-function": "ease-out"
+					},
+					"scale": {
+						"easing-function": "ease-out",
+						"open-end-scale": 0.5,
+						"close-start-scale": 0.5
+					}
+				}
+			},
+			"resize": {
+				"duration-ms": 250,
+				"easing-function": "ease-out",
+				"properites": {
+					"opacity": {
+						"easing-function": "ease-out"
+					},
+					"size": {
+						"easing-function": "ease-out"
+					}
+				}
+			}
+		},
+		"effects": {
+			"blur": {
+				"enabled": true,
+				"floating-xray": true,
+				"ignore-transparent": false,
+				"radius": 8,
+				"passes": 3
+			},
+			"shadow": {
+				"enabled": true,
+				"color": "#00000080",
+				"blur-sigma": 30,
+				"offset": {
+					"x": 0,
+					"y": 20
+				}
+			},
+			"corners": {
+				"radius": 14,
+				// enum:
+				//	ALL, NONE
+				//	TOP, LEFT, RIGHT, BOTTOM
+				//	TOP-LEFT, TOP-RIGHT, BOTTOM-LEFT, BOTTOM-RIGHT
+				"round": "ALL"
+			}
+		},
+		"toplevel-effects": [
+			// Regex name(appid/class), title, instance (XWayland)
+			{
+				"filter": {
+					"name": "firefox",
+					"title": "Picture-in-Picture"
+				},
+				"properites": {
+					"start-floating": true
+				},
+				"effects": {
+					"blur": {
+						"enabled": true,
+						"ignore-transparent": true
+					}
+				}
+			}
+		],
+		"layer-effects": {
+			// Regex namespace
+			"swaync-control-center": {
+				"effects": "$swaync-layer-effects"
+			},
+			"swaync-notification-window": {
+				"effects": "$swaync-layer-effects"
+			},
+			"waybar": {
+				"effects": "$layer-effects"
+			},
+			"swayosd": {
+				"effects": {
+					"blur": {
+						"enabled": true,
+						"ignore-transparent": true
+					}
+				}
+			}
+		},
+		"decorations": {}
+	}
+}
